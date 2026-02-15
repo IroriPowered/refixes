@@ -10,6 +10,18 @@
         "MixinCommandBuffer",
         "MixinGamePacketHandler",
         "MixinInteractionChain",
-        "MixinInteractionManager"
+        "MixinInteractionManager",
+        "MixinMarkerAddRemoveSystem",
+        "MixinPrefabLoader",
+        "MixinSetMemoriesCapacityInteraction",
+        "MixinTickingThread",
+        "MixinTrackedPlacementAccessor",
+        "MixinTrackedPlacementOnAddRemove",
+        "MixinUniverse",
+        "MixinUUIDSystem",
+        "MixinWorld",
+        "MixinWorldConfig",
+        "MixinWorldMapTracker",
+        "MixinWorldSpawningSystem"
     ]
 }
