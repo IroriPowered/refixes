@@ -10,7 +10,6 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.util.Config;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 public class Refixes extends JavaPlugin {
@@ -43,7 +42,7 @@ public class Refixes extends JavaPlugin {
 
         applyFix(
                 "Default world recovery",
-                () -> SanitizerConfig.get().getValue(SanitizerConfig.DEFAULT_WORLD_RECOVERY),
+                SanitizerConfig.get().getValue(SanitizerConfig.DEFAULT_WORLD_RECOVERY),
                 () -> {
                     defaultWorldRecoverySanitizer = new DefaultWorldRecoverySanitizer();
                     defaultWorldRecoverySanitizer.registerEvents(this);
@@ -55,8 +54,8 @@ public class Refixes extends JavaPlugin {
         }
     }
 
-    private void applyFix(String name, Supplier<Boolean> condition, Runnable fix) {
-        if (condition.get()) {
+    private void applyFix(String name, boolean apply, Runnable fix) {
+        if (apply) {
             try {
                 fix.run();
                 fixSummary.add("  - [x] " + name);
