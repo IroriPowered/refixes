@@ -4,6 +4,7 @@
     "Version": "${version}",
     "Website": "https://www.irori.cc/",
     "Description": "TBD",
+    "Main": "cc.irori.refixes.Refixes",
     "Authors": [
         {
             "Name": "KabanFriends",
