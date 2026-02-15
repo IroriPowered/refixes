@@ -31,8 +31,8 @@ public abstract class Configuration {
             builder.append(
                             new KeyedCodec<>(key.name(), key.field().getCodec()),
                             (config, aValue, extraInfo) ->
-                                    values.put(key, key.field().valueForStore(aValue)),
-                            (config, extraInfo) -> key.field().valueForRead(values.get(key)))
+                                    values.put(key, key.field().valueForRead(aValue)),
+                            (config, extraInfo) -> key.field().valueForStore(values.get(key)))
                     .add();
         }
         return builder.build();
