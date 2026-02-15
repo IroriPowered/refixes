@@ -2,13 +2,7 @@ package cc.irori.refixes.config.field;
 
 import com.hypixel.hytale.codec.Codec;
 
-class SimpleConfigField<T> implements ConfigField<T> {
-
-    private final Codec<T> codec;
-
-    public SimpleConfigField(Codec<T> codec) {
-        this.codec = codec;
-    }
+record SimpleConfigField<T>(Codec<T> codec) implements ConfigField<T> {
 
     @Override
     public T valueForRead(T value) {
@@ -18,10 +12,5 @@ class SimpleConfigField<T> implements ConfigField<T> {
     @Override
     public T valueForStore(T value) {
         return value;
-    }
-
-    @Override
-    public Codec<T> getCodec() {
-        return codec;
     }
 }

@@ -10,5 +10,5 @@ public interface ConfigField<T> {
 
     T valueForStore(T value);
 
-    Codec<T> getCodec();
+    Codec<T> codec();
 }
