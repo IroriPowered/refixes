@@ -5,6 +5,7 @@ import cc.irori.refixes.listener.DefaultWorldWatcher;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.TpsAdjuster;
+import cc.irori.refixes.service.ViewRadiusAdjuster;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.InteractionManagerFixSystem;
 import cc.irori.refixes.system.ProcessingBenchFixSystem;
@@ -31,6 +32,7 @@ public class Refixes extends JavaPlugin {
 
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
     private TpsAdjuster tpsAdjuster;
+    private ViewRadiusAdjuster viewRadiusAdjuster;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
@@ -53,6 +55,9 @@ public class Refixes extends JavaPlugin {
         if (tpsAdjuster != null) {
             tpsAdjuster.registerService();
         }
+        if (viewRadiusAdjuster != null) {
+            viewRadiusAdjuster.registerService();
+        }
     }
 
     @Override
@@ -62,6 +67,9 @@ public class Refixes extends JavaPlugin {
         }
         if (tpsAdjuster != null) {
             tpsAdjuster.unregisterService();
+        }
+        if (viewRadiusAdjuster != null) {
+            viewRadiusAdjuster.unregisterService();
         }
     }
 
@@ -109,6 +117,10 @@ public class Refixes extends JavaPlugin {
                 "TPS adjuster",
                 TpsAdjusterConfig.get().getValue(TpsAdjusterConfig.ENABLED),
                 () -> tpsAdjuster = new TpsAdjuster());
+        applyFix(
+                "View radius adjuster",
+                ViewRadiusAdjusterConfig.get().getValue(ViewRadiusAdjusterConfig.ENABLED),
+                () -> viewRadiusAdjuster = new ViewRadiusAdjuster());
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {
