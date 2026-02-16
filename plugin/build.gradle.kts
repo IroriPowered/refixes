@@ -10,6 +10,7 @@ base {
 
 tasks {
     shadowJar {
-        relocate("com.google.common", "cc.irori.refixes.lib.com.google.common")
+        relocate("com.google", "cc.irori.refixes.lib.com.google")
+        relocate("org.jspecify", "cc.irori.refixes.lib.org.jspecify")
     }
 }
