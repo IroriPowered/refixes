@@ -4,8 +4,10 @@ import cc.irori.refixes.config.impl.RefixesConfig;
 import cc.irori.refixes.config.impl.SanitizerConfig;
 import cc.irori.refixes.sanitizer.DefaultWorldWatcher;
 import cc.irori.refixes.sanitizer.InstancePositionTracker;
+import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.ProcessingBenchFixSystem;
 import cc.irori.refixes.system.RespawnBlockFixSystem;
+import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
@@ -63,6 +65,11 @@ public class Refixes extends JavaPlugin {
                     instancePositionTracker = new InstancePositionTracker();
                     instancePositionTracker.registerEvents(this);
                 });
+        applyFix(
+                "Crafting manager fix",
+                SanitizerConfig.get().getValue(SanitizerConfig.CRAFTING_MANAGER)
+                        && Early.isEnabledLogging("Crafting manager fix"),
+                () -> getEntityStoreRegistry().registerSystem(new CraftingManagerFixSystem()));
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {

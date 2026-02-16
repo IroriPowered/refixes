@@ -10,8 +10,7 @@ public final class Early {
     private static boolean earlyEnabled = false;
 
     // Private constructor to prevent instantiation
-    private Early() {
-    }
+    private Early() {}
 
     public static boolean isEnabled() {
         if (earlyEnabled) {

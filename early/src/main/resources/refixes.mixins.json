@@ -8,6 +8,7 @@
         "MixinBlockComponentChunk",
         "MixinBlockHealthSystem",
         "MixinCommandBuffer",
+        "MixinCraftingManagerAccessor",
         "MixinGamePacketHandler",
         "MixinInteractionChain",
         "MixinInteractionManager",
