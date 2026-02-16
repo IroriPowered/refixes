@@ -1,12 +1,10 @@
 package cc.irori.refixes;
 
-import cc.irori.refixes.config.impl.ListenerConfig;
-import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
-import cc.irori.refixes.config.impl.RefixesConfig;
-import cc.irori.refixes.config.impl.SystemConfig;
+import cc.irori.refixes.config.impl.*;
 import cc.irori.refixes.listener.DefaultWorldWatcher;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
+import cc.irori.refixes.service.TpsAdjuster;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.InteractionManagerFixSystem;
 import cc.irori.refixes.system.ProcessingBenchFixSystem;
@@ -32,6 +30,7 @@ public class Refixes extends JavaPlugin {
     private InstancePositionTracker instancePositionTracker;
 
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
+    private TpsAdjuster tpsAdjuster;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
@@ -50,6 +49,19 @@ public class Refixes extends JavaPlugin {
     protected void start() {
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.registerService();
+        }
+        if (tpsAdjuster != null) {
+            tpsAdjuster.registerService();
+        }
+    }
+
+    @Override
+    protected void shutdown() {
+        if (perPlayerHotRadiusService != null) {
+            perPlayerHotRadiusService.unregisterService();
+        }
+        if (tpsAdjuster != null) {
+            tpsAdjuster.unregisterService();
         }
     }
 
@@ -93,6 +105,10 @@ public class Refixes extends JavaPlugin {
                 "Per-player hot radius",
                 PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
+        applyFix(
+                "TPS adjuster",
+                TpsAdjusterConfig.get().getValue(TpsAdjusterConfig.ENABLED),
+                () -> tpsAdjuster = new TpsAdjuster());
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {

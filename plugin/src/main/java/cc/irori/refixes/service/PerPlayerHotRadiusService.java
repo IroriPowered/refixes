@@ -9,12 +9,14 @@ import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import java.util.List;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class PerPlayerHotRadiusService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
 
+    private ScheduledFuture<?> task;
     private int currentTargetRadius;
 
     public PerPlayerHotRadiusService() {
@@ -22,11 +24,9 @@ public class PerPlayerHotRadiusService {
     }
 
     public void registerService() {
-        LOGGER.atInfo().log("Registering PerPlayerHotRadiusService");
-
         int interval =
                 Math.max(1000, PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.CHECK_INTERVAL_MS));
-        HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
+        task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
                 () -> {
                     try {
                         checkAndAdjust();
@@ -37,6 +37,13 @@ public class PerPlayerHotRadiusService {
                 5000,
                 interval,
                 TimeUnit.MILLISECONDS);
+    }
+
+    public void unregisterService() {
+        if (task != null) {
+            task.cancel(false);
+            task = null;
+        }
     }
 
     private void checkAndAdjust() {
