@@ -8,7 +8,7 @@ Work in progress patches for Hytale server.
 ## Current Project Goals
 - [x] Port early plugin patches from Hyfixes/HyzenKernel to Mixin
 - [ ] Port main plugin patches / features if needed
-- [ ] Target Hytale Update 3
+- [x] Target Hytale Update 3
 
 ## Skipped Patches
 - Shared Instance System
