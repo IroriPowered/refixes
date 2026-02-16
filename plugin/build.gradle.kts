@@ -1,4 +1,6 @@
 dependencies {
+    compileOnly(project(":early"))
+
     compileOnly(libs.hytale)
 
     implementation(libs.guava)
