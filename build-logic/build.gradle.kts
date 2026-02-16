@@ -7,6 +7,7 @@ repositories {
 }
 
 dependencies {
+    implementation(libs.shadow)
     implementation(libs.spotless)
 }
 

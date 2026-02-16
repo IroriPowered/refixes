@@ -3,6 +3,7 @@ package cc.irori.refixes.build
 plugins {
     java
     id("com.diffplug.spotless")
+    id("com.gradleup.shadow")
 }
 
 java {
@@ -33,11 +34,15 @@ tasks {
     }
 
     compileJava {
-        dependsOn(spotlessApply)
-    }
-
-    compileJava {
         options.release.set(25)
         options.encoding = "UTF-8"
+    }
+
+    build {
+        dependsOn(spotlessApply, shadowJar)
+    }
+
+    shadowJar {
+        archiveClassifier.set("")
     }
 }

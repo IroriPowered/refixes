@@ -1,9 +1,11 @@
 [versions]
+shadow = "9.3.1"
 spotless = "8.2.1"
 hytale = "2026.02.06-aa1b071c2"
 hyxin = "7399430"
 
 [libraries]
+shadow = { group = "com.gradleup.shadow", name = "com.gradleup.shadow.gradle.plugin", version.ref = "shadow" }
 spotless = { group = "com.diffplug.spotless", name = "spotless-plugin-gradle", version.ref = "spotless" }
 hytale = { group = "com.hypixel.hytale", name = "Server", version.ref = "hytale" }
 hyxin = { group = "curse.maven", name = "hyxin-1405491", version.ref = "hyxin" }
