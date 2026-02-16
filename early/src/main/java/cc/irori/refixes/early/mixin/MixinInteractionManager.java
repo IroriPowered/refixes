@@ -51,7 +51,7 @@ public abstract class MixinInteractionManager {
         try {
             cir.setReturnValue(serverTick(ref, chain, tickTime));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("Client took too long")) {
+            if (e.getMessage() != null && e.getMessage().contains("Client took too long")) {
                 refixes$LOGGER.atWarning().withCause(e).log("InteractionManager#serverTick(): Interaction timed out");
                 cancelChains(chain);
                 cir.setReturnValue(null);
