@@ -9,6 +9,7 @@
         "MixinBlockHealthSystem",
         "MixinCommandBuffer",
         "MixinCraftingManagerAccessor",
+        "MixinFluidPlugin",
         "MixinGamePacketHandler",
         "MixinInteractionChain",
         "MixinInteractionManager",
