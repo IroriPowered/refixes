@@ -5,13 +5,15 @@ import cc.irori.refixes.config.ConfigurationKey;
 
 public class RefixesConfig extends Configuration<RefixesConfig> {
 
-    private static final ConfigurationKey<RefixesConfig, SanitizerConfig> SANITIZER_CONFIG =
-            ConfigurationKey.subConfig("SanitizerConfig", SanitizerConfig.get());
+    private static final ConfigurationKey<RefixesConfig, ListenerConfig> LISTENER_CONFIG =
+            ConfigurationKey.subConfig("Listeners", ListenerConfig.get());
+    private static final ConfigurationKey<RefixesConfig, SystemConfig> SYSTEM_CONFIG =
+            ConfigurationKey.subConfig("Systems", SystemConfig.get());
 
     private static final RefixesConfig INSTANCE = new RefixesConfig();
 
     public RefixesConfig() {
-        register(SANITIZER_CONFIG);
+        register(LISTENER_CONFIG, SYSTEM_CONFIG);
     }
 
     public static RefixesConfig get() {

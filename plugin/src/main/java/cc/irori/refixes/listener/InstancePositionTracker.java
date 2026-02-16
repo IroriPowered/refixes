@@ -1,4 +1,4 @@
-package cc.irori.refixes.sanitizer;
+package cc.irori.refixes.listener;
 
 import cc.irori.refixes.util.ECSUtil;
 import cc.irori.refixes.util.Logs;

@@ -1,9 +1,10 @@
 package cc.irori.refixes;
 
+import cc.irori.refixes.config.impl.ListenerConfig;
 import cc.irori.refixes.config.impl.RefixesConfig;
-import cc.irori.refixes.config.impl.SanitizerConfig;
-import cc.irori.refixes.sanitizer.DefaultWorldWatcher;
-import cc.irori.refixes.sanitizer.InstancePositionTracker;
+import cc.irori.refixes.config.impl.SystemConfig;
+import cc.irori.refixes.listener.DefaultWorldWatcher;
+import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.InteractionManagerFixSystem;
 import cc.irori.refixes.system.ProcessingBenchFixSystem;
@@ -47,33 +48,33 @@ public class Refixes extends JavaPlugin {
     private void registerFixes() {
         fixSummary.clear();
 
-        applyFix("Default world watcher", SanitizerConfig.get().getValue(SanitizerConfig.DEFAULT_WORLD_WATCHER), () -> {
+        applyFix("Default world watcher", ListenerConfig.get().getValue(ListenerConfig.DEFAULT_WORLD_WATCHER), () -> {
             defaultWorldWatcher = new DefaultWorldWatcher();
             defaultWorldWatcher.registerEvents(this);
         });
         applyFix(
-                "Respawn block fix",
-                SanitizerConfig.get().getValue(SanitizerConfig.RESPAWN_BLOCK),
-                () -> getChunkStoreRegistry().registerSystem(new RespawnBlockFixSystem()));
-        applyFix(
-                "Processing bench fix",
-                SanitizerConfig.get().getValue(SanitizerConfig.PROCESSING_BENCH),
-                () -> getChunkStoreRegistry().registerSystem(new ProcessingBenchFixSystem()));
-        applyFix(
                 "Instance position tracker",
-                SanitizerConfig.get().getValue(SanitizerConfig.INSTANCE_POSITION_TRACKER),
+                ListenerConfig.get().getValue(ListenerConfig.INSTANCE_POSITION_TRACKER),
                 () -> {
                     instancePositionTracker = new InstancePositionTracker();
                     instancePositionTracker.registerEvents(this);
                 });
         applyFix(
+                "Respawn block fix",
+                SystemConfig.get().getValue(SystemConfig.RESPAWN_BLOCK),
+                () -> getChunkStoreRegistry().registerSystem(new RespawnBlockFixSystem()));
+        applyFix(
+                "Processing bench fix",
+                SystemConfig.get().getValue(SystemConfig.PROCESSING_BENCH),
+                () -> getChunkStoreRegistry().registerSystem(new ProcessingBenchFixSystem()));
+        applyFix(
                 "Crafting manager fix",
-                SanitizerConfig.get().getValue(SanitizerConfig.CRAFTING_MANAGER)
+                SystemConfig.get().getValue(SystemConfig.CRAFTING_MANAGER)
                         && Early.isEnabledLogging("Crafting manager fix"),
                 () -> getEntityStoreRegistry().registerSystem(new CraftingManagerFixSystem()));
         applyFix(
                 "Interaction manager fix",
-                SanitizerConfig.get().getValue(SanitizerConfig.INTERACTION_MANAGER),
+                SystemConfig.get().getValue(SystemConfig.INTERACTION_MANAGER),
                 () -> getEntityStoreRegistry().registerSystem(new InteractionManagerFixSystem()));
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
