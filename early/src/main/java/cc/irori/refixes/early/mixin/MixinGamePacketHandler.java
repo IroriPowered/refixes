@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MixinGamePacketHandler {
 
     @Shadow
-    protected abstract void lambda$handle$1(Ref<?> ref, Store<?> store, ClientMovement packet);
+    protected abstract void lambda$handle$0(Ref<?> ref, Store<?> store, ClientMovement packet);
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
@@ -25,7 +25,7 @@ public abstract class MixinGamePacketHandler {
     @Unique
     private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
 
-    @Inject(method = "lambda$handle$1", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "lambda$handle$0", at = @At("HEAD"), cancellable = true)
     private void refixes$wrapClientMovementHandler(Ref<?> ref, Store<?> store, ClientMovement packet, CallbackInfo ci) {
         if (refixes$WRAPPING.get()) {
             // Run the original method
@@ -35,7 +35,7 @@ public abstract class MixinGamePacketHandler {
         ci.cancel();
         refixes$WRAPPING.set(true);
         try {
-            lambda$handle$1(ref, store, packet);
+            lambda$handle$0(ref, store, packet);
         } catch (NullPointerException e) {
             refixes$LOGGER.atWarning().withCause(e).log("GamePacketHandler#handle(ClientMovement): Failed to run");
         } finally {
