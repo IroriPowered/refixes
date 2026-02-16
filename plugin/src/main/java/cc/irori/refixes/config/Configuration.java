@@ -2,7 +2,6 @@ package cc.irori.refixes.config;
 
 import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
