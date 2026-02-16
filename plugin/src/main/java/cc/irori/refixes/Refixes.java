@@ -3,6 +3,7 @@ package cc.irori.refixes;
 import cc.irori.refixes.config.impl.RefixesConfig;
 import cc.irori.refixes.config.impl.SanitizerConfig;
 import cc.irori.refixes.sanitizer.DefaultWorldWatcher;
+import cc.irori.refixes.system.ProcessingBenchFixSystem;
 import cc.irori.refixes.system.RespawnBlockFixSystem;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -49,6 +50,10 @@ public class Refixes extends JavaPlugin {
                 "Respawn block fix",
                 SanitizerConfig.get().getValue(SanitizerConfig.RESPAWN_BLOCK),
                 () -> getChunkStoreRegistry().registerSystem(new RespawnBlockFixSystem()));
+        applyFix(
+                "Processing bench fix",
+                SanitizerConfig.get().getValue(SanitizerConfig.PROCESSING_BENCH),
+                () -> getChunkStoreRegistry().registerSystem(new ProcessingBenchFixSystem()));
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {

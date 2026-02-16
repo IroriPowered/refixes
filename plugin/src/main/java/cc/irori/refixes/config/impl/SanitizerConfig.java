@@ -10,11 +10,13 @@ public class SanitizerConfig extends Configuration<SanitizerConfig> {
             new ConfigurationKey<>("DefaultWorldWatcher", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<SanitizerConfig, Boolean> RESPAWN_BLOCK =
             new ConfigurationKey<>("RespawnBlock", ConfigField.BOOLEAN, true);
+    public static final ConfigurationKey<SanitizerConfig, Boolean> PROCESSING_BENCH =
+            new ConfigurationKey<>("ProcessingBench", ConfigField.BOOLEAN, true);
 
     private static final SanitizerConfig INSTANCE = new SanitizerConfig();
 
     public SanitizerConfig() {
-        register(DEFAULT_WORLD_WATCHER, RESPAWN_BLOCK);
+        register(DEFAULT_WORLD_WATCHER, RESPAWN_BLOCK, PROCESSING_BENCH);
     }
 
     public static SanitizerConfig get() {
