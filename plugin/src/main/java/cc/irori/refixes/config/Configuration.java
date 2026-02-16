@@ -3,11 +3,12 @@ package cc.irori.refixes.config;
 import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public abstract class Configuration<C extends Configuration<?>> {
 
-    private final Map<ConfigurationKey<?, Object>, Object> values = new HashMap<>();
+    private final Map<ConfigurationKey<?, Object>, Object> values = new LinkedHashMap<>();
 
     @SuppressWarnings("unchecked")
     protected final <T> void register(ConfigurationKey<C, T> key) {
