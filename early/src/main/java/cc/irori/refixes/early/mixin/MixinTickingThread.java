@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-//Replaces deprecated Thread.stop() with Thread.interrupt() on Java 21+
+// Replaces deprecated Thread.stop() with Thread.interrupt() on Java 21+
 
 @Mixin(TickingThread.class)
 public class MixinTickingThread {
@@ -51,7 +51,7 @@ public class MixinTickingThread {
         }
     }
 
-    //Replaces the pure spin-wait in the tick loop with a hybrid spin approach
+    // Replaces the pure spin-wait in the tick loop with a hybrid spin approach
     @Redirect(method = "run", at = @At(value = "INVOKE", target = "Ljava/lang/Thread;onSpinWait()V"))
     private void refixes$hybridWait() {
         if (!refixes$SLEEP_OPT_ENABLED) {
