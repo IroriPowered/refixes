@@ -22,6 +22,9 @@ public final class EarlyOptions {
     public static final Value<Boolean> KDTREE_OPTIMIZATION_THROTTLE = new Value<>();
     public static final Value<Integer> KDTREE_OPTIMIZATION_REBUILD_INTERVAL = new Value<>();
 
+    /* Shared Instances */
+    public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 
