@@ -86,9 +86,15 @@ public class Refixes extends JavaPlugin {
 
     private void registerEarlyOptions() {
         EarlyConfig config = EarlyConfig.get();
+        CylinderVisibilityConfig cylinderVisibilityConfig = CylinderVisibilityConfig.get();
 
         EarlyOptions.DISABLE_FLUID_PRE_PROCESS.setSupplier(
                 () -> config.getValue(EarlyConfig.DISABLE_FLUID_PRE_PROCESS));
+
+        EarlyOptions.CYLINDER_VISIBILITY_ENABLED.setSupplier(
+                () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.ENABLED));
+        EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.setSupplier(
+                () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.HEIGHT_MULTIPLIER));
 
         EarlyOptions.setAvailable(true);
 

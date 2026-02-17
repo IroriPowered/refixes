@@ -9,6 +9,10 @@ public final class EarlyOptions {
     /* Fluid Pre-processing */
     public static final Value<Boolean> DISABLE_FLUID_PRE_PROCESS = new Value<>();
 
+    /* Cylinder Visibility */
+    public static final Value<Boolean> CYLINDER_VISIBILITY_ENABLED = new Value<>();
+    public static final Value<Double> CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 

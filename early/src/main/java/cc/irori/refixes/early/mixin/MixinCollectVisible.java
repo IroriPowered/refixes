@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
@@ -30,20 +31,6 @@ public abstract class MixinCollectVisible {
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
-    @Unique
-    private static final boolean refixes$ENABLED =
-            Boolean.parseBoolean(System.getProperty("refixes.cylinderVisibility", "true"));
-
-    @Unique
-    private static final double refixes$HEIGHT_MULTIPLIER =
-            Double.parseDouble(System.getProperty("refixes.cylinderVisibilityHeightMultiplier", "2.0"));
-
-    static {
-        refixes$LOGGER.atInfo().log(
-                "CollectVisible cylinder optimization: %s (heightMultiplier=%.1f)",
-                refixes$ENABLED ? "ENABLED" : "DISABLED", refixes$HEIGHT_MULTIPLIER);
-    }
-
     // Use cylindrical query instead of spherical for entity visibility collection
     @Overwrite
     public void tick(
@@ -67,9 +54,9 @@ public abstract class MixinCollectVisible {
 
         ObjectList<Ref<EntityStore>> results = SpatialResource.getThreadLocalReferenceList();
 
-        if (refixes$ENABLED) {
+        if (EarlyOptions.isAvailable() && EarlyOptions.CYLINDER_VISIBILITY_ENABLED.get()) {
             double radius = entityViewerComponent.viewRadiusBlocks;
-            double height = radius * refixes$HEIGHT_MULTIPLIER;
+            double height = radius * EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.get();
             spatialStructure.collectCylinder(position, radius, height, results);
         } else {
             spatialStructure.collect(position, entityViewerComponent.viewRadiusBlocks, results);
