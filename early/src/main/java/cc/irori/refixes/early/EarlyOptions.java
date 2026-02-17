@@ -19,6 +19,8 @@ public final class EarlyOptions {
     /* KDTree Optimization */
     public static final Value<Boolean> KDTREE_OPTIMIZATION_OPTIMIZE_SORT = new Value<>();
     public static final Value<Integer> KDTREE_OPTIMIZATION_THRESHOLD = new Value<>();
+    public static final Value<Boolean> KDTREE_OPTIMIZATION_THROTTLE = new Value<>();
+    public static final Value<Integer> KDTREE_OPTIMIZATION_REBUILD_INTERVAL = new Value<>();
 
     // Private constructor to prevent instantiation
     private EarlyOptions() {}

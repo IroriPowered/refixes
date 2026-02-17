@@ -102,6 +102,10 @@ public class Refixes extends JavaPlugin {
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.OPTIMIZE_KDTREE_SORT));
         EarlyOptions.KDTREE_OPTIMIZATION_THRESHOLD.setSupplier(
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_FAST_SORT_THRESHOLD));
+        EarlyOptions.KDTREE_OPTIMIZATION_THROTTLE.setSupplier(
+                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_SYSTEM_THROTTLE));
+        EarlyOptions.KDTREE_OPTIMIZATION_REBUILD_INTERVAL.setSupplier(
+                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_SYSTEM_REBUILD_INTERVAL));
 
         EarlyOptions.setAvailable(true);
 
