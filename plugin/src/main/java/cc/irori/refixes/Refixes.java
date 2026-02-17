@@ -98,8 +98,8 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.setSupplier(
                 () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.HEIGHT_MULTIPLIER));
 
-        EarlyOptions.KDTREE_OPTIMIZATION_ENABLED.setSupplier(
-                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.ENABLED));
+        EarlyOptions.KDTREE_OPTIMIZATION_OPTIMIZE_SORT.setSupplier(
+                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.OPTIMIZE_KDTREE_SORT));
         EarlyOptions.KDTREE_OPTIMIZATION_THRESHOLD.setSupplier(
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_FAST_SORT_THRESHOLD));
 

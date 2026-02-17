@@ -20,7 +20,7 @@ public class MixinKDTree {
             at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/component/spatial/SpatialData;sortMorton()V"))
     private void refixes$fastSort(SpatialData<?> spatialData) {
         if (EarlyOptions.isAvailable()
-                && EarlyOptions.KDTREE_OPTIMIZATION_ENABLED.get()
+                && EarlyOptions.KDTREE_OPTIMIZATION_OPTIMIZE_SORT.get()
                 && spatialData.size() < EarlyOptions.KDTREE_OPTIMIZATION_THRESHOLD.get()) {
             spatialData.sort();
         } else {

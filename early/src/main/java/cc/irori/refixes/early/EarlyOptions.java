@@ -17,7 +17,7 @@ public final class EarlyOptions {
     public static final Value<Boolean> PARALLEL_ENTITY_TICKING = new Value<>();
 
     /* KDTree Optimization */
-    public static final Value<Boolean> KDTREE_OPTIMIZATION_ENABLED = new Value<>();
+    public static final Value<Boolean> KDTREE_OPTIMIZATION_OPTIMIZE_SORT = new Value<>();
     public static final Value<Integer> KDTREE_OPTIMIZATION_THRESHOLD = new Value<>();
 
     // Private constructor to prevent instantiation
