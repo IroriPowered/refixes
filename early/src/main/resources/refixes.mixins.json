@@ -21,6 +21,7 @@
         "MixinKDTree",
         "MixinMarkerAddRemoveSystem",
         "MixinPortalDeviceSummonPage",
+        "MixinPortalWorldAccessor",
         "MixinPrefabLoader",
         "MixinRemovalSystem",
         "MixinSetMemoriesCapacityInteraction",

@@ -5,13 +5,11 @@ import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
 import cc.irori.refixes.listener.DefaultWorldWatcher;
 import cc.irori.refixes.listener.InstancePositionTracker;
+import cc.irori.refixes.listener.SharedInstanceBootUnloader;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.TpsAdjuster;
 import cc.irori.refixes.service.ViewRadiusAdjuster;
-import cc.irori.refixes.system.CraftingManagerFixSystem;
-import cc.irori.refixes.system.InteractionManagerFixSystem;
-import cc.irori.refixes.system.ProcessingBenchFixSystem;
-import cc.irori.refixes.system.RespawnBlockFixSystem;
+import cc.irori.refixes.system.*;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -31,6 +29,7 @@ public class Refixes extends JavaPlugin {
 
     private DefaultWorldWatcher defaultWorldWatcher;
     private InstancePositionTracker instancePositionTracker;
+    private SharedInstanceBootUnloader sharedInstanceBootUnloader;
 
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
     private TpsAdjuster tpsAdjuster;
@@ -88,6 +87,7 @@ public class Refixes extends JavaPlugin {
         EarlyConfig config = EarlyConfig.get();
         CylinderVisibilityConfig cylinderVisibilityConfig = CylinderVisibilityConfig.get();
         KDTreeOptimizationConfig kdTreeOptimizationConfig = KDTreeOptimizationConfig.get();
+        SharedInstanceConfig sharedInstanceConfig = SharedInstanceConfig.get();
 
         EarlyOptions.DISABLE_FLUID_PRE_PROCESS.setSupplier(
                 () -> config.getValue(EarlyConfig.DISABLE_FLUID_PRE_PROCESS));
@@ -106,6 +106,11 @@ public class Refixes extends JavaPlugin {
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_SYSTEM_THROTTLE));
         EarlyOptions.KDTREE_OPTIMIZATION_REBUILD_INTERVAL.setSupplier(
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_SYSTEM_REBUILD_INTERVAL));
+
+        EarlyOptions.SHARED_INSTANCES_ENABLED.setSupplier(
+                () -> sharedInstanceConfig.getValue(SharedInstanceConfig.ENABLED));
+        EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.setSupplier(
+                () -> sharedInstanceConfig.getValue(SharedInstanceConfig.EXCLUDED_PREFIXES));
 
         EarlyOptions.setAvailable(true);
 
@@ -164,6 +169,16 @@ public class Refixes extends JavaPlugin {
                 "View radius adjuster",
                 ViewRadiusAdjusterConfig.get().getValue(ViewRadiusAdjusterConfig.ENABLED),
                 () -> viewRadiusAdjuster = new ViewRadiusAdjuster());
+
+        applyFix(
+                "Shared instance worlds",
+                SharedInstanceConfig.get().getValue(SharedInstanceConfig.ENABLED)
+                        && Early.isEnabledLogging("Shared instance worlds"),
+                () -> {
+                    getChunkStoreRegistry().registerSystem(new SharedInstancePersistenceSystem());
+                    sharedInstanceBootUnloader = new SharedInstanceBootUnloader();
+                    sharedInstanceBootUnloader.registerEvents(this);
+                });
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {

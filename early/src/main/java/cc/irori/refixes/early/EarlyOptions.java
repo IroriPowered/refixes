@@ -24,6 +24,7 @@ public final class EarlyOptions {
 
     /* Shared Instances */
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
+    public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>();
 
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
