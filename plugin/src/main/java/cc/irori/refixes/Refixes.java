@@ -88,10 +88,12 @@ public class Refixes extends JavaPlugin {
         CylinderVisibilityConfig cylinderVisibilityConfig = CylinderVisibilityConfig.get();
         KDTreeOptimizationConfig kdTreeOptimizationConfig = KDTreeOptimizationConfig.get();
         SharedInstanceConfig sharedInstanceConfig = SharedInstanceConfig.get();
+        ExperimentalConfig experimentalConfig = ExperimentalConfig.get();
 
         EarlyOptions.DISABLE_FLUID_PRE_PROCESS.setSupplier(
                 () -> config.getValue(EarlyConfig.DISABLE_FLUID_PRE_PROCESS));
-        EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(() -> config.getValue(EarlyConfig.PARALLEL_ENTITY_TICKING));
+        EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
+                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
 
         EarlyOptions.CYLINDER_VISIBILITY_ENABLED.setSupplier(
                 () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.ENABLED));

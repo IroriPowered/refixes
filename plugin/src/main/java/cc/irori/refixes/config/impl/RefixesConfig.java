@@ -15,11 +15,19 @@ public class RefixesConfig extends Configuration<RefixesConfig> {
             ConfigurationKey.subConfig("Services", ServiceConfig.get());
     private static final ConfigurationKey<RefixesConfig, SharedInstanceConfig> SHARED_INSTANCE_CONFIG =
             ConfigurationKey.subConfig("SharedInstanceWorlds", SharedInstanceConfig.get());
+    private static final ConfigurationKey<RefixesConfig, ExperimentalConfig> EXPERIMENTAL_CONFIG =
+            ConfigurationKey.subConfig("Experimental", ExperimentalConfig.get());
 
     private static final RefixesConfig INSTANCE = new RefixesConfig();
 
     public RefixesConfig() {
-        register(EARLY_CONFIG, LISTENER_CONFIG, SYSTEM_CONFIG, SERVICE_CONFIG, SHARED_INSTANCE_CONFIG);
+        register(
+                EARLY_CONFIG,
+                LISTENER_CONFIG,
+                SYSTEM_CONFIG,
+                SERVICE_CONFIG,
+                SHARED_INSTANCE_CONFIG,
+                EXPERIMENTAL_CONFIG);
     }
 
     public static RefixesConfig get() {

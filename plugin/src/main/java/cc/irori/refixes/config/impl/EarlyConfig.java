@@ -15,8 +15,6 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
 
     public static final ConfigurationKey<EarlyConfig, Boolean> DISABLE_FLUID_PRE_PROCESS =
             new ConfigurationKey<>("DisableFluidPreProcess", ConfigField.BOOLEAN, true);
-    public static final ConfigurationKey<EarlyConfig, Boolean> PARALLEL_ENTITY_TICKING =
-            new ConfigurationKey<>("ParallelEntityTicking", ConfigField.BOOLEAN, false);
 
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
@@ -25,8 +23,7 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 TICK_SLEEP_OPTIMIZATION_CONFIG,
                 CYLINDER_VISIBILITY_CONFIG,
                 KDTREE_OPTIMIZATION_CONFIG,
-                DISABLE_FLUID_PRE_PROCESS,
-                PARALLEL_ENTITY_TICKING);
+                DISABLE_FLUID_PRE_PROCESS);
     }
 
     public static EarlyConfig get() {
