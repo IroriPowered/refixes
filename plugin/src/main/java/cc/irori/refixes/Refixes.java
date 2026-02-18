@@ -3,10 +3,10 @@ package cc.irori.refixes;
 import cc.irori.refixes.config.impl.*;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
-import cc.irori.refixes.listener.DefaultWorldWatcher;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
+import cc.irori.refixes.service.WatchdogService;
 import cc.irori.refixes.system.*;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
@@ -25,11 +25,11 @@ public class Refixes extends JavaPlugin {
     private final Config<RefixesConfig> config;
     private final List<String> fixSummary = new ArrayList<>();
 
-    private DefaultWorldWatcher defaultWorldWatcher;
     private InstancePositionTracker instancePositionTracker;
     private SharedInstanceBootUnloader sharedInstanceBootUnloader;
 
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
+    private WatchdogService watchdogService;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
@@ -58,12 +58,18 @@ public class Refixes extends JavaPlugin {
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.registerService();
         }
+        if (watchdogService != null) {
+            watchdogService.registerService();
+        }
     }
 
     @Override
     protected void shutdown() {
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.unregisterService();
+        }
+        if (watchdogService != null) {
+            watchdogService.unregisterService();
         }
     }
 
@@ -107,10 +113,6 @@ public class Refixes extends JavaPlugin {
         fixSummary.clear();
 
         // Listeners
-        applyFix("Default world watcher", ListenerConfig.get().getValue(ListenerConfig.DEFAULT_WORLD_WATCHER), () -> {
-            defaultWorldWatcher = new DefaultWorldWatcher();
-            defaultWorldWatcher.registerEvents(this);
-        });
         applyFix(
                 "Instance position tracker",
                 ListenerConfig.get().getValue(ListenerConfig.INSTANCE_POSITION_TRACKER),
@@ -143,6 +145,10 @@ public class Refixes extends JavaPlugin {
                 "Per-player hot radius",
                 PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
+        applyFix(
+                "Server watchdog",
+                WatchdogConfig.get().getValue(WatchdogConfig.ENABLED),
+                () -> watchdogService = new WatchdogService());
 
         applyFix(
                 "Shared instance worlds",
