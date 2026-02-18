@@ -1,10 +1,15 @@
 package cc.irori.refixes.system;
 
-import cc.irori.refixes.util.Logs;
-import com.hypixel.hytale.component.*;
+import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
+import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+
+import com.hypixel.hytale.component.AddReason;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.RemoveReason;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
-import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.BlockEntity;
 import com.hypixel.hytale.server.core.entity.entities.Player;
@@ -14,23 +19,19 @@ import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.modules.projectile.component.Projectile;
 import com.hypixel.hytale.server.core.modules.time.TimeResource;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+
+import cc.irori.refixes.config.impl.EntityDespawnTimerConfig;
 
 /**
  * Ensures dropped items, block entities and projectiles have a DespawnComponent.
  *
+ * Default timers (configurable via EntityDespawnTimerConfig):
  * Items → 5 minutes
  * Block entities → 5 minutes
  * Projectiles → 1 minute
  * All other entity types are left untouched.
  */
 public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
-
-    private static final HytaleLogger LOGGER = Logs.logger();
-    private static final int ITEM_DESPAWN_SECONDS = 300;
-    private static final int BLOCK_ENTITY_DESPAWN_SECONDS = 300;
-    private static final int PROJECTILE_DESPAWN_SECONDS = 60;
 
     @Override
     public void onEntityAdded(
@@ -68,17 +69,19 @@ public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
     }
 
     private int resolveTimerSeconds(Store<EntityStore> store, Ref<EntityStore> ref) {
+        EntityDespawnTimerConfig config = EntityDespawnTimerConfig.get();
+
         if (store.getComponent(ref, ItemComponent.getComponentType()) != null) {
-            return ITEM_DESPAWN_SECONDS;
+            return config.getValue(EntityDespawnTimerConfig.ITEM_DESPAWN_SECONDS);
         }
 
         if (store.getComponent(ref, BlockEntity.getComponentType()) != null) {
-            return BLOCK_ENTITY_DESPAWN_SECONDS;
+            return config.getValue(EntityDespawnTimerConfig.BLOCK_ENTITY_DESPAWN_SECONDS);
         }
 
         if (store.getComponent(ref, ProjectileComponent.getComponentType()) != null
                 || store.getComponent(ref, Projectile.getComponentType()) != null) {
-            return PROJECTILE_DESPAWN_SECONDS;
+            return config.getValue(EntityDespawnTimerConfig.PROJECTILE_DESPAWN_SECONDS);
         }
 
         return -1;
@@ -98,3 +101,4 @@ public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
         return UUIDComponent.getComponentType();
     }
 }
+
