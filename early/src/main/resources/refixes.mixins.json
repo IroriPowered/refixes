@@ -25,7 +25,6 @@
         "MixinPrefabLoader",
         "MixinRemovalSystem",
         "MixinSetMemoriesCapacityInteraction",
-        "MixinSpatialSystem",
         "MixinStore",
         "MixinTickingThread",
         "MixinTrackedPlacementAccessor",
