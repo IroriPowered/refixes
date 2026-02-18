@@ -26,6 +26,7 @@
         "MixinRemovalSystem",
         "MixinSetMemoriesCapacityInteraction",
         "MixinStore",
+        "MixinTickingSpawnMarkerSystem",
         "MixinTickingThread",
         "MixinTrackedPlacementAccessor",
         "MixinTrackedPlacementOnAddRemove",
