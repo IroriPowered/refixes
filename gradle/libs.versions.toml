@@ -1,7 +1,7 @@
 [versions]
 shadow = "9.3.1"
 spotless = "8.2.1"
-hytale = "2026.02.17-255364b8e"
+hytale = "2026.02.18-f3b8fff95"
 hyxin = "7399430"
 guava = "33.5.0-jre"
 

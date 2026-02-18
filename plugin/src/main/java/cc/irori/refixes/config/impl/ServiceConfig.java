@@ -9,10 +9,6 @@ public class ServiceConfig extends Configuration<ServiceConfig> {
             ConfigurationKey.subConfig("ChunkUnloader", ChunkUnloaderConfig.get());
     private static final ConfigurationKey<ServiceConfig, PerPlayerHotRadiusConfig> PER_PLAYER_RADIUS_CONFIG =
             ConfigurationKey.subConfig("PerPlayerHotRadius", PerPlayerHotRadiusConfig.get());
-    private static final ConfigurationKey<ServiceConfig, TpsAdjusterConfig> TPS_ADJUSTER_CONFIG =
-            ConfigurationKey.subConfig("TpsAdjuster", TpsAdjusterConfig.get());
-    private static final ConfigurationKey<ServiceConfig, ViewRadiusAdjusterConfig> VIEW_RADIUS_ADJUSTER_CONFIG =
-            ConfigurationKey.subConfig("ViewRadiusAdjuster", ViewRadiusAdjusterConfig.get());
     private static final ConfigurationKey<ServiceConfig, IdlePlayerHandlerConfig> IDLE_PLAYER_HANDLER_CONFIG =
             ConfigurationKey.subConfig("IdlePlayerHandler", IdlePlayerHandlerConfig.get());
     private static final ConfigurationKey<ServiceConfig, AiTickThrottlerConfig> AI_TICK_THROTTLER_CONFIG =
@@ -24,8 +20,6 @@ public class ServiceConfig extends Configuration<ServiceConfig> {
         register(
                 CHUNK_UNLOADER_CONFIG,
                 PER_PLAYER_RADIUS_CONFIG,
-                TPS_ADJUSTER_CONFIG,
-                VIEW_RADIUS_ADJUSTER_CONFIG,
                 IDLE_PLAYER_HANDLER_CONFIG,
                 AI_TICK_THROTTLER_CONFIG);
     }

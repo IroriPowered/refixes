@@ -1,22 +1,45 @@
 package cc.irori.refixes;
 
-import cc.irori.refixes.config.impl.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
+
+import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
+import com.hypixel.hytale.server.core.util.Config;
+
+import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
+import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
+import cc.irori.refixes.config.impl.CylinderVisibilityConfig;
+import cc.irori.refixes.config.impl.EarlyConfig;
+import cc.irori.refixes.config.impl.ExperimentalConfig;
+import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
+import cc.irori.refixes.config.impl.KDTreeOptimizationConfig;
+import cc.irori.refixes.config.impl.ListenerConfig;
+import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
+import cc.irori.refixes.config.impl.RefixesConfig;
+import cc.irori.refixes.config.impl.SharedInstanceConfig;
+import cc.irori.refixes.config.impl.SystemConfig;
+import cc.irori.refixes.config.impl.TickSleepOptimizationConfig;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
 import cc.irori.refixes.listener.DefaultWorldWatcher;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
-import cc.irori.refixes.service.*;
-import cc.irori.refixes.system.*;
+import cc.irori.refixes.service.ActiveChunkUnloader;
+import cc.irori.refixes.service.AiTickThrottlerService;
+import cc.irori.refixes.service.IdlePlayerService;
+import cc.irori.refixes.service.PerPlayerHotRadiusService;
+import cc.irori.refixes.system.CraftingManagerFixSystem;
+import cc.irori.refixes.system.EntityDespawnTimerSystem;
+import cc.irori.refixes.system.InteractionManagerFixSystem;
+import cc.irori.refixes.system.ProcessingBenchFixSystem;
+import cc.irori.refixes.system.RespawnBlockFixSystem;
+import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
-import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.plugin.JavaPlugin;
-import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
-import com.hypixel.hytale.server.core.util.Config;
-import java.util.ArrayList;
-import java.util.List;
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 public class Refixes extends JavaPlugin {
 
@@ -31,8 +54,7 @@ public class Refixes extends JavaPlugin {
 
     private ActiveChunkUnloader activeChunkUnloader;
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
-    private TpsAdjuster tpsAdjuster;
-    private ViewRadiusAdjuster viewRadiusAdjuster;
+
     private IdlePlayerService idlePlayerService;
     private AiTickThrottlerService aiTickThrottler;
 
@@ -66,12 +88,7 @@ public class Refixes extends JavaPlugin {
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.registerService();
         }
-        if (tpsAdjuster != null) {
-            tpsAdjuster.registerService();
-        }
-        if (viewRadiusAdjuster != null) {
-            viewRadiusAdjuster.registerService();
-        }
+
         if (idlePlayerService != null) {
             idlePlayerService.registerService();
         }
@@ -88,12 +105,7 @@ public class Refixes extends JavaPlugin {
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.unregisterService();
         }
-        if (tpsAdjuster != null) {
-            tpsAdjuster.unregisterService();
-        }
-        if (viewRadiusAdjuster != null) {
-            viewRadiusAdjuster.unregisterService();
-        }
+
         if (idlePlayerService != null) {
             idlePlayerService.unregisterService();
         }
@@ -190,14 +202,7 @@ public class Refixes extends JavaPlugin {
                 "Per-player hot radius",
                 PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
-        applyFix(
-                "TPS adjuster",
-                TpsAdjusterConfig.get().getValue(TpsAdjusterConfig.ENABLED),
-                () -> tpsAdjuster = new TpsAdjuster());
-        applyFix(
-                "View radius adjuster",
-                ViewRadiusAdjusterConfig.get().getValue(ViewRadiusAdjusterConfig.ENABLED),
-                () -> viewRadiusAdjuster = new ViewRadiusAdjuster());
+
         applyFix(
                 "Idle player handler",
                 IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.ENABLED),
