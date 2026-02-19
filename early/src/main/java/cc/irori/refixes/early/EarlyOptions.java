@@ -9,6 +9,9 @@ public final class EarlyOptions {
     /* Fluid Pre-processing */
     public static final Value<Boolean> DISABLE_FLUID_PRE_PROCESS = new Value<>();
 
+    /* Block Pre-processing */
+    public static final Value<Boolean> ASYNC_BLOCK_PRE_PROCESS = new Value<>();
+
     /* Cylinder Visibility */
     public static final Value<Boolean> CYLINDER_VISIBILITY_ENABLED = new Value<>();
     public static final Value<Double> CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER = new Value<>();
@@ -16,11 +19,13 @@ public final class EarlyOptions {
     /* Parallel Entity Ticking */
     public static final Value<Boolean> PARALLEL_ENTITY_TICKING = new Value<>();
 
+    /* ChunkTracker Rate Limits */
+    public static final Value<Integer> MAX_CHUNKS_PER_SECOND = new Value<>();
+    public static final Value<Integer> MAX_CHUNKS_PER_TICK = new Value<>();
+
     /* KDTree Optimization */
     public static final Value<Boolean> KDTREE_OPTIMIZATION_OPTIMIZE_SORT = new Value<>();
     public static final Value<Integer> KDTREE_OPTIMIZATION_THRESHOLD = new Value<>();
-    public static final Value<Boolean> KDTREE_OPTIMIZATION_THROTTLE = new Value<>();
-    public static final Value<Integer> KDTREE_OPTIMIZATION_REBUILD_INTERVAL = new Value<>();
 
     /* Shared Instances */
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();

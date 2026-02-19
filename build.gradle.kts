@@ -34,16 +34,16 @@ tasks {
     }
 
     register<Copy>("collectEarlyJar") {
-        dependsOn("copyBundleManifest")
-        val task = project(":early").tasks.named("shadowJar")
-        from(task)
+        val shadowJarTask = project(":early").tasks.named<Jar>("shadowJar")
+        dependsOn("copyBundleManifest", shadowJarTask, project(":early").tasks.named("jar"))
+        from(shadowJarTask.flatMap { it.archiveFile })
         into(layout.buildDirectory.dir("bundle/earlyplugins"))
     }
 
     register<Copy>("collectMainJar") {
-        dependsOn("copyBundleManifest")
-        val task = project(":plugin").tasks.named("shadowJar")
-        from(task)
+        val shadowJarTask = project(":plugin").tasks.named<Jar>("shadowJar")
+        dependsOn("copyBundleManifest", shadowJarTask, project(":plugin").tasks.named("jar"))
+        from(shadowJarTask.flatMap { it.archiveFile })
         into(layout.buildDirectory.dir("bundle/mods"))
     }
 
