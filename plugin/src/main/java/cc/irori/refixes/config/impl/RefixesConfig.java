@@ -15,6 +15,8 @@ public class RefixesConfig extends Configuration<RefixesConfig> {
             ConfigurationKey.subConfig("Services", ServiceConfig.get());
     private static final ConfigurationKey<RefixesConfig, SharedInstanceConfig> SHARED_INSTANCE_CONFIG =
             ConfigurationKey.subConfig("SharedInstanceWorlds", SharedInstanceConfig.get());
+    private static final ConfigurationKey<RefixesConfig, WatchdogConfig> WATCHDOG_CONFIG =
+            ConfigurationKey.subConfig("Watchdog", WatchdogConfig.get());
     private static final ConfigurationKey<RefixesConfig, ExperimentalConfig> EXPERIMENTAL_CONFIG =
             ConfigurationKey.subConfig("Experimental", ExperimentalConfig.get());
 
@@ -27,6 +29,7 @@ public class RefixesConfig extends Configuration<RefixesConfig> {
                 SYSTEM_CONFIG,
                 SERVICE_CONFIG,
                 SHARED_INSTANCE_CONFIG,
+                WATCHDOG_CONFIG,
                 EXPERIMENTAL_CONFIG);
     }
 

@@ -23,15 +23,16 @@ import cc.irori.refixes.config.impl.RefixesConfig;
 import cc.irori.refixes.config.impl.SharedInstanceConfig;
 import cc.irori.refixes.config.impl.SystemConfig;
 import cc.irori.refixes.config.impl.TickSleepOptimizationConfig;
+import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
-import cc.irori.refixes.listener.DefaultWorldWatcher;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
 import cc.irori.refixes.service.ActiveChunkUnloader;
 import cc.irori.refixes.service.AiTickThrottlerService;
 import cc.irori.refixes.service.IdlePlayerService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
+import cc.irori.refixes.service.WatchdogService;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.EntityDespawnTimerSystem;
 import cc.irori.refixes.system.InteractionManagerFixSystem;
@@ -48,12 +49,12 @@ public class Refixes extends JavaPlugin {
     private final Config<RefixesConfig> config;
     private final List<String> fixSummary = new ArrayList<>();
 
-    private DefaultWorldWatcher defaultWorldWatcher;
     private InstancePositionTracker instancePositionTracker;
     private SharedInstanceBootUnloader sharedInstanceBootUnloader;
 
     private ActiveChunkUnloader activeChunkUnloader;
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
+    private WatchdogService watchdogService;
 
     private IdlePlayerService idlePlayerService;
     private AiTickThrottlerService aiTickThrottler;
@@ -95,6 +96,9 @@ public class Refixes extends JavaPlugin {
         if (aiTickThrottler != null) {
             aiTickThrottler.registerService();
         }
+        if (watchdogService != null) {
+            watchdogService.registerService();
+        }
     }
 
     @Override
@@ -111,6 +115,9 @@ public class Refixes extends JavaPlugin {
         }
         if (aiTickThrottler != null) {
             aiTickThrottler.unregisterService();
+        }
+        if (watchdogService != null) {
+            watchdogService.unregisterService();
         }
     }
 
@@ -158,10 +165,6 @@ public class Refixes extends JavaPlugin {
         fixSummary.clear();
 
         // Listeners
-        applyFix("Default world watcher", ListenerConfig.get().getValue(ListenerConfig.DEFAULT_WORLD_WATCHER), () -> {
-            defaultWorldWatcher = new DefaultWorldWatcher();
-            defaultWorldWatcher.registerEvents(this);
-        });
         applyFix(
                 "Instance position tracker",
                 ListenerConfig.get().getValue(ListenerConfig.INSTANCE_POSITION_TRACKER),
@@ -202,6 +205,10 @@ public class Refixes extends JavaPlugin {
                 "Per-player hot radius",
                 PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
+        applyFix(
+                "Server watchdog",
+                WatchdogConfig.get().getValue(WatchdogConfig.ENABLED),
+                () -> watchdogService = new WatchdogService());
 
         applyFix(
                 "Idle player handler",
