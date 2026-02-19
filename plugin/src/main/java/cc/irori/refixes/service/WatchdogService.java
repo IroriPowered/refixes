@@ -82,7 +82,7 @@ public class WatchdogService {
                 watchForDefaultWorld();
             }
         } catch (InterruptedException e) {
-            LOGGER.atWarning().withCause(e).log("Watchdog thread was interrupted");
+            LOGGER.atFine().withCause(e).log("Watchdog thread was interrupted");
         } catch (Throwable t) {
             LOGGER.atSevere().withCause(t).log("Watchdog encountered an error, restarting");
             start();
