@@ -22,7 +22,13 @@ public class SystemConfig extends Configuration<SystemConfig> {
     private static final SystemConfig INSTANCE = new SystemConfig();
 
     public SystemConfig() {
-        register(RESPAWN_BLOCK, PROCESSING_BENCH, CRAFTING_MANAGER, INTERACTION_MANAGER, ENTITY_DESPAWN_TIMER, ENTITY_DESPAWN_TIMER_CONFIG);
+        register(
+                RESPAWN_BLOCK,
+                PROCESSING_BENCH,
+                CRAFTING_MANAGER,
+                INTERACTION_MANAGER,
+                ENTITY_DESPAWN_TIMER,
+                ENTITY_DESPAWN_TIMER_CONFIG);
     }
 
     public static SystemConfig get() {

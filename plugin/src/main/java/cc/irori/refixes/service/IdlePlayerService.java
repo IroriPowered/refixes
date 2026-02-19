@@ -1,11 +1,7 @@
 package cc.irori.refixes.service;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-
+import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
+import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -17,9 +13,11 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-
-import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
-import cc.irori.refixes.util.Logs;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Detects AFK players and reduces their view/hot/minLoaded
@@ -77,9 +75,7 @@ public class IdlePlayerService {
             // Detect movement
             if (state.lastPosition != null
                     && hasPlayerMoved(
-                            state.lastPosition,
-                            currentPos,
-                            cfg.getValue(IdlePlayerHandlerConfig.MOVEMENT_THRESHOLD))) {
+                            state.lastPosition, currentPos, cfg.getValue(IdlePlayerHandlerConfig.MOVEMENT_THRESHOLD))) {
                 state.markActivity();
                 if (state.wasIdle) {
                     restorePlayerSettings(playerRef, state, cfg);

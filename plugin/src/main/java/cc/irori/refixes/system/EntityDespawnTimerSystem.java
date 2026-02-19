@@ -1,8 +1,6 @@
 package cc.irori.refixes.system;
 
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
-
+import cc.irori.refixes.config.impl.EntityDespawnTimerConfig;
 import com.hypixel.hytale.component.AddReason;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
@@ -19,8 +17,8 @@ import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.modules.projectile.component.Projectile;
 import com.hypixel.hytale.server.core.modules.time.TimeResource;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-
-import cc.irori.refixes.config.impl.EntityDespawnTimerConfig;
+import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
+import org.checkerframework.checker.nullness.compatqual.NullableDecl;
 
 /**
  * Ensures dropped items, block entities and projectiles have a DespawnComponent.
@@ -101,4 +99,3 @@ public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
         return UUIDComponent.getComponentType();
     }
 }
-

@@ -17,11 +17,7 @@ public class ServiceConfig extends Configuration<ServiceConfig> {
     private static final ServiceConfig INSTANCE = new ServiceConfig();
 
     public ServiceConfig() {
-        register(
-                CHUNK_UNLOADER_CONFIG,
-                PER_PLAYER_RADIUS_CONFIG,
-                IDLE_PLAYER_HANDLER_CONFIG,
-                AI_TICK_THROTTLER_CONFIG);
+        register(CHUNK_UNLOADER_CONFIG, PER_PLAYER_RADIUS_CONFIG, IDLE_PLAYER_HANDLER_CONFIG, AI_TICK_THROTTLER_CONFIG);
     }
 
     public static ServiceConfig get() {
