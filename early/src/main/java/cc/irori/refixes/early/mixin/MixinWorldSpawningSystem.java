@@ -51,7 +51,7 @@ public abstract class MixinWorldSpawningSystem {
         refixes$WRAPPING.set(true);
         try {
             cir.setReturnValue(pickRandomChunk(spawnData, stat, worldSpawnData, store));
-        } catch (IllegalStateException e) {
+        } catch (Exception e) {
             refixes$LOGGER.atWarning().withCause(e).log("WorldSpawningSystem#pickRandomChunk(): Failed to run");
             cir.setReturnValue(null);
         } finally {
