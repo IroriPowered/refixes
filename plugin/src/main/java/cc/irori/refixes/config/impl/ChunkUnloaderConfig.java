@@ -7,7 +7,7 @@ import cc.irori.refixes.config.field.ConfigField;
 public class ChunkUnloaderConfig extends Configuration<ChunkUnloaderConfig> {
 
     public static final ConfigurationKey<ChunkUnloaderConfig, Boolean> ENABLED =
-            new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, true);
+            new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<ChunkUnloaderConfig, Integer> UNLOAD_DISTANCE_OFFSET =
             new ConfigurationKey<>("UnloadDistanceOffset", ConfigField.INTEGER, 4);
     public static final ConfigurationKey<ChunkUnloaderConfig, Integer> UNLOAD_DELAY_SECONDS =

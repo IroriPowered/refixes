@@ -1,7 +1,12 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
-import cc.irori.refixes.util.Logs;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -18,15 +23,12 @@ import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+
+import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
+import cc.irori.refixes.util.Logs;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 // Actively unloads chunks that are outside all players' view range
 public class ActiveChunkUnloader {
@@ -87,6 +89,21 @@ public class ActiveChunkUnloader {
         }
 
         List<PlayerSnapshot> playerSnapshots = collectPlayerSnapshots(world.getPlayerRefs(), offset);
+
+        // Compatibility  with view radius reducer plugins, prevents unloading when no chunks are loaded.
+        if (!playerSnapshots.isEmpty()) {
+            boolean anyPlayerChunkLoaded = false;
+            for (PlayerSnapshot snapshot : playerSnapshots) {
+                if (chunkStore.getChunkReference(snapshot.chunkIndex()) != null) {
+                    anyPlayerChunkLoaded = true;
+                    break;
+                }
+            }
+            if (!anyPlayerChunkLoaded) {
+                return;
+            }
+        }
+
         Long2LongOpenHashMap outOfRangeSince = outOfRangeSinceByWorld.computeIfAbsent(world.getName(), key -> {
             Long2LongOpenHashMap map = new Long2LongOpenHashMap();
             map.defaultReturnValue(0L);

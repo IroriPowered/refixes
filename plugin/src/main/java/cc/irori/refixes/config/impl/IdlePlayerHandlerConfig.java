@@ -7,7 +7,7 @@ import cc.irori.refixes.config.field.ConfigField;
 public class IdlePlayerHandlerConfig extends Configuration<IdlePlayerHandlerConfig> {
 
     public static final ConfigurationKey<IdlePlayerHandlerConfig, Boolean> ENABLED =
-            new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, true);
+            new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<IdlePlayerHandlerConfig, Integer> IDLE_TIMEOUT_SECONDS =
             new ConfigurationKey<>("IdleTimeoutSeconds", ConfigField.INTEGER, 90);
     public static final ConfigurationKey<IdlePlayerHandlerConfig, Integer> CHECK_INTERVAL_SECONDS =
