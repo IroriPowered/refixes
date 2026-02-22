@@ -126,22 +126,31 @@ public class IdlePlayerService {
                         if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_VIEW_RADIUS)) {
                             Player player = getPlayerComponent(playerRef);
                             if (player != null) {
-                                state.savedViewRadius = player.getClientViewRadius();
-                                int idleView = cfg.getValue(IdlePlayerHandlerConfig.IDLE_VIEW_RADIUS);
-                                player.setClientViewRadius(Math.max(2, idleView));
+                                int currentView = player.getClientViewRadius();
+                                int idleView = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_VIEW_RADIUS));
+                                if (currentView > idleView) {
+                                    state.savedViewRadius = currentView;
+                                    player.setClientViewRadius(idleView);
+                                }
                             }
                         }
 
                         if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)) {
-                            state.savedHotRadius = tracker.getMaxHotLoadedChunksRadius();
-                            int idleHot = cfg.getValue(IdlePlayerHandlerConfig.IDLE_HOT_RADIUS);
-                            tracker.setMaxHotLoadedChunksRadius(Math.max(2, idleHot));
+                            int currentHot = tracker.getMaxHotLoadedChunksRadius();
+                            int idleHot = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_HOT_RADIUS));
+                            if (currentHot > idleHot) {
+                                state.savedHotRadius = currentHot;
+                                tracker.setMaxHotLoadedChunksRadius(idleHot);
+                            }
                         }
 
                         if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
-                            state.savedMinLoadedRadius = tracker.getMinLoadedChunksRadius();
-                            int idleMinLoaded = cfg.getValue(IdlePlayerHandlerConfig.IDLE_MIN_LOADED_RADIUS);
-                            tracker.setMinLoadedChunksRadius(Math.max(2, idleMinLoaded));
+                            int currentMinLoaded = tracker.getMinLoadedChunksRadius();
+                            int idleMinLoaded = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_MIN_LOADED_RADIUS));
+                            if (currentMinLoaded > idleMinLoaded) {
+                                state.savedMinLoadedRadius = currentMinLoaded;
+                                tracker.setMinLoadedChunksRadius(idleMinLoaded);
+                            }
                         }
 
                         state.wasIdle = true;

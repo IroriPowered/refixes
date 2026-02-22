@@ -77,9 +77,15 @@ public abstract class MixinStore<ECS_TYPE> {
         }
     }
 
-    // Disable assertWriteProcessing when parallel ticking is enabled.
+    @Unique
+    private static final ThreadLocal<Boolean> refixes$SUPPRESS_WRITE_ASSERT = ThreadLocal.withInitial(() -> false);
+
     @Inject(method = "assertWriteProcessing", at = @At("HEAD"), cancellable = true)
     private void refixes$disableProcessingAssert(CallbackInfo ci) {
+        if (refixes$SUPPRESS_WRITE_ASSERT.get()) {
+            ci.cancel();
+            return;
+        }
         if (EarlyOptions.isAvailable() && EarlyOptions.PARALLEL_ENTITY_TICKING.get()) {
             ci.cancel();
         }
@@ -109,10 +115,13 @@ public abstract class MixinStore<ECS_TYPE> {
     @Overwrite
     public <T extends Component<ECS_TYPE>> void tryRemoveComponent(
             @Nonnull Ref<ECS_TYPE> ref, @Nonnull ComponentType<ECS_TYPE, T> componentType) {
+        refixes$SUPPRESS_WRITE_ASSERT.set(true);
         try {
             removeComponentIfExists(ref, componentType);
         } catch (IllegalStateException e) {
             refixes$LOGGER.atWarning().withCause(e).log("Store#tryRemoveComponent(): Failed to remove component");
+        } finally {
+            refixes$SUPPRESS_WRITE_ASSERT.set(false);
         }
     }
 }
