@@ -30,6 +30,7 @@
         "MixinPrefabLoader",
         "MixinRemovalSystem",
         "MixinSetMemoriesCapacityInteraction",
+        "MixinStateSupport",
         "MixinStore",
         "MixinTickingSpawnMarkerSystem",
         "MixinTickingThread",
