@@ -53,10 +53,8 @@ public abstract class MixinMarkerAddRemoveSystem {
         try {
             onEntityRemove(ref, reason, store, commandBuffer);
         } catch (ArrayIndexOutOfBoundsException e) {
-            refixes$LOGGER
-                    .atWarning()
-                    .withCause(e)
-                    .log("MarkerAddRemoveSystem#onEntityRemove(): Array index out of bounds while removing NPC references");
+            refixes$LOGGER.atWarning().withCause(e).log(
+                    "MarkerAddRemoveSystem#onEntityRemove(): Array index out of bounds while removing NPC references");
         } finally {
             refixes$WRAPPING.set(false);
         }
