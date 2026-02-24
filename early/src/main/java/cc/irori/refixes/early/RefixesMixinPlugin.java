@@ -218,7 +218,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             JsonElement el = JsonParser.parseReader(reader);
             return el.isJsonObject() ? el.getAsJsonObject() : null;
         } catch (Exception e) {
-            System.err.println("[Refixes] Failed to read config: " + e.getMessage());
+            System.out.println("[Refixes] Failed to read config: " + e.getMessage());
             return null;
         }
     }
@@ -231,7 +231,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                 gson.toJson(config, writer);
             }
         } catch (Exception e) {
-            System.err.println("[Refixes] Failed to write config: " + e.getMessage());
+            System.out.println("[Refixes] Failed to write config: " + e.getMessage());
         }
     }
 
