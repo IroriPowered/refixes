@@ -1,6 +1,7 @@
 package cc.irori.refixes.early;
 
 import java.io.Reader;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,6 +15,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -144,10 +147,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
 
         JsonObject config = readConfig();
         if (config == null) {
-            return;
+            config = new JsonObject();
         }
 
         Set<String> disabled = new HashSet<>();
+        JsonObject mixinsSection = new JsonObject();
         for (MixinToggle toggle : TOGGLES) {
             Boolean value = getBoolean(config, toggle.jsonPath);
             boolean enabled;
@@ -159,11 +163,22 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             if (!enabled) {
                 disabled.addAll(toggle.mixins);
             }
+            String leafKey = toggle.jsonPath[toggle.jsonPath.length - 1];
+            mixinsSection.addProperty(leafKey, enabled == toggle.enabledWhen);
         }
 
-        if (!disabled.isEmpty()) {
-            disabledMixins = disabled;
-            System.out.println("[Refixes] Disabled mixins: " + disabled);
+        disabledMixins = disabled;
+
+        // Write resolved mixin toggles back to config
+        config.add("Mixins", mixinsSection);
+        writeConfig(config);
+
+        System.out.println("[Refixes] === Early mixin patches ===");
+        for (MixinToggle toggle : TOGGLES) {
+            for (String mixin : toggle.mixins) {
+                String marker = disabled.contains(mixin) ? "[ ]" : "[x]";
+                System.out.println("[Refixes]   - " + marker + " " + mixin);
+            }
         }
     }
 
@@ -205,6 +220,18 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         } catch (Exception e) {
             System.err.println("[Refixes] Failed to read config: " + e.getMessage());
             return null;
+        }
+    }
+
+    private static void writeConfig(JsonObject config) {
+        try {
+            Files.createDirectories(CONFIG_PATH.getParent());
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            try (Writer writer = Files.newBufferedWriter(CONFIG_PATH, StandardCharsets.UTF_8)) {
+                gson.toJson(config, writer);
+            }
+        } catch (Exception e) {
+            System.err.println("[Refixes] Failed to write config: " + e.getMessage());
         }
     }
 
