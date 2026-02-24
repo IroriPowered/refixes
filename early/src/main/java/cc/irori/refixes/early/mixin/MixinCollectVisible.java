@@ -48,13 +48,9 @@ public abstract class MixinCollectVisible {
 
         ObjectList<Ref<EntityStore>> results = SpatialResource.getThreadLocalReferenceList();
 
-        if (EarlyOptions.isAvailable() && EarlyOptions.CYLINDER_VISIBILITY_ENABLED.get()) {
-            double radius = entityViewerComponent.viewRadiusBlocks;
-            double height = radius * EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.get();
-            spatialStructure.collectCylinder(position, radius, height, results);
-        } else {
-            spatialStructure.collect(position, entityViewerComponent.viewRadiusBlocks, results);
-        }
+        double radius = entityViewerComponent.viewRadiusBlocks;
+        double height = radius * EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.get();
+        spatialStructure.collectCylinder(position, radius, height, results);
 
         entityViewerComponent.visible.addAll(results);
     }

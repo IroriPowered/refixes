@@ -4,7 +4,6 @@ import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
 import cc.irori.refixes.config.impl.CylinderVisibilityConfig;
 import cc.irori.refixes.config.impl.EarlyConfig;
-import cc.irori.refixes.config.impl.ExperimentalConfig;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
 import cc.irori.refixes.config.impl.KDTreeOptimizationConfig;
 import cc.irori.refixes.config.impl.ListenerConfig;
@@ -123,38 +122,18 @@ public class Refixes extends JavaPlugin {
         CylinderVisibilityConfig cylinderVisibilityConfig = CylinderVisibilityConfig.get();
         KDTreeOptimizationConfig kdTreeOptimizationConfig = KDTreeOptimizationConfig.get();
         SharedInstanceConfig sharedInstanceConfig = SharedInstanceConfig.get();
-        ExperimentalConfig experimentalConfig = ExperimentalConfig.get();
 
-        if (config.getValue(EarlyConfig.FORCE_SKIP_MOD_VALIDATION)) {
-            LOGGER.atSevere().log(
-                    "Force Skip Mod Validation is enabled! ALWAYS remember to check your mods are working correctly after server updates.");
-        }
-
-        EarlyOptions.FORCE_SKIP_MOD_VALIDATION.setSupplier(
-                () -> config.getValue(EarlyConfig.FORCE_SKIP_MOD_VALIDATION));
-        EarlyOptions.DISABLE_FLUID_PRE_PROCESS.setSupplier(
-                () -> config.getValue(EarlyConfig.DISABLE_FLUID_PRE_PROCESS));
-        EarlyOptions.ASYNC_BLOCK_PRE_PROCESS.setSupplier(() -> config.getValue(EarlyConfig.ASYNC_BLOCK_PRE_PROCESS));
         EarlyOptions.MAX_CHUNKS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_SECOND));
         EarlyOptions.MAX_CHUNKS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_TICK));
 
-        EarlyOptions.CYLINDER_VISIBILITY_ENABLED.setSupplier(
-                () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.ENABLED));
         EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.setSupplier(
                 () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.HEIGHT_MULTIPLIER));
 
-        EarlyOptions.KDTREE_OPTIMIZATION_OPTIMIZE_SORT.setSupplier(
-                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.OPTIMIZE_KDTREE_SORT));
         EarlyOptions.KDTREE_OPTIMIZATION_THRESHOLD.setSupplier(
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_FAST_SORT_THRESHOLD));
 
-        EarlyOptions.SHARED_INSTANCES_ENABLED.setSupplier(
-                () -> sharedInstanceConfig.getValue(SharedInstanceConfig.ENABLED));
         EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.setSupplier(
                 () -> sharedInstanceConfig.getValue(SharedInstanceConfig.EXCLUDED_PREFIXES));
-
-        EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
-                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
 
         EarlyOptions.setAvailable(true);
 

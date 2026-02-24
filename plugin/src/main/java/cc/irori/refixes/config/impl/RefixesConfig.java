@@ -17,20 +17,11 @@ public class RefixesConfig extends Configuration<RefixesConfig> {
             ConfigurationKey.subConfig("SharedInstanceWorlds", SharedInstanceConfig.get());
     private static final ConfigurationKey<RefixesConfig, WatchdogConfig> WATCHDOG_CONFIG =
             ConfigurationKey.subConfig("Watchdog", WatchdogConfig.get());
-    private static final ConfigurationKey<RefixesConfig, ExperimentalConfig> EXPERIMENTAL_CONFIG =
-            ConfigurationKey.subConfig("Experimental", ExperimentalConfig.get());
 
     private static final RefixesConfig INSTANCE = new RefixesConfig();
 
     public RefixesConfig() {
-        register(
-                EARLY_CONFIG,
-                LISTENER_CONFIG,
-                SYSTEM_CONFIG,
-                SERVICE_CONFIG,
-                SHARED_INSTANCE_CONFIG,
-                WATCHDOG_CONFIG,
-                EXPERIMENTAL_CONFIG);
+        register(EARLY_CONFIG, LISTENER_CONFIG, SYSTEM_CONFIG, SERVICE_CONFIG, SHARED_INSTANCE_CONFIG, WATCHDOG_CONFIG);
     }
 
     public static RefixesConfig get() {
