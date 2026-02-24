@@ -8,8 +8,8 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> ENABLED =
             new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ON_START =
-            new ConfigurationKey<>("CleanupFrozenOnStart", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
+            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> UPDATE_INTERVAL_MS =
             new ConfigurationKey<>("UpdateIntervalMs", ConfigField.INTEGER, 150);
 
@@ -32,12 +32,15 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Float> MIN_TICK_SECONDS =
             new ConfigurationKey<>("MinTickSeconds", ConfigField.FLOAT, 0.05f);
 
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> LEGACY_CLEANUP =
+            new ConfigurationKey<>("LegacyCleanup", ConfigField.BOOLEAN, false);
+
     private static final AiTickThrottlerConfig INSTANCE = new AiTickThrottlerConfig();
 
     public AiTickThrottlerConfig() {
         register(
                 ENABLED,
-                CLEANUP_FROZEN_ON_START,
+                CLEANUP_FROZEN_ENTITIES,
                 UPDATE_INTERVAL_MS,
                 NEAR_CHUNKS,
                 MID_CHUNKS,
@@ -45,7 +48,8 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 MID_TICK_SECONDS,
                 FAR_TICK_SECONDS,
                 VERY_FAR_TICK_SECONDS,
-                MIN_TICK_SECONDS);
+                MIN_TICK_SECONDS,
+                LEGACY_CLEANUP);
     }
 
     public static AiTickThrottlerConfig get() {

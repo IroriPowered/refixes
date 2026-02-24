@@ -1,5 +1,6 @@
 package cc.irori.refixes;
 
+import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
 import cc.irori.refixes.config.impl.CylinderVisibilityConfig;
@@ -31,9 +32,11 @@ import cc.irori.refixes.system.RespawnBlockFixSystem;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
+import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,8 +46,12 @@ public class Refixes extends JavaPlugin {
 
     private static final HytaleLogger LOGGER = Logs.logger();
 
+    private static Refixes instance;
+
     private final Config<RefixesConfig> config;
     private final List<String> fixSummary = new ArrayList<>();
+
+    private ComponentType<EntityStore, TickThrottled> tickThrottledComponent;
 
     private InstancePositionTracker instancePositionTracker;
     private SharedInstanceBootUnloader sharedInstanceBootUnloader;
@@ -58,6 +65,7 @@ public class Refixes extends JavaPlugin {
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
+        instance = this;
         config = withConfig(RefixesConfig.get().getCodec());
     }
 
@@ -75,6 +83,7 @@ public class Refixes extends JavaPlugin {
             }
         }
 
+        registerComponents();
         registerFixes();
     }
 
@@ -165,6 +174,11 @@ public class Refixes extends JavaPlugin {
                 tsoConfig.getValue(TickSleepOptimizationConfig.SPIN_THRESHOLD_NANOS));
     }
 
+    private void registerComponents() {
+        tickThrottledComponent = getEntityStoreRegistry()
+                .registerComponent(TickThrottled.class, "Refixes_TickThrottled", TickThrottled.CODEC);
+    }
+
     private void registerFixes() {
         fixSummary.clear();
 
@@ -253,5 +267,13 @@ public class Refixes extends JavaPlugin {
         } else {
             fixSummary.add("  - [ ] " + name);
         }
+    }
+
+    public ComponentType<EntityStore, TickThrottled> getTickThrottledComponent() {
+        return tickThrottledComponent;
+    }
+
+    public static Refixes get() {
+        return instance;
     }
 }

@@ -1,8 +1,8 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.util.Logs;
-import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
@@ -42,36 +42,23 @@ public class AiTickThrottlerService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
 
-    private ComponentType<EntityStore, ?> npcType;
-    private ComponentType<EntityStore, TransformComponent> transformType;
-    private ComponentType<EntityStore, UUIDComponent> uuidType;
-    private ComponentType<EntityStore, Frozen> frozenType;
-    private ComponentType<EntityStore, StepComponent> stepType;
-    private ComponentType<EntityStore, Player> playerType;
-    private Query<EntityStore> npcQuery;
-
     private final Map<String, WorldState> worldStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
 
     public void registerService() {
-        if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ON_START)) {
-            // Sweep orphaned Frozen/StepComponent from a prior run
-            if (resolveComponentTypes()) {
-                for (World world : Universe.get().getWorlds().values()) {
-                    world.execute(() -> sweepOrphaned(world));
-                }
-            }
-        }
-
-        if (!AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED)) {
-            return;
-        }
-
         int intervalMs = Math.max(20, AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.UPDATE_INTERVAL_MS));
         task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
                 () -> {
                     try {
-                        throttle();
+                        if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED)) {
+                            throttle();
+                        } else if (AiTickThrottlerConfig.get()
+                                .getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ENTITIES)) {
+                            // Sweep orphaned Frozen/StepComponent from a prior run
+                            for (World world : Universe.get().getWorlds().values()) {
+                                world.execute(() -> sweepOrphaned(world));
+                            }
+                        }
                     } catch (Exception e) {
                         LOGGER.atSevere().withCause(e).log("Error in AI tick throttler");
                     }
@@ -87,71 +74,79 @@ public class AiTickThrottlerService {
             task = null;
         }
         // Unfreeze all entities we froze before clearing state
-        if (resolveComponentTypes()) {
-            Map<String, World> worlds = Universe.get().getWorlds();
-            for (Map.Entry<String, WorldState> ws : worldStates.entrySet()) {
-                World world = worlds.get(ws.getKey());
-                if (world != null) {
-                    WorldState state = ws.getValue();
-                    world.execute(() -> unfreezeAll(world, state));
-                }
+        unfreezeAllWorld();
+        worldStates.clear();
+    }
+
+    private void unfreezeAllWorld() {
+        Map<String, World> worlds = Universe.get().getWorlds();
+        for (Map.Entry<String, WorldState> ws : worldStates.entrySet()) {
+            World world = worlds.get(ws.getKey());
+            if (world != null) {
+                WorldState state = ws.getValue();
+                world.execute(() -> unfreezeAll(world, state));
             }
         }
-        worldStates.clear();
     }
 
     private void unfreezeAll(World world, WorldState state) {
         Store<EntityStore> store = world.getEntityStore().getStore();
-        store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
-            UUIDComponent uuid = archetypeChunk.getComponent(index, uuidType);
-            if (uuid == null) return;
-            AiLodEntry entry = state.entries.get(uuid.getUuid());
-            if (entry != null && entry.forcedFrozen) {
-                Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
-                commandBuffer.tryRemoveComponent(ref, frozenType);
-                commandBuffer.tryRemoveComponent(ref, stepType);
-            }
-        });
+        store.forEachEntityParallel(
+                Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType()),
+                (index, archetypeChunk, commandBuffer) -> {
+                    UUIDComponent uuid = archetypeChunk.getComponent(index, UUIDComponent.getComponentType());
+                    if (uuid == null) {
+                        return;
+                    }
+
+                    AiLodEntry entry = state.entries.get(uuid.getUuid());
+                    TickThrottled tickThrottled = archetypeChunk.getComponent(index, TickThrottled.getComponentType());
+
+                    if (entry != null && tickThrottled != null) {
+                        Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
+                        commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
+                        commandBuffer.tryRemoveComponent(ref, TickThrottled.getComponentType());
+                    }
+                });
     }
 
     // Removes Frozen and StepComponent from all NPCs not covered by the global freeze
-
     private void sweepOrphaned(World world) {
         if (world.getWorldConfig().isAllNPCFrozen()) {
             return;
         }
         Store<EntityStore> store = world.getEntityStore().getStore();
-        store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
-            if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
-                return;
-            }
-            boolean frozen = archetypeChunk.getComponent(index, frozenType) != null;
-            boolean hasStep = archetypeChunk.getComponent(index, stepType) != null;
-            if (frozen || hasStep) {
-                Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
-                commandBuffer.tryRemoveComponent(ref, frozenType);
-                commandBuffer.tryRemoveComponent(ref, stepType);
-            }
-        });
-        LOGGER.atInfo().log("[%s] Swept orphaned Frozen/StepComponent from NPCs", world.getName());
+        store.forEachEntityParallel(
+                Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType()),
+                (index, archetypeChunk, commandBuffer) -> {
+                    if (archetypeChunk.getArchetype().contains(Player.getComponentType())) {
+                        return;
+                    }
+
+                    boolean sweep;
+                    if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.LEGACY_CLEANUP)) {
+                        if (archetypeChunk.getComponent(index, TickThrottled.getComponentType()) != null) {
+                            sweep = false;
+                        } else {
+                            sweep = archetypeChunk.getComponent(index, Frozen.getComponentType()) != null
+                                    || archetypeChunk.getComponent(index, StepComponent.getComponentType()) != null;
+                        }
+                    } else {
+                        sweep = archetypeChunk.getComponent(index, TickThrottled.getComponentType()) != null;
+                    }
+
+                    if (sweep) {
+                        Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
+                        commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
+                        commandBuffer.tryRemoveComponent(ref, TickThrottled.getComponentType());
+                    }
+                });
     }
 
     private void throttle() {
         AiTickThrottlerConfig cfg = AiTickThrottlerConfig.get();
-        if (!cfg.getValue(AiTickThrottlerConfig.ENABLED)) {
-            if (!worldStates.isEmpty() && resolveComponentTypes()) {
-                Map<String, World> worlds = Universe.get().getWorlds();
-                for (Map.Entry<String, WorldState> ws : worldStates.entrySet()) {
-                    World world = worlds.get(ws.getKey());
-                    if (world != null) {
-                        WorldState state = ws.getValue();
-                        world.execute(() -> unfreezeAll(world, state));
-                    }
-                }
-                worldStates.clear();
-            }
-            return;
-        }
 
         Map<String, World> worlds = Universe.get().getWorlds();
         worldStates.keySet().removeIf(name -> !worlds.containsKey(name));
@@ -162,7 +157,7 @@ public class AiTickThrottlerService {
     }
 
     private void processWorld(World world, AiTickThrottlerConfig cfg) {
-        if (!resolveComponentTypes()) {
+        if (world.getWorldConfig().isAllNPCFrozen()) {
             return;
         }
 
@@ -177,69 +172,71 @@ public class AiTickThrottlerService {
         int midChunks = Math.max(nearChunks, cfg.getValue(AiTickThrottlerConfig.MID_CHUNKS));
         int farChunks = Math.max(midChunks, cfg.getValue(AiTickThrottlerConfig.FAR_CHUNKS));
 
-        store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
-            // Skip player entities
-            if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
-                return;
-            }
+        store.forEachEntityParallel(
+                Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType()),
+                (index, archetypeChunk, commandBuffer) -> {
+                    // Skip player entities
+                    if (archetypeChunk.getArchetype().contains(Player.getComponentType())) {
+                        return;
+                    }
 
-            TransformComponent transform = archetypeChunk.getComponent(index, transformType);
-            UUIDComponent uuid = archetypeChunk.getComponent(index, uuidType);
-            if (transform == null || uuid == null) {
-                return;
-            }
+                    TransformComponent transform =
+                            archetypeChunk.getComponent(index, TransformComponent.getComponentType());
+                    UUIDComponent uuid = archetypeChunk.getComponent(index, UUIDComponent.getComponentType());
+                    if (transform == null || uuid == null) {
+                        return;
+                    }
 
-            // Compute chunk distance to nearest player
-            int entityChunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
-            int entityChunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
-            int chunkDist = closestPlayerChunkDistance(entityChunkX, entityChunkZ, playerChunks);
-            UUID entityId = uuid.getUuid();
+                    // Compute chunk distance to nearest player
+                    int entityChunkX =
+                            ChunkUtil.chunkCoordinate(transform.getPosition().getX());
+                    int entityChunkZ =
+                            ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
+                    int chunkDist = closestPlayerChunkDistance(entityChunkX, entityChunkZ, playerChunks);
+                    UUID entityId = uuid.getUuid();
 
-            double intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
+                    double intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
 
-            Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
-            AiLodEntry entry = state.entries.get(entityId);
-            boolean frozen = archetypeChunk.getComponent(index, frozenType) != null;
-            boolean hasStep = archetypeChunk.getComponent(index, stepType) != null;
+                    Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
 
-            // If near enough, remove throttling
-            if (intervalSec <= 0.0) {
-                if (frozen && (entry != null || !world.getWorldConfig().isAllNPCFrozen())) {
-                    commandBuffer.tryRemoveComponent(ref, frozenType);
-                    commandBuffer.tryRemoveComponent(ref, stepType);
-                }
-                state.entries.remove(entityId);
-                return;
-            }
+                    boolean frozen = archetypeChunk.getComponent(index, Frozen.getComponentType()) != null;
+                    boolean throttled = archetypeChunk.getComponent(index, TickThrottled.getComponentType()) != null;
 
-            // Skip entities frozen by the global world freeze
-            if (entry == null && frozen && world.getWorldConfig().isAllNPCFrozen()) {
-                return;
-            }
+                    // Don't mess around if the entity is already frozen without our throttle marker
+                    if (frozen && !throttled) {
+                        return;
+                    }
 
-            if (entry == null) {
-                entry = new AiLodEntry();
-                state.entries.put(entityId, entry);
-            }
+                    // If near enough, remove throttling
+                    if (intervalSec <= 0.0) {
+                        if (throttled) {
+                            commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
+                            commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
+                            commandBuffer.tryRemoveComponent(ref, TickThrottled.getComponentType());
+                        }
+                        state.entries.remove(entityId);
+                        return;
+                    }
 
-            if (!entry.forcedFrozen) {
-                commandBuffer.ensureComponent(ref, frozenType);
-                entry.forcedFrozen = true;
-            }
+                    AiLodEntry entry = state.entries.computeIfAbsent(uuid.getUuid(), _k -> new AiLodEntry());
+                    if (!throttled) {
+                        commandBuffer.ensureComponent(ref, Frozen.getComponentType());
+                        commandBuffer.ensureComponent(ref, TickThrottled.getComponentType());
+                    }
 
-            float minTick = cfg.getValue(AiTickThrottlerConfig.MIN_TICK_SECONDS);
-            long intervalNanos = (long) (Math.max(minTick, intervalSec) * 1_000_000_000.0);
-            if (entry.intervalNanos != intervalNanos) {
-                entry.intervalNanos = intervalNanos;
-                entry.nextTickNanos = now;
-            }
+                    float minTick = cfg.getValue(AiTickThrottlerConfig.MIN_TICK_SECONDS);
+                    long intervalNanos = (long) (Math.max(minTick, intervalSec) * 1_000_000_000.0);
+                    if (entry.intervalNanos != intervalNanos) {
+                        entry.intervalNanos = intervalNanos;
+                        entry.nextTickNanos = now;
+                    }
 
-            if (now >= entry.nextTickNanos) {
-                commandBuffer.putComponent(
-                        ref, stepType, new StepComponent((float) ((double) intervalNanos / 1_000_000_000.0)));
-                entry.nextTickNanos = now + intervalNanos;
-            }
-        });
+                    if (now >= entry.nextTickNanos) {
+                        commandBuffer.putComponent(ref, StepComponent.getComponentType(), new StepComponent((float)
+                                ((double) intervalNanos / 1_000_000_000.0)));
+                        entry.nextTickNanos = now + intervalNanos;
+                    }
+                });
     }
 
     private static double computeInterval(
@@ -264,7 +261,6 @@ public class AiTickThrottlerService {
         for (PlayerRef player : players) {
             if (player == null) continue;
             Transform transform = player.getTransform();
-            if (transform == null) continue;
             int chunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
             int chunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
             positions.add(new int[] {chunkX, chunkZ});
@@ -287,34 +283,11 @@ public class AiTickThrottlerService {
         return minDist;
     }
 
-    @SuppressWarnings("unchecked")
-    private boolean resolveComponentTypes() {
-        if (npcType != null && transformType != null && uuidType != null && frozenType != null && stepType != null) {
-            return true;
-        }
-        try {
-            if (npcType == null) npcType = EntityModule.get().getNPCMarkerComponentType();
-            if (transformType == null) transformType = TransformComponent.getComponentType();
-            if (uuidType == null) uuidType = UUIDComponent.getComponentType();
-            if (frozenType == null) frozenType = Frozen.getComponentType();
-            if (stepType == null) stepType = StepComponent.getComponentType();
-            if (playerType == null) playerType = Player.getComponentType();
-
-            if (npcQuery == null) {
-                npcQuery = Query.and(npcType, transformType);
-            }
-        } catch (Throwable t) {
-            return false;
-        }
-        return npcType != null && transformType != null && uuidType != null && frozenType != null && stepType != null;
-    }
-
     private static final class WorldState {
         final Map<UUID, AiLodEntry> entries = new ConcurrentHashMap<>();
     }
 
     private static final class AiLodEntry {
-        boolean forcedFrozen;
         long intervalNanos;
         long nextTickNanos;
     }
