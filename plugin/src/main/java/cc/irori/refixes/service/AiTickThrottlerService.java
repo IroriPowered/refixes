@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Distance-based LOD for AI entity ticking
@@ -145,6 +146,10 @@ public class AiTickThrottlerService {
         int midChunks = Math.max(nearChunks, cfg.getValue(AiTickThrottlerConfig.MID_CHUNKS));
         int farChunks = Math.max(midChunks, cfg.getValue(AiTickThrottlerConfig.FAR_CHUNKS));
 
+        int hysteresis = Math.max(0, cfg.getValue(AiTickThrottlerConfig.ACTIVATION_HYSTERESIS_CHUNKS));
+        int maxUnfreezes = Math.max(1, cfg.getValue(AiTickThrottlerConfig.MAX_UNFREEZES_PER_TICK));
+        AtomicInteger unfreezeCount = new AtomicInteger(0);
+
         // Track seen entity UUIDs to prune stale entries after iteration
         Set<UUID> seen = ConcurrentHashMap.newKeySet();
 
@@ -167,8 +172,6 @@ public class AiTickThrottlerService {
             UUID entityId = uuid.getUuid();
             seen.add(entityId);
 
-            double intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
-
             Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
 
             boolean frozen = archetypeChunk.getComponent(index, frozenType) != null;
@@ -179,14 +182,24 @@ public class AiTickThrottlerService {
                 return;
             }
 
+            // Already throttled → unfreeze at nearChunks (tight)
+            // Not throttled → freeze at nearChunks + hysteresis (wider)
+            double intervalSec;
+            if (throttled) {
+                intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
+            } else {
+                intervalSec = computeInterval(
+                        chunkDist, nearChunks + hysteresis, midChunks + hysteresis, farChunks + hysteresis, cfg);
+            }
+
             // If near enough, remove throttling
             if (intervalSec <= 0.0) {
-                if (throttled) {
+                if (throttled && unfreezeCount.incrementAndGet() <= maxUnfreezes) {
                     commandBuffer.tryRemoveComponent(ref, frozenType);
                     commandBuffer.tryRemoveComponent(ref, stepType);
                     commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+                    state.entries.remove(entityId);
                 }
-                state.entries.remove(entityId);
                 return;
             }
 

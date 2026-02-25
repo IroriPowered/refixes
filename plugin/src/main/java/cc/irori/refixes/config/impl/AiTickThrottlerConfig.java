@@ -35,6 +35,11 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> LEGACY_CLEANUP =
             new ConfigurationKey<>("LegacyCleanup", ConfigField.BOOLEAN, false);
 
+    public static final ConfigurationKey<AiTickThrottlerConfig, Integer> ACTIVATION_HYSTERESIS_CHUNKS =
+            new ConfigurationKey<>("ActivationHysteresisChunks", ConfigField.INTEGER, 1);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MAX_UNFREEZES_PER_TICK =
+            new ConfigurationKey<>("MaxUnfreezesPerTick", ConfigField.INTEGER, 10);
+
     private static final AiTickThrottlerConfig INSTANCE = new AiTickThrottlerConfig();
 
     public AiTickThrottlerConfig() {
@@ -49,7 +54,9 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 FAR_TICK_SECONDS,
                 VERY_FAR_TICK_SECONDS,
                 MIN_TICK_SECONDS,
-                LEGACY_CLEANUP);
+                LEGACY_CLEANUP,
+                ACTIVATION_HYSTERESIS_CHUNKS,
+                MAX_UNFREEZES_PER_TICK);
     }
 
     public static AiTickThrottlerConfig get() {
