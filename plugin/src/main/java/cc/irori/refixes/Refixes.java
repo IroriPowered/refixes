@@ -25,12 +25,7 @@ import cc.irori.refixes.service.AiTickThrottlerService;
 import cc.irori.refixes.service.IdlePlayerService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.WatchdogService;
-import cc.irori.refixes.system.CraftingManagerFixSystem;
-import cc.irori.refixes.system.EntityDespawnTimerSystem;
-import cc.irori.refixes.system.InteractionManagerFixSystem;
-import cc.irori.refixes.system.ProcessingBenchFixSystem;
-import cc.irori.refixes.system.RespawnBlockFixSystem;
-import cc.irori.refixes.system.SharedInstancePersistenceSystem;
+import cc.irori.refixes.system.*;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.ComponentType;
@@ -218,6 +213,7 @@ public class Refixes extends JavaPlugin {
                 "Entity despawn timer",
                 SystemConfig.get().getValue(SystemConfig.ENTITY_DESPAWN_TIMER),
                 () -> getEntityStoreRegistry().registerSystem(new EntityDespawnTimerSystem()));
+        getEntityStoreRegistry().registerSystem(new AiTickThrottlerCleanupSystem());
 
         // Services
         applyFix(
@@ -237,12 +233,10 @@ public class Refixes extends JavaPlugin {
                 "Idle player handler",
                 IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.ENABLED),
                 () -> idlePlayerService = new IdlePlayerService());
-        // Ai tick throttler will run once to sweep frozen entities and allow safe deinstall
-        aiTickThrottler = new AiTickThrottlerService();
-        fixSummary.add(
-                AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED)
-                        ? "  - [x] AI tick throttler"
-                        : "  - [ ] AI tick throttler");
+        applyFix(
+                "AI tick throttler",
+                AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED),
+                () -> aiTickThrottler = new AiTickThrottlerService());
 
         applyFix(
                 "Shared instance worlds",

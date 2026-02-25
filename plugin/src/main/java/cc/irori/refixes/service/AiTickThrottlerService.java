@@ -50,15 +50,7 @@ public class AiTickThrottlerService {
         task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
                 () -> {
                     try {
-                        if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED)) {
-                            throttle();
-                        } else if (AiTickThrottlerConfig.get()
-                                .getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ENTITIES)) {
-                            // Sweep orphaned Frozen/StepComponent from a prior run
-                            for (World world : Universe.get().getWorlds().values()) {
-                                world.execute(() -> sweepOrphaned(world));
-                            }
-                        }
+                        throttle();
                     } catch (Exception e) {
                         LOGGER.atSevere().withCause(e).log("Error in AI tick throttler");
                     }
@@ -103,40 +95,6 @@ public class AiTickThrottlerService {
                     TickThrottled tickThrottled = archetypeChunk.getComponent(index, TickThrottled.getComponentType());
 
                     if (entry != null && tickThrottled != null) {
-                        Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
-                        commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
-                        commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
-                        commandBuffer.tryRemoveComponent(ref, TickThrottled.getComponentType());
-                    }
-                });
-    }
-
-    // Removes Frozen and StepComponent from all NPCs not covered by the global freeze
-    private void sweepOrphaned(World world) {
-        if (world.getWorldConfig().isAllNPCFrozen()) {
-            return;
-        }
-        Store<EntityStore> store = world.getEntityStore().getStore();
-        store.forEachEntityParallel(
-                Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType()),
-                (index, archetypeChunk, commandBuffer) -> {
-                    if (archetypeChunk.getArchetype().contains(Player.getComponentType())) {
-                        return;
-                    }
-
-                    boolean sweep;
-                    if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.LEGACY_CLEANUP)) {
-                        if (archetypeChunk.getComponent(index, TickThrottled.getComponentType()) != null) {
-                            sweep = false;
-                        } else {
-                            sweep = archetypeChunk.getComponent(index, Frozen.getComponentType()) != null
-                                    || archetypeChunk.getComponent(index, StepComponent.getComponentType()) != null;
-                        }
-                    } else {
-                        sweep = archetypeChunk.getComponent(index, TickThrottled.getComponentType()) != null;
-                    }
-
-                    if (sweep) {
                         Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
                         commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                         commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
