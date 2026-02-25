@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
+import com.hypixel.hytale.function.predicate.ObjectPositionBlockFunction;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -25,7 +26,7 @@ public abstract class MixinBlockSection {
 
     @Inject(method = "forEachTicking", at = @At("HEAD"), cancellable = true)
     private void refixes$blockEntitySleep(
-            Object t, Object v, int sectionIndex, Object acceptor, CallbackInfoReturnable<Integer> cir) {
+            Object t, Object v, int sectionIndex, ObjectPositionBlockFunction acceptor, CallbackInfoReturnable<Integer> cir) {
         if (!EarlyOptions.isAvailable() || !EarlyOptions.BLOCK_ENTITY_SLEEP_ENABLED.get()) {
             return;
         }
