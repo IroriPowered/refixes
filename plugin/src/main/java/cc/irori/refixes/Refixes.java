@@ -19,6 +19,7 @@ import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
+import cc.irori.refixes.listener.UnknownBlockCleaner;
 import cc.irori.refixes.service.ActiveChunkUnloader;
 import cc.irori.refixes.service.AiTickThrottlerService;
 import cc.irori.refixes.service.IdlePlayerService;
@@ -190,6 +191,10 @@ public class Refixes extends JavaPlugin {
                     instancePositionTracker = new InstancePositionTracker();
                     instancePositionTracker.registerEvents(this);
                 });
+        applyFix(
+                "Unknown block cleaner",
+                ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER),
+                () -> UnknownBlockCleaner.registerEvents(this));
 
         // Systems
         applyFix(
