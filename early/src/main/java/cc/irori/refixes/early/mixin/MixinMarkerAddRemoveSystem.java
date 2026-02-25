@@ -19,6 +19,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+// Fixes "java.lang.ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 1" in onEntityRemove
+
 @Mixin(SpawnReferenceSystems.MarkerAddRemoveSystem.class)
 public abstract class MixinMarkerAddRemoveSystem {
 
@@ -92,9 +94,9 @@ public abstract class MixinMarkerAddRemoveSystem {
         InvalidatablePersistentRef[] refs = refixes$NPC_REFERENCES.get();
         refixes$NPC_REFERENCES.remove();
 
-        if (refs == null) {
+        if (refs == null || refs.length == 0) {
             refixes$LOGGER.atWarning().log(
-                    "MarkerAddRemoveSystem#onEntityRemove(): Discarding due to null NPC references (%s)",
+                    "MarkerAddRemoveSystem#onEntityRemove(): Discarding due to null or empty NPC references (%s)",
                     spawnMarkerComponent.getSpawnMarkerId());
             ci.cancel();
         }
