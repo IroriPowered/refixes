@@ -9,7 +9,7 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> ENABLED =
             new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
-            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, false);
+            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> UPDATE_INTERVAL_MS =
             new ConfigurationKey<>("UpdateIntervalMs", ConfigField.INTEGER, 150);
 
