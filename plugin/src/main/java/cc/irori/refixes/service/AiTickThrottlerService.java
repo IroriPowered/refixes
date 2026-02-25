@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -144,6 +145,9 @@ public class AiTickThrottlerService {
         int midChunks = Math.max(nearChunks, cfg.getValue(AiTickThrottlerConfig.MID_CHUNKS));
         int farChunks = Math.max(midChunks, cfg.getValue(AiTickThrottlerConfig.FAR_CHUNKS));
 
+        // Track seen entity UUIDs to prune stale entries after iteration
+        Set<UUID> seen = ConcurrentHashMap.newKeySet();
+
         store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
             // Skip player entities
             if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
@@ -161,6 +165,7 @@ public class AiTickThrottlerService {
             int entityChunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
             int chunkDist = closestPlayerChunkDistance(entityChunkX, entityChunkZ, playerChunks);
             UUID entityId = uuid.getUuid();
+            seen.add(entityId);
 
             double intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
 
@@ -204,6 +209,9 @@ public class AiTickThrottlerService {
                 entry.nextTickNanos = now + intervalNanos;
             }
         });
+
+        // Prune entries for entities no longer in the world
+        state.entries.keySet().retainAll(seen);
     }
 
     private static double computeInterval(
