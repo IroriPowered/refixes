@@ -1,6 +1,5 @@
 package cc.irori.refixes.early.mixin;
 
-import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Component;
@@ -86,9 +85,7 @@ public abstract class MixinStore<ECS_TYPE> {
             ci.cancel();
             return;
         }
-        if (EarlyOptions.isAvailable() && EarlyOptions.PARALLEL_ENTITY_TICKING.get()) {
-            ci.cancel();
-        }
+        ci.cancel();
     }
 
     // synchronize the isEmpty + pop sequence

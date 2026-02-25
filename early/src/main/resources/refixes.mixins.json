@@ -2,6 +2,7 @@
     "required": true,
     "minVersion": "0.8",
     "package": "cc.irori.refixes.early.mixin",
+    "plugin": "cc.irori.refixes.early.RefixesMixinPlugin",
     "mixins": [
         "MixinArchetypeChunk",
         "MixinBeaconAddRemoveSystem",
