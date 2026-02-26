@@ -26,7 +26,11 @@ public abstract class MixinBlockSection {
 
     @Inject(method = "forEachTicking", at = @At("HEAD"), cancellable = true)
     private void refixes$blockEntitySleep(
-            Object t, Object v, int sectionIndex, ObjectPositionBlockFunction acceptor, CallbackInfoReturnable<Integer> cir) {
+            Object t,
+            Object v,
+            int sectionIndex,
+            ObjectPositionBlockFunction acceptor,
+            CallbackInfoReturnable<Integer> cir) {
         if (!EarlyOptions.isAvailable() || !EarlyOptions.BLOCK_ENTITY_SLEEP_ENABLED.get()) {
             return;
         }

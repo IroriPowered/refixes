@@ -1,17 +1,5 @@
 package cc.irori.refixes;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
-
-import com.hypixel.hytale.component.ComponentType;
-import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.plugin.JavaPlugin;
-import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
-import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.core.util.Config;
-
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
@@ -46,6 +34,15 @@ import cc.irori.refixes.system.RespawnBlockFixSystem;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
+import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.util.Config;
+import java.util.ArrayList;
+import java.util.List;
+import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 public class Refixes extends JavaPlugin {
 
@@ -176,10 +173,8 @@ public class Refixes extends JavaPlugin {
                 () -> config.getValue(EarlyConfig.BLOCK_ENTITY_SLEEP_INTERVAL));
         EarlyOptions.STAT_RECALC_THROTTLE_ENABLED.setSupplier(
                 () -> config.getValue(EarlyConfig.STAT_RECALC_THROTTLE_ENABLED));
-        EarlyOptions.STAT_RECALC_INTERVAL.setSupplier(
-                () -> config.getValue(EarlyConfig.STAT_RECALC_INTERVAL));
-        EarlyOptions.SECTION_CACHE_ENABLED.setSupplier(
-                () -> config.getValue(EarlyConfig.SECTION_CACHE_ENABLED));
+        EarlyOptions.STAT_RECALC_INTERVAL.setSupplier(() -> config.getValue(EarlyConfig.STAT_RECALC_INTERVAL));
+        EarlyOptions.SECTION_CACHE_ENABLED.setSupplier(() -> config.getValue(EarlyConfig.SECTION_CACHE_ENABLED));
 
         EarlyOptions.setAvailable(true);
 
