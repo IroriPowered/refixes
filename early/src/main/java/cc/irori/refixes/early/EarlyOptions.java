@@ -34,6 +34,9 @@ public final class EarlyOptions {
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>();
 
+    /* Chunk Generation Concurrency */
+    public static final Value<Integer> CHUNK_GENERATION_PERMITS = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 

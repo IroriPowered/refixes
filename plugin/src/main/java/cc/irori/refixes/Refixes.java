@@ -160,6 +160,8 @@ public class Refixes extends JavaPlugin {
 
         EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
                 () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
+        EarlyOptions.CHUNK_GENERATION_PERMITS.setSupplier(
+                () -> experimentalConfig.getValue(ExperimentalConfig.CHUNK_GENERATION_PERMITS));
 
         EarlyOptions.setAvailable(true);
 
