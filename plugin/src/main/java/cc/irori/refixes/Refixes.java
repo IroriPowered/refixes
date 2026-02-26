@@ -161,6 +161,9 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
                 () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
 
+        EarlyOptions.CORRUPT_SECTION_PROTECTION.setSupplier(
+                () -> experimentalConfig.getValue(ExperimentalConfig.CORRUPT_SECTION_PROTECTION));
+
         EarlyOptions.setAvailable(true);
 
         /* Tick Sleep Optimization */

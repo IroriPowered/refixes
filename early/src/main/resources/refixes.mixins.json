@@ -42,6 +42,12 @@
         "MixinWorld",
         "MixinWorldConfig",
         "MixinWorldMapTracker",
-        "MixinWorldSpawningSystem"
+        "MixinWorldSpawningSystem",
+        "MixinBlockSectionSafety",
+        "MixinEntityChunkLoadingSystem",
+        "MixinMotionControllerBase",
+        "MixinPlayer",
+        "MixinStateSupport",
+        "MixinTurnOffTeleportersSystem"
     ]
 }
