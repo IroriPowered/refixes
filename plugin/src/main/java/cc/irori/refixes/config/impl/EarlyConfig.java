@@ -24,6 +24,13 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_TICK =
             new ConfigurationKey<>("MaxChunksPerTick", ConfigField.INTEGER, 4);
 
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_MAX_PATH_LENGTH =
+            new ConfigurationKey<>("PathfindingMaxPathLength", ConfigField.INTEGER, 200);
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_OPEN_NODES_LIMIT =
+            new ConfigurationKey<>("PathfindingOpenNodesLimit", ConfigField.INTEGER, 80);
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_TOTAL_NODES_LIMIT =
+            new ConfigurationKey<>("PathfindingTotalNodesLimit", ConfigField.INTEGER, 400);
+
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
     public EarlyConfig() {
@@ -35,7 +42,10 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 DISABLE_FLUID_PRE_PROCESS,
                 ASYNC_BLOCK_PRE_PROCESS,
                 MAX_CHUNKS_PER_SECOND,
-                MAX_CHUNKS_PER_TICK);
+                MAX_CHUNKS_PER_TICK,
+                PATHFINDING_MAX_PATH_LENGTH,
+                PATHFINDING_OPEN_NODES_LIMIT,
+                PATHFINDING_TOTAL_NODES_LIMIT);
     }
 
     public static EarlyConfig get() {

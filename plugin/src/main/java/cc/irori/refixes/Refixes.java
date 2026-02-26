@@ -161,6 +161,13 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
                 () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
 
+        EarlyOptions.PATHFINDING_MAX_PATH_LENGTH.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_MAX_PATH_LENGTH));
+        EarlyOptions.PATHFINDING_OPEN_NODES_LIMIT.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_OPEN_NODES_LIMIT));
+        EarlyOptions.PATHFINDING_TOTAL_NODES_LIMIT.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_TOTAL_NODES_LIMIT));
+
         EarlyOptions.setAvailable(true);
 
         /* Tick Sleep Optimization */

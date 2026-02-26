@@ -42,6 +42,8 @@
         "MixinWorld",
         "MixinWorldConfig",
         "MixinWorldMapTracker",
-        "MixinWorldSpawningSystem"
+        "MixinWorldSpawningSystem",
+        "MixinAStarBase",
+        "MixinRepulsionTicker"
     ]
 }
