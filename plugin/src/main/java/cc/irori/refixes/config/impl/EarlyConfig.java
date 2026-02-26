@@ -34,6 +34,8 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
             new ConfigurationKey<>("StatRecalcInterval", ConfigField.INTEGER, 4);
     public static final ConfigurationKey<EarlyConfig, Boolean> SECTION_CACHE_ENABLED =
             new ConfigurationKey<>("SectionCacheEnabled", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<EarlyConfig, Boolean> SKIP_EMPTY_LIGHT_SECTIONS =
+            new ConfigurationKey<>("SkipEmptyLightSections", ConfigField.BOOLEAN, false);
 
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
@@ -51,7 +53,8 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 BLOCK_ENTITY_SLEEP_INTERVAL,
                 STAT_RECALC_THROTTLE_ENABLED,
                 STAT_RECALC_INTERVAL,
-                SECTION_CACHE_ENABLED);
+                SECTION_CACHE_ENABLED,
+                SKIP_EMPTY_LIGHT_SECTIONS);
     }
 
     public static EarlyConfig get() {

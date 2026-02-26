@@ -45,6 +45,9 @@ public final class EarlyOptions {
     /* Block Section Cache */
     public static final Value<Boolean> SECTION_CACHE_ENABLED = new Value<>();
 
+    /* Skip Empty Light Sections */
+    public static final Value<Boolean> SKIP_EMPTY_LIGHT_SECTIONS = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 

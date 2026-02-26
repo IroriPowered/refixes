@@ -45,6 +45,7 @@
         "MixinWorldSpawningSystem",
         "MixinBlockChunk",
         "MixinBlockSection",
+        "MixinFloodLightCalculation",
         "MixinStatModifiersManager"
     ]
 }

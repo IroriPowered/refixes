@@ -175,6 +175,8 @@ public class Refixes extends JavaPlugin {
                 () -> config.getValue(EarlyConfig.STAT_RECALC_THROTTLE_ENABLED));
         EarlyOptions.STAT_RECALC_INTERVAL.setSupplier(() -> config.getValue(EarlyConfig.STAT_RECALC_INTERVAL));
         EarlyOptions.SECTION_CACHE_ENABLED.setSupplier(() -> config.getValue(EarlyConfig.SECTION_CACHE_ENABLED));
+        EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.setSupplier(
+                () -> config.getValue(EarlyConfig.SKIP_EMPTY_LIGHT_SECTIONS));
 
         EarlyOptions.setAvailable(true);
 
