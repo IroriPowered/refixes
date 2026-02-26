@@ -34,6 +34,12 @@ public final class EarlyOptions {
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>();
 
+    /* Parallel Spatial Collection */
+    public static final Value<Boolean> PARALLEL_SPATIAL_COLLECTION = new Value<>();
+
+    /* Parallel Steering Threshold */
+    public static final Value<Integer> PARALLEL_STEERING_THRESHOLD = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 

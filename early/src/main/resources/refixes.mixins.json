@@ -14,6 +14,7 @@
         "MixinCommandBuffer",
         "MixinCraftingManagerAccessor",
         "MixinEntityTickingSystem",
+        "MixinEntityViewer",
         "MixinFluidPlugin",
         "MixinFluidReplicateChanges",
         "MixinGamePacketHandler",
@@ -42,6 +43,8 @@
         "MixinWorld",
         "MixinWorldConfig",
         "MixinWorldMapTracker",
-        "MixinWorldSpawningSystem"
+        "MixinWorldSpawningSystem",
+        "MixinSpatialSystem",
+        "MixinSteeringSystem"
     ]
 }

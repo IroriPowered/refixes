@@ -160,6 +160,10 @@ public class Refixes extends JavaPlugin {
 
         EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
                 () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
+        EarlyOptions.PARALLEL_SPATIAL_COLLECTION.setSupplier(
+                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_SPATIAL_COLLECTION));
+        EarlyOptions.PARALLEL_STEERING_THRESHOLD.setSupplier(
+                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_STEERING_THRESHOLD));
 
         EarlyOptions.setAvailable(true);
 
