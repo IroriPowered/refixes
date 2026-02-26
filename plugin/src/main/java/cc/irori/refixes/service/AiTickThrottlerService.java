@@ -154,7 +154,9 @@ public class AiTickThrottlerService {
 
         int hysteresis = Math.max(0, cfg.getValue(AiTickThrottlerConfig.ACTIVATION_HYSTERESIS_CHUNKS));
         int maxUnfreezes = Math.max(1, cfg.getValue(AiTickThrottlerConfig.MAX_UNFREEZES_PER_TICK));
+        int maxFreezes = Math.max(1, cfg.getValue(AiTickThrottlerConfig.MAX_FREEZES_PER_TICK));
         AtomicInteger unfreezeCount = new AtomicInteger(0);
+        AtomicInteger freezeCount = new AtomicInteger(0);
 
         float minTick = cfg.getValue(AiTickThrottlerConfig.MIN_TICK_SECONDS);
 
@@ -219,11 +221,14 @@ public class AiTickThrottlerService {
                 return;
             }
 
-            AiLodEntry entry = state.entries.computeIfAbsent(uuid.getUuid(), _k -> new AiLodEntry());
             if (!throttled) {
+                if (freezeCount.incrementAndGet() > maxFreezes) {
+                    return;
+                }
                 commandBuffer.ensureComponent(ref, frozenType);
                 commandBuffer.ensureComponent(ref, tickThrottledType);
             }
+            AiLodEntry entry = state.entries.computeIfAbsent(entityId, _k -> new AiLodEntry());
 
             long intervalNanos = (long) (Math.max(minTick, intervalSec) * 1_000_000_000.0);
             if (entry.intervalNanos != intervalNanos) {
