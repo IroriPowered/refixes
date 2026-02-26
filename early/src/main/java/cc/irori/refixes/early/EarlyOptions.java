@@ -34,6 +34,11 @@ public final class EarlyOptions {
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>();
 
+    /* Pathfinding */
+    public static final Value<Integer> PATHFINDING_MAX_PATH_LENGTH = new Value<>();
+    public static final Value<Integer> PATHFINDING_OPEN_NODES_LIMIT = new Value<>();
+    public static final Value<Integer> PATHFINDING_TOTAL_NODES_LIMIT = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 
