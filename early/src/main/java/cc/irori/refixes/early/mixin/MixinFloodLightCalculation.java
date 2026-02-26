@@ -5,6 +5,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightDataBuilder;
 import com.hypixel.hytale.server.core.universe.world.lighting.FloodLightCalculation;
+import it.unimi.dsi.fastutil.ints.Int2IntFunction;
 import java.util.BitSet;
 import java.util.function.IntBinaryOperator;
 import org.spongepowered.asm.mixin.Mixin;
@@ -39,8 +40,8 @@ public class MixinFloodLightCalculation {
             BlockSection fromSection,
             BlockSection toSection,
             ChunkLightDataBuilder toLight,
-            Object fromIndex,
-            Object toIndex,
+            Int2IntFunction fromIndex,
+            Int2IntFunction toIndex,
             CallbackInfo ci) {
         if (!EarlyOptions.isAvailable() || !EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.get()) {
             return;
