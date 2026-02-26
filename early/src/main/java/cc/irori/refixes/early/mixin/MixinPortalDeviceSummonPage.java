@@ -1,9 +1,11 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
 import com.hypixel.hytale.builtin.instances.removal.InstanceDataResource;
 import com.hypixel.hytale.builtin.portals.resources.PortalWorld;
 import com.hypixel.hytale.builtin.portals.ui.PortalDeviceSummonPage;
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.WorldConfig;
@@ -12,12 +14,16 @@ import com.hypixel.hytale.server.core.universe.world.spawn.IndividualSpawnProvid
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PortalDeviceSummonPage.class)
 public class MixinPortalDeviceSummonPage {
+
+    @Unique
+    private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
     @Inject(method = "spawnReturnPortal", at = @At("HEAD"), cancellable = true)
     private static void refixes$preventDuplicateReturnPortal(
@@ -62,5 +68,24 @@ public class MixinPortalDeviceSummonPage {
                 cir.setReturnValue(CompletableFuture.completedFuture(world));
             }
         }
+    }
+
+    /**
+     * Guards against PortalSpawnFinder.computeSpawnTransform() returning null,
+     * which causes NPE in spawnReturnPortal when calling spawnTransform.getPosition().
+     */
+    @Inject(method = "getSpawnTransform", at = @At("RETURN"), cancellable = true)
+    private static void refixes$nullGuardSpawnTransform(
+            World world, UUID sampleUuid, CallbackInfoReturnable<CompletableFuture<Transform>> cir) {
+        CompletableFuture<Transform> future = cir.getReturnValue();
+        cir.setReturnValue(future.thenApply(transform -> {
+            if (transform == null) {
+                refixes$LOGGER.atWarning().log(
+                        "PortalDeviceSummonPage#getSpawnTransform(): null for world %s, using fallback spawn",
+                        world.getName());
+                return new Transform(0.0, 128.0, 0.0);
+            }
+            return transform;
+        }));
     }
 }
