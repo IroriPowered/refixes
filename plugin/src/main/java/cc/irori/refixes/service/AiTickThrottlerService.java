@@ -36,10 +36,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Distance-based LOD for AI entity ticking
  *
  * Freezes distant NPCs and reduces their tick rate based on chunk proximity to the nearest player
- * ≤ 1 chunk — full AI tick rate
- * ≤ 2 chunks — mid tick rate (0.2s)
- * ≤ 4 chunks — far tick rate (0.5s)
- * > 4 chunks — very far tick rate (1.0s)
+ * ≤ 3 chunks (~48 blocks) — full AI tick rate
+ * ≤ 5 chunks (~80 blocks) — mid tick rate (0.2s)
+ * ≤ 8 chunks (~128 blocks) — far tick rate (0.5s)
+ * > 8 chunks — very far tick rate (1.0s)
  */
 public class AiTickThrottlerService {
 

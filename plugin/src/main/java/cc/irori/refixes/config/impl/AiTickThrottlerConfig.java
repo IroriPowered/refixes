@@ -13,15 +13,15 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> UPDATE_INTERVAL_MS =
             new ConfigurationKey<>("UpdateIntervalMs", ConfigField.INTEGER, 150);
 
-    // NPCs within this chunk distance get full tick rate
+    // NPCs within this chunk distance get full tick rate (~48 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> NEAR_CHUNKS =
-            new ConfigurationKey<>("NearChunks", ConfigField.INTEGER, 1);
-    // NPCs within this chunk distance get mid tick rate
+            new ConfigurationKey<>("NearChunks", ConfigField.INTEGER, 3);
+    // NPCs within this chunk distance get mid tick rate (~80 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MID_CHUNKS =
-            new ConfigurationKey<>("MidChunks", ConfigField.INTEGER, 2);
-    // NPCs within this chunk distance get far tick rate
+            new ConfigurationKey<>("MidChunks", ConfigField.INTEGER, 5);
+    // NPCs within this chunk distance get far tick rate (~128 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> FAR_CHUNKS =
-            new ConfigurationKey<>("FarChunks", ConfigField.INTEGER, 4);
+            new ConfigurationKey<>("FarChunks", ConfigField.INTEGER, 8);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Float> MID_TICK_SECONDS =
             new ConfigurationKey<>("MidTickSeconds", ConfigField.FLOAT, 0.2f);
