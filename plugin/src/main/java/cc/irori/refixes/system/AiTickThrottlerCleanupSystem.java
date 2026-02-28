@@ -2,23 +2,21 @@ package cc.irori.refixes.system;
 
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
-import com.hypixel.hytale.component.*;
+import com.hypixel.hytale.component.AddReason;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.RemoveReason;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.server.core.entity.Frozen;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.modules.entity.EntityModule;
-import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.StepComponent;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
-
-    private static final Query<EntityStore> QUERY =
-            Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType());
-
     @Override
     public void onEntityAdded(
             @NonNull Ref<EntityStore> ref,
@@ -34,9 +32,12 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
 
         boolean sweep;
         if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.LEGACY_CLEANUP)) {
-            sweep = commandBuffer.getComponent(ref, TickThrottled.getComponentType()) != null
-                    || commandBuffer.getComponent(ref, Frozen.getComponentType()) != null
-                    || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null;
+            if (commandBuffer.getComponent(ref, TickThrottled.getComponentType()) != null) {
+                sweep = false;
+            } else {
+                sweep = commandBuffer.getComponent(ref, Frozen.getComponentType()) != null
+                        || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null;
+            }
         } else {
             sweep = commandBuffer.getComponent(ref, TickThrottled.getComponentType()) != null;
         }
