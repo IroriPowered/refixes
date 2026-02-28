@@ -25,7 +25,13 @@ import cc.irori.refixes.service.AiTickThrottlerService;
 import cc.irori.refixes.service.IdlePlayerService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.WatchdogService;
-import cc.irori.refixes.system.*;
+import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
+import cc.irori.refixes.system.CraftingManagerFixSystem;
+import cc.irori.refixes.system.EntityDespawnTimerSystem;
+import cc.irori.refixes.system.InteractionManagerFixSystem;
+import cc.irori.refixes.system.ProcessingBenchFixSystem;
+import cc.irori.refixes.system.RespawnBlockFixSystem;
+import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.ComponentType;
@@ -160,6 +166,17 @@ public class Refixes extends JavaPlugin {
 
         EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
                 () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
+
+        EarlyOptions.BLOCK_ENTITY_SLEEP_ENABLED.setSupplier(
+                () -> config.getValue(EarlyConfig.BLOCK_ENTITY_SLEEP_ENABLED));
+        EarlyOptions.BLOCK_ENTITY_SLEEP_INTERVAL.setSupplier(
+                () -> config.getValue(EarlyConfig.BLOCK_ENTITY_SLEEP_INTERVAL));
+        EarlyOptions.STAT_RECALC_THROTTLE_ENABLED.setSupplier(
+                () -> config.getValue(EarlyConfig.STAT_RECALC_THROTTLE_ENABLED));
+        EarlyOptions.STAT_RECALC_INTERVAL.setSupplier(() -> config.getValue(EarlyConfig.STAT_RECALC_INTERVAL));
+        EarlyOptions.SECTION_CACHE_ENABLED.setSupplier(() -> config.getValue(EarlyConfig.SECTION_CACHE_ENABLED));
+        EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.setSupplier(
+                () -> config.getValue(EarlyConfig.SKIP_EMPTY_LIGHT_SECTIONS));
 
         EarlyOptions.setAvailable(true);
 

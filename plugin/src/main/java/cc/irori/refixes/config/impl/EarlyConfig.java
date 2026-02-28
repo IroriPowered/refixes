@@ -24,6 +24,19 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_TICK =
             new ConfigurationKey<>("MaxChunksPerTick", ConfigField.INTEGER, 4);
 
+    public static final ConfigurationKey<EarlyConfig, Boolean> BLOCK_ENTITY_SLEEP_ENABLED =
+            new ConfigurationKey<>("BlockEntitySleepEnabled", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<EarlyConfig, Integer> BLOCK_ENTITY_SLEEP_INTERVAL =
+            new ConfigurationKey<>("BlockEntitySleepInterval", ConfigField.INTEGER, 4);
+    public static final ConfigurationKey<EarlyConfig, Boolean> STAT_RECALC_THROTTLE_ENABLED =
+            new ConfigurationKey<>("StatRecalcThrottleEnabled", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<EarlyConfig, Integer> STAT_RECALC_INTERVAL =
+            new ConfigurationKey<>("StatRecalcInterval", ConfigField.INTEGER, 4);
+    public static final ConfigurationKey<EarlyConfig, Boolean> SECTION_CACHE_ENABLED =
+            new ConfigurationKey<>("SectionCacheEnabled", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<EarlyConfig, Boolean> SKIP_EMPTY_LIGHT_SECTIONS =
+            new ConfigurationKey<>("SkipEmptyLightSections", ConfigField.BOOLEAN, false);
+
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
     public EarlyConfig() {
@@ -35,7 +48,13 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 DISABLE_FLUID_PRE_PROCESS,
                 ASYNC_BLOCK_PRE_PROCESS,
                 MAX_CHUNKS_PER_SECOND,
-                MAX_CHUNKS_PER_TICK);
+                MAX_CHUNKS_PER_TICK,
+                BLOCK_ENTITY_SLEEP_ENABLED,
+                BLOCK_ENTITY_SLEEP_INTERVAL,
+                STAT_RECALC_THROTTLE_ENABLED,
+                STAT_RECALC_INTERVAL,
+                SECTION_CACHE_ENABLED,
+                SKIP_EMPTY_LIGHT_SECTIONS);
     }
 
     public static EarlyConfig get() {

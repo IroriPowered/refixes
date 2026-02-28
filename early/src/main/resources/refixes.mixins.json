@@ -42,6 +42,10 @@
         "MixinWorld",
         "MixinWorldConfig",
         "MixinWorldMapTracker",
-        "MixinWorldSpawningSystem"
+        "MixinWorldSpawningSystem",
+        "MixinBlockChunk",
+        "MixinBlockSection",
+        "MixinFloodLightCalculation",
+        "MixinStatModifiersManager"
     ]
 }

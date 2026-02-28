@@ -34,6 +34,20 @@ public final class EarlyOptions {
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>();
 
+    /* Block Entity Sleep */
+    public static final Value<Boolean> BLOCK_ENTITY_SLEEP_ENABLED = new Value<>();
+    public static final Value<Integer> BLOCK_ENTITY_SLEEP_INTERVAL = new Value<>();
+
+    /* Stat Recalculation Throttle */
+    public static final Value<Boolean> STAT_RECALC_THROTTLE_ENABLED = new Value<>();
+    public static final Value<Integer> STAT_RECALC_INTERVAL = new Value<>();
+
+    /* Block Section Cache */
+    public static final Value<Boolean> SECTION_CACHE_ENABLED = new Value<>();
+
+    /* Skip Empty Light Sections */
+    public static final Value<Boolean> SKIP_EMPTY_LIGHT_SECTIONS = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 
