@@ -3,6 +3,7 @@ package cc.irori.refixes.service;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.util.Logs;
+import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
@@ -24,23 +25,35 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Distance-based LOD for AI entity ticking
  *
  * Freezes distant NPCs and reduces their tick rate based on chunk proximity to the nearest player
- * ≤ 1 chunk — full AI tick rate
- * ≤ 2 chunks — mid tick rate (0.2s)
- * ≤ 4 chunks — far tick rate (0.5s)
- * > 4 chunks — very far tick rate (1.0s)
+ * ≤ 2 chunks (~64 blocks) — full AI tick rate
+ * ≤ 4 chunks (~128 blocks) — mid tick rate (0.2s)
+ * ≤ 6 chunks (~192 blocks) — far tick rate (0.5s)
+ * > 6 chunks — very far tick rate (1.0s)
  */
 public class AiTickThrottlerService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+
+    // Cached component types — resolved once via resolveComponentTypes()
+    private ComponentType<EntityStore, ?> npcType;
+    private ComponentType<EntityStore, TransformComponent> transformType;
+    private ComponentType<EntityStore, UUIDComponent> uuidType;
+    private ComponentType<EntityStore, Frozen> frozenType;
+    private ComponentType<EntityStore, StepComponent> stepType;
+    private ComponentType<EntityStore, TickThrottled> tickThrottledType;
+    private ComponentType<EntityStore, Player> playerType;
+    private Query<EntityStore> npcQuery;
 
     private final Map<String, WorldState> worldStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
@@ -50,7 +63,9 @@ public class AiTickThrottlerService {
         task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
                 () -> {
                     try {
-                        throttle();
+                        if (resolveComponentTypes()) {
+                            throttle();
+                        }
                     } catch (Exception e) {
                         LOGGER.atSevere().withCause(e).log("Error in AI tick throttler");
                     }
@@ -82,25 +97,21 @@ public class AiTickThrottlerService {
     }
 
     private void unfreezeAll(World world, WorldState state) {
+        if (!resolveComponentTypes()) {
+            return;
+        }
         Store<EntityStore> store = world.getEntityStore().getStore();
-        store.forEachEntityParallel(
-                Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType()),
-                (index, archetypeChunk, commandBuffer) -> {
-                    UUIDComponent uuid = archetypeChunk.getComponent(index, UUIDComponent.getComponentType());
-                    if (uuid == null) {
-                        return;
-                    }
+        store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
+            TickThrottled tickThrottled = archetypeChunk.getComponent(index, tickThrottledType);
+            if (tickThrottled == null) {
+                return;
+            }
 
-                    AiLodEntry entry = state.entries.get(uuid.getUuid());
-                    TickThrottled tickThrottled = archetypeChunk.getComponent(index, TickThrottled.getComponentType());
-
-                    if (entry != null && tickThrottled != null) {
-                        Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
-                        commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
-                        commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
-                        commandBuffer.tryRemoveComponent(ref, TickThrottled.getComponentType());
-                    }
-                });
+            Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+            commandBuffer.tryRemoveComponent(ref, frozenType);
+            commandBuffer.tryRemoveComponent(ref, stepType);
+            commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+        });
     }
 
     private void throttle() {
@@ -124,77 +135,142 @@ public class AiTickThrottlerService {
 
         // Precompute player chunk positions
         List<int[]> playerChunks = collectPlayerChunkPositions(world.getPlayerRefs());
+
+        // No players online: freeze all NPCs once, then skip subsequent cycles
+        if (playerChunks.isEmpty()) {
+            if (!state.frozenWithoutPlayers) {
+                freezeAllNpcs(store);
+                state.frozenWithoutPlayers = true;
+            }
+            return;
+        }
+        state.frozenWithoutPlayers = false;
+
         long now = System.nanoTime();
 
         int nearChunks = Math.max(0, cfg.getValue(AiTickThrottlerConfig.NEAR_CHUNKS));
         int midChunks = Math.max(nearChunks, cfg.getValue(AiTickThrottlerConfig.MID_CHUNKS));
         int farChunks = Math.max(midChunks, cfg.getValue(AiTickThrottlerConfig.FAR_CHUNKS));
 
-        store.forEachEntityParallel(
-                Query.and(EntityModule.get().getNPCMarkerComponentType(), TransformComponent.getComponentType()),
-                (index, archetypeChunk, commandBuffer) -> {
-                    // Skip player entities
-                    if (archetypeChunk.getArchetype().contains(Player.getComponentType())) {
-                        return;
-                    }
+        int hysteresis = Math.max(0, cfg.getValue(AiTickThrottlerConfig.ACTIVATION_HYSTERESIS_CHUNKS));
+        int maxUnfreezes = Math.max(1, cfg.getValue(AiTickThrottlerConfig.MAX_UNFREEZES_PER_TICK));
+        int maxFreezes = Math.max(1, cfg.getValue(AiTickThrottlerConfig.MAX_FREEZES_PER_TICK));
+        AtomicInteger unfreezeCount = new AtomicInteger(0);
+        AtomicInteger freezeCount = new AtomicInteger(0);
 
-                    TransformComponent transform =
-                            archetypeChunk.getComponent(index, TransformComponent.getComponentType());
-                    UUIDComponent uuid = archetypeChunk.getComponent(index, UUIDComponent.getComponentType());
-                    if (transform == null || uuid == null) {
-                        return;
-                    }
+        float minTick = cfg.getValue(AiTickThrottlerConfig.MIN_TICK_SECONDS);
 
-                    // Compute chunk distance to nearest player
-                    int entityChunkX =
-                            ChunkUtil.chunkCoordinate(transform.getPosition().getX());
-                    int entityChunkZ =
-                            ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
-                    int chunkDist = closestPlayerChunkDistance(entityChunkX, entityChunkZ, playerChunks);
-                    UUID entityId = uuid.getUuid();
+        // Pre-compute StepComponent instances for each tier to avoid per-entity allocation
+        float midSec = Math.max(minTick, cfg.getValue(AiTickThrottlerConfig.MID_TICK_SECONDS));
+        float farSec = Math.max(minTick, cfg.getValue(AiTickThrottlerConfig.FAR_TICK_SECONDS));
+        float veryFarSec = Math.max(minTick, cfg.getValue(AiTickThrottlerConfig.VERY_FAR_TICK_SECONDS));
+        StepComponent midStep = new StepComponent(midSec);
+        StepComponent farStep = new StepComponent(farSec);
+        StepComponent veryFarStep = new StepComponent(veryFarSec);
 
-                    double intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
+        // Reuse seen set to avoid allocating a new ConcurrentHashMap each cycle
+        state.seen.clear();
 
-                    Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+        store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
+            // Skip player entities
+            if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
+                return;
+            }
 
-                    boolean frozen = archetypeChunk.getComponent(index, Frozen.getComponentType()) != null;
-                    boolean throttled = archetypeChunk.getComponent(index, TickThrottled.getComponentType()) != null;
+            TransformComponent transform = archetypeChunk.getComponent(index, transformType);
+            UUIDComponent uuid = archetypeChunk.getComponent(index, uuidType);
+            if (transform == null || uuid == null) {
+                return;
+            }
 
-                    // Don't mess around if the entity is already frozen without our throttle marker
-                    if (frozen && !throttled) {
-                        return;
-                    }
+            // Compute chunk distance to nearest player
+            int entityChunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
+            int entityChunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
+            int chunkDist = closestPlayerChunkDistance(entityChunkX, entityChunkZ, playerChunks);
+            UUID entityId = uuid.getUuid();
+            state.seen.add(entityId);
 
-                    // If near enough, remove throttling
-                    if (intervalSec <= 0.0) {
-                        if (throttled) {
-                            commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
-                            commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
-                            commandBuffer.tryRemoveComponent(ref, TickThrottled.getComponentType());
-                        }
-                        state.entries.remove(entityId);
-                        return;
-                    }
+            Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
 
-                    AiLodEntry entry = state.entries.computeIfAbsent(uuid.getUuid(), _k -> new AiLodEntry());
-                    if (!throttled) {
-                        commandBuffer.ensureComponent(ref, Frozen.getComponentType());
-                        commandBuffer.ensureComponent(ref, TickThrottled.getComponentType());
-                    }
+            boolean frozen = archetypeChunk.getComponent(index, frozenType) != null;
+            boolean throttled = archetypeChunk.getComponent(index, tickThrottledType) != null;
 
-                    float minTick = cfg.getValue(AiTickThrottlerConfig.MIN_TICK_SECONDS);
-                    long intervalNanos = (long) (Math.max(minTick, intervalSec) * 1_000_000_000.0);
-                    if (entry.intervalNanos != intervalNanos) {
-                        entry.intervalNanos = intervalNanos;
-                        entry.nextTickNanos = now;
-                    }
+            // Don't mess around if the entity is already frozen without our throttle marker
+            if (frozen && !throttled) {
+                return;
+            }
 
-                    if (now >= entry.nextTickNanos) {
-                        commandBuffer.putComponent(ref, StepComponent.getComponentType(), new StepComponent((float)
-                                ((double) intervalNanos / 1_000_000_000.0)));
-                        entry.nextTickNanos = now + intervalNanos;
-                    }
-                });
+            // Already throttled → unfreeze at nearChunks (tight)
+            // Not throttled → freeze at nearChunks + hysteresis (wider)
+            double intervalSec;
+            if (throttled) {
+                intervalSec = computeInterval(chunkDist, nearChunks, midChunks, farChunks, cfg);
+            } else {
+                intervalSec = computeInterval(
+                        chunkDist, nearChunks + hysteresis, midChunks + hysteresis, farChunks + hysteresis, cfg);
+            }
+
+            // If near enough, remove throttling
+            if (intervalSec <= 0.0) {
+                if (throttled && unfreezeCount.incrementAndGet() <= maxUnfreezes) {
+                    commandBuffer.tryRemoveComponent(ref, frozenType);
+                    commandBuffer.tryRemoveComponent(ref, stepType);
+                    commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+                    state.entries.remove(entityId);
+                }
+                return;
+            }
+
+            if (!throttled) {
+                if (freezeCount.incrementAndGet() > maxFreezes) {
+                    return;
+                }
+                commandBuffer.ensureComponent(ref, frozenType);
+                commandBuffer.ensureComponent(ref, tickThrottledType);
+            }
+            AiLodEntry entry = state.entries.computeIfAbsent(entityId, _k -> new AiLodEntry());
+
+            long intervalNanos = (long) (Math.max(minTick, intervalSec) * 1_000_000_000.0);
+            if (entry.intervalNanos != intervalNanos) {
+                entry.intervalNanos = intervalNanos;
+                entry.nextTickNanos = now;
+            }
+
+            if (now >= entry.nextTickNanos) {
+                // Use pre-computed step for the matching tier
+                StepComponent step;
+                if (chunkDist <= midChunks) {
+                    step = midStep;
+                } else if (chunkDist <= farChunks) {
+                    step = farStep;
+                } else {
+                    step = veryFarStep;
+                }
+                commandBuffer.putComponent(ref, stepType, step);
+                entry.nextTickNanos = now + intervalNanos;
+            }
+        });
+
+        // Prune entries for entities no longer in the world
+        state.entries.keySet().retainAll(state.seen);
+    }
+
+    private void freezeAllNpcs(Store<EntityStore> store) {
+        store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
+            if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
+                return;
+            }
+            boolean frozen = archetypeChunk.getComponent(index, frozenType) != null;
+            boolean throttled = archetypeChunk.getComponent(index, tickThrottledType) != null;
+            if (frozen && !throttled) {
+                return;
+            }
+            if (!frozen) {
+                Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                commandBuffer.ensureComponent(ref, frozenType);
+                commandBuffer.ensureComponent(ref, tickThrottledType);
+            }
+        });
     }
 
     private static double computeInterval(
@@ -219,6 +295,7 @@ public class AiTickThrottlerService {
         for (PlayerRef player : players) {
             if (player == null) continue;
             Transform transform = player.getTransform();
+            if (transform == null) continue;
             int chunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
             int chunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
             positions.add(new int[] {chunkX, chunkZ});
@@ -241,8 +318,42 @@ public class AiTickThrottlerService {
         return minDist;
     }
 
+    private boolean resolveComponentTypes() {
+        if (npcType != null
+                && transformType != null
+                && uuidType != null
+                && frozenType != null
+                && stepType != null
+                && tickThrottledType != null) {
+            return true;
+        }
+        try {
+            if (npcType == null) npcType = EntityModule.get().getNPCMarkerComponentType();
+            if (transformType == null) transformType = TransformComponent.getComponentType();
+            if (uuidType == null) uuidType = UUIDComponent.getComponentType();
+            if (frozenType == null) frozenType = Frozen.getComponentType();
+            if (stepType == null) stepType = StepComponent.getComponentType();
+            if (tickThrottledType == null) tickThrottledType = TickThrottled.getComponentType();
+            if (playerType == null) playerType = Player.getComponentType();
+
+            if (npcQuery == null) {
+                npcQuery = Query.and(npcType, transformType);
+            }
+        } catch (Throwable t) {
+            return false;
+        }
+        return npcType != null
+                && transformType != null
+                && uuidType != null
+                && frozenType != null
+                && stepType != null
+                && tickThrottledType != null;
+    }
+
     private static final class WorldState {
         final Map<UUID, AiLodEntry> entries = new ConcurrentHashMap<>();
+        final Set<UUID> seen = ConcurrentHashMap.newKeySet();
+        boolean frozenWithoutPlayers;
     }
 
     private static final class AiLodEntry {

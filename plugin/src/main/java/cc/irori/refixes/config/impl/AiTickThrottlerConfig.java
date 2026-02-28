@@ -13,15 +13,15 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> UPDATE_INTERVAL_MS =
             new ConfigurationKey<>("UpdateIntervalMs", ConfigField.INTEGER, 150);
 
-    // NPCs within this chunk distance get full tick rate
+    // NPCs within this chunk distance get full tick rate (~64 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> NEAR_CHUNKS =
-            new ConfigurationKey<>("NearChunks", ConfigField.INTEGER, 1);
-    // NPCs within this chunk distance get mid tick rate
+            new ConfigurationKey<>("NearChunks", ConfigField.INTEGER, 2);
+    // NPCs within this chunk distance get mid tick rate (~128 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MID_CHUNKS =
-            new ConfigurationKey<>("MidChunks", ConfigField.INTEGER, 2);
-    // NPCs within this chunk distance get far tick rate
+            new ConfigurationKey<>("MidChunks", ConfigField.INTEGER, 4);
+    // NPCs within this chunk distance get far tick rate (~192 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> FAR_CHUNKS =
-            new ConfigurationKey<>("FarChunks", ConfigField.INTEGER, 4);
+            new ConfigurationKey<>("FarChunks", ConfigField.INTEGER, 6);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Float> MID_TICK_SECONDS =
             new ConfigurationKey<>("MidTickSeconds", ConfigField.FLOAT, 0.2f);
@@ -34,6 +34,13 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> LEGACY_CLEANUP =
             new ConfigurationKey<>("LegacyCleanup", ConfigField.BOOLEAN, false);
+
+    public static final ConfigurationKey<AiTickThrottlerConfig, Integer> ACTIVATION_HYSTERESIS_CHUNKS =
+            new ConfigurationKey<>("ActivationHysteresisChunks", ConfigField.INTEGER, 0);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MAX_UNFREEZES_PER_TICK =
+            new ConfigurationKey<>("MaxUnfreezesPerTick", ConfigField.INTEGER, 10);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MAX_FREEZES_PER_TICK =
+            new ConfigurationKey<>("MaxFreezesPerTick", ConfigField.INTEGER, 20);
 
     private static final AiTickThrottlerConfig INSTANCE = new AiTickThrottlerConfig();
 
@@ -49,7 +56,10 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 FAR_TICK_SECONDS,
                 VERY_FAR_TICK_SECONDS,
                 MIN_TICK_SECONDS,
-                LEGACY_CLEANUP);
+                LEGACY_CLEANUP,
+                ACTIVATION_HYSTERESIS_CHUNKS,
+                MAX_UNFREEZES_PER_TICK,
+                MAX_FREEZES_PER_TICK);
     }
 
     public static AiTickThrottlerConfig get() {
