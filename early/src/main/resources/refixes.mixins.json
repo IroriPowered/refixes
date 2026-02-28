@@ -17,6 +17,7 @@
         "MixinFluidPlugin",
         "MixinFluidReplicateChanges",
         "MixinGamePacketHandler",
+        "MixinHideEntitySystems",
         "MixinHytaleServer",
         "MixinHytaleServerConfig",
         "MixinInstancesPlugin",
