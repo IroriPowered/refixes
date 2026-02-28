@@ -17,6 +17,7 @@
         "MixinFluidPlugin",
         "MixinFluidReplicateChanges",
         "MixinGamePacketHandler",
+        "MixinHideEntitySystems",
         "MixinHytaleServer",
         "MixinHytaleServerConfig",
         "MixinInstancesPlugin",
@@ -42,6 +43,12 @@
         "MixinWorld",
         "MixinWorldConfig",
         "MixinWorldMapTracker",
-        "MixinWorldSpawningSystem"
+        "MixinWorldSpawningSystem",
+        "MixinBlockSectionSafety",
+        "MixinEntityChunkLoadingSystem",
+        "MixinMotionControllerBase",
+        "MixinPlayer",
+        "MixinStateSupport",
+        "MixinTurnOffTeleportersSystem"
     ]
 }

@@ -34,6 +34,9 @@ public final class EarlyOptions {
     public static final Value<Boolean> SHARED_INSTANCES_ENABLED = new Value<>();
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>();
 
+    /* Corrupt Section Protection */
+    public static final Value<Boolean> CORRUPT_SECTION_PROTECTION = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 
