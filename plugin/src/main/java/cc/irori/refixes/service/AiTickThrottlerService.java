@@ -4,6 +4,7 @@ import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.mounts.NPCMountComponent;
+import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -25,7 +26,9 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.StepComponent;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -145,7 +148,7 @@ public class AiTickThrottlerService {
         // No players online: freeze all NPCs once, then skip subsequent cycles
         if (playerChunks.isEmpty()) {
             if (!state.frozenWithoutPlayers) {
-                Set<String> excludedNpcTypes = Set.of(cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDED_NPC_TYPES));
+                Set<String> excludedNpcTypes = new HashSet<>(Arrays.asList(cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDED_NPC_TYPES)));
                 boolean excludeMountsOnEmpty = cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDE_MOUNTS);
                 boolean excludeFlyingOnEmpty = cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDE_FLYING);
                 freezeAllNpcs(store, excludedNpcTypes, excludeMountsOnEmpty, excludeFlyingOnEmpty);
@@ -177,7 +180,7 @@ public class AiTickThrottlerService {
         StepComponent farStep = new StepComponent(farSec);
         StepComponent veryFarStep = new StepComponent(veryFarSec);
 
-        Set<String> excludedNpcTypes = Set.of(cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDED_NPC_TYPES));
+        Set<String> excludedNpcTypes = new HashSet<>(Arrays.asList(cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDED_NPC_TYPES)));
         boolean excludeMounts = cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDE_MOUNTS);
         boolean excludeFlying = cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDE_FLYING);
 
@@ -185,8 +188,7 @@ public class AiTickThrottlerService {
         state.seen.clear();
 
         store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
-            // Skip player entities
-            if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
+            if (isExcluded(index, archetypeChunk, excludedNpcTypes, excludeMounts, excludeFlying)) {
                 return;
             }
 
@@ -194,27 +196,6 @@ public class AiTickThrottlerService {
             UUIDComponent uuid = archetypeChunk.getComponent(index, uuidType);
             if (transform == null || uuid == null) {
                 return;
-            }
-
-            // Skip mounted/tamed NPCs
-            if (excludeMounts && mountType != null && archetypeChunk.getComponent(index, mountType) != null) {
-                return;
-            }
-
-            // Skip currently flying NPCs
-            if (excludeFlying && movementStatesType != null) {
-                MovementStatesComponent ms = archetypeChunk.getComponent(index, movementStatesType);
-                if (ms != null && ms.getMovementStates().flying) {
-                    return;
-                }
-            }
-
-            // Skip excluded NPC types
-            if (!excludedNpcTypes.isEmpty()) {
-                NPCEntity npcEntity = archetypeChunk.getComponent(index, npcEntityType);
-                if (npcEntity != null && excludedNpcTypes.contains(npcEntity.getNPCTypeId())) {
-                    return;
-                }
             }
 
             // Compute chunk distance to nearest player
@@ -292,23 +273,8 @@ public class AiTickThrottlerService {
     private void freezeAllNpcs(
             Store<EntityStore> store, Set<String> excludedNpcTypes, boolean excludeMounts, boolean excludeFlying) {
         store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
-            if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
+            if (isExcluded(index, archetypeChunk, excludedNpcTypes, excludeMounts, excludeFlying)) {
                 return;
-            }
-            if (excludeMounts && mountType != null && archetypeChunk.getComponent(index, mountType) != null) {
-                return;
-            }
-            if (excludeFlying && movementStatesType != null) {
-                MovementStatesComponent ms = archetypeChunk.getComponent(index, movementStatesType);
-                if (ms != null && ms.getMovementStates().flying) {
-                    return;
-                }
-            }
-            if (!excludedNpcTypes.isEmpty()) {
-                NPCEntity npcEntity = archetypeChunk.getComponent(index, npcEntityType);
-                if (npcEntity != null && excludedNpcTypes.contains(npcEntity.getNPCTypeId())) {
-                    return;
-                }
             }
             boolean frozen = archetypeChunk.getComponent(index, frozenType) != null;
             boolean throttled = archetypeChunk.getComponent(index, tickThrottledType) != null;
@@ -321,6 +287,33 @@ public class AiTickThrottlerService {
                 commandBuffer.ensureComponent(ref, tickThrottledType);
             }
         });
+    }
+
+    private boolean isExcluded(
+            int index, ArchetypeChunk<EntityStore> archetypeChunk,
+            Set<String> excludedNpcTypes, boolean excludeMounts, boolean excludeFlying) {
+        if (playerType != null && archetypeChunk.getArchetype().contains(playerType)) {
+            return true;
+        }
+        if (excludeMounts && mountType != null && archetypeChunk.getComponent(index, mountType) != null) {
+            return true;
+        }
+        if (excludeFlying && movementStatesType != null) {
+            MovementStatesComponent ms = archetypeChunk.getComponent(index, movementStatesType);
+            if (ms != null) {
+                var states = ms.getMovementStates();
+                if (states != null && states.flying) {
+                    return true;
+                }
+            }
+        }
+        if (!excludedNpcTypes.isEmpty()) {
+            NPCEntity npcEntity = archetypeChunk.getComponent(index, npcEntityType);
+            if (npcEntity != null && excludedNpcTypes.contains(npcEntity.getNPCTypeId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static double computeInterval(

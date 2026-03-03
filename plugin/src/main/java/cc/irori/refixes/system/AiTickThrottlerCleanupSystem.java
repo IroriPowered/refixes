@@ -1,6 +1,7 @@
 package cc.irori.refixes.system;
 
 import cc.irori.refixes.component.TickThrottled;
+import cc.irori.refixes.config.ConfigurationKey;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import com.hypixel.hytale.component.AddReason;
 import com.hypixel.hytale.component.CommandBuffer;
@@ -15,6 +16,8 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.StepComponent;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -35,7 +38,7 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         if (cfg.getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ENTITIES)) {
             ComponentType<EntityStore, TickThrottled> tickThrottledType = TickThrottled.getComponentType();
             if (tickThrottledType != null && commandBuffer.getComponent(ref, tickThrottledType) != null) {
-                if (!isCleanupExcluded(ref, commandBuffer, cfg)) {
+                if (!isNpcTypeExcluded(ref, commandBuffer, cfg, AiTickThrottlerConfig.CLEANUP_EXCLUDED_NPC_TYPES)) {
                     commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                     commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
                     commandBuffer.tryRemoveComponent(ref, tickThrottledType);
@@ -47,30 +50,17 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         if (cfg.getValue(AiTickThrottlerConfig.LEGACY_CLEANUP)) {
             boolean hasOrphan = commandBuffer.getComponent(ref, Frozen.getComponentType()) != null
                     || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null;
-            if (hasOrphan && !isLegacyCleanupExcluded(ref, commandBuffer, cfg)) {
+            if (hasOrphan && !isNpcTypeExcluded(ref, commandBuffer, cfg, AiTickThrottlerConfig.LEGACY_CLEANUP_EXCLUDED_NPC_TYPES)) {
                 commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                 commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
             }
         }
     }
 
-    private static boolean isCleanupExcluded(
-            Ref<EntityStore> ref, CommandBuffer<EntityStore> commandBuffer, AiTickThrottlerConfig cfg) {
-        Set<String> excluded = Set.of(cfg.getValue(AiTickThrottlerConfig.CLEANUP_EXCLUDED_NPC_TYPES));
-        if (excluded.isEmpty()) {
-            return false;
-        }
-        ComponentType<EntityStore, NPCEntity> npcEntityType = NPCEntity.getComponentType();
-        if (npcEntityType == null) {
-            return false;
-        }
-        NPCEntity npcEntity = commandBuffer.getComponent(ref, npcEntityType);
-        return npcEntity != null && excluded.contains(npcEntity.getNPCTypeId());
-    }
-
-    private static boolean isLegacyCleanupExcluded(
-            Ref<EntityStore> ref, CommandBuffer<EntityStore> commandBuffer, AiTickThrottlerConfig cfg) {
-        Set<String> excluded = Set.of(cfg.getValue(AiTickThrottlerConfig.LEGACY_CLEANUP_EXCLUDED_NPC_TYPES));
+    private static boolean isNpcTypeExcluded(
+            Ref<EntityStore> ref, CommandBuffer<EntityStore> commandBuffer,
+            AiTickThrottlerConfig cfg, ConfigurationKey<AiTickThrottlerConfig, String[]> excludedTypesKey) {
+        Set<String> excluded = new HashSet<>(Arrays.asList(cfg.getValue(excludedTypesKey)));
         if (excluded.isEmpty()) {
             return false;
         }
