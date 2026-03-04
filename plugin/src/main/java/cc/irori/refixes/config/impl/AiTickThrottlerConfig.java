@@ -8,8 +8,6 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> ENABLED =
             new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
-            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> UPDATE_INTERVAL_MS =
             new ConfigurationKey<>("UpdateIntervalMs", ConfigField.INTEGER, 150);
 
@@ -32,9 +30,6 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Float> MIN_TICK_SECONDS =
             new ConfigurationKey<>("MinTickSeconds", ConfigField.FLOAT, 0.05f);
 
-    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> LEGACY_CLEANUP =
-            new ConfigurationKey<>("LegacyCleanup", ConfigField.BOOLEAN, false);
-
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> ACTIVATION_HYSTERESIS_CHUNKS =
             new ConfigurationKey<>("ActivationHysteresisChunks", ConfigField.INTEGER, 0);
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MAX_UNFREEZES_PER_TICK =
@@ -42,12 +37,28 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MAX_FREEZES_PER_TICK =
             new ConfigurationKey<>("MaxFreezesPerTick", ConfigField.INTEGER, 20);
 
+    public static final ConfigurationKey<AiTickThrottlerConfig, String[]> THROTTLE_EXCLUDED_NPC_TYPES =
+            new ConfigurationKey<>("ThrottleExcludedNpcTypes", ConfigField.STRING_ARRAY, new String[0]);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_MOUNTS =
+            new ConfigurationKey<>("ThrottleExcludeMounts", ConfigField.BOOLEAN, true);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_FLYING =
+            new ConfigurationKey<>("ThrottleExcludeFlying", ConfigField.BOOLEAN, false);
+
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
+            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<AiTickThrottlerConfig, String[]> CLEANUP_EXCLUDED_NPC_TYPES =
+            new ConfigurationKey<>("CleanupExcludedNpcTypes", ConfigField.STRING_ARRAY, new String[0]);
+
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> LEGACY_CLEANUP =
+            new ConfigurationKey<>("LegacyCleanup", ConfigField.BOOLEAN, false);
+    public static final ConfigurationKey<AiTickThrottlerConfig, String[]> LEGACY_CLEANUP_EXCLUDED_NPC_TYPES =
+            new ConfigurationKey<>("LegacyCleanupExcludedNpcTypes", ConfigField.STRING_ARRAY, new String[0]);
+
     private static final AiTickThrottlerConfig INSTANCE = new AiTickThrottlerConfig();
 
     public AiTickThrottlerConfig() {
         register(
                 ENABLED,
-                CLEANUP_FROZEN_ENTITIES,
                 UPDATE_INTERVAL_MS,
                 NEAR_CHUNKS,
                 MID_CHUNKS,
@@ -56,10 +67,16 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 FAR_TICK_SECONDS,
                 VERY_FAR_TICK_SECONDS,
                 MIN_TICK_SECONDS,
-                LEGACY_CLEANUP,
                 ACTIVATION_HYSTERESIS_CHUNKS,
                 MAX_UNFREEZES_PER_TICK,
-                MAX_FREEZES_PER_TICK);
+                MAX_FREEZES_PER_TICK,
+                THROTTLE_EXCLUDED_NPC_TYPES,
+                THROTTLE_EXCLUDE_MOUNTS,
+                THROTTLE_EXCLUDE_FLYING,
+                CLEANUP_FROZEN_ENTITIES,
+                CLEANUP_EXCLUDED_NPC_TYPES,
+                LEGACY_CLEANUP,
+                LEGACY_CLEANUP_EXCLUDED_NPC_TYPES);
     }
 
     public static AiTickThrottlerConfig get() {
