@@ -34,6 +34,7 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         }
 
         AiTickThrottlerConfig cfg = AiTickThrottlerConfig.get();
+        boolean throttlerEnabled = cfg.getValue(AiTickThrottlerConfig.ENABLED);
 
         if (cfg.getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ENTITIES)) {
             ComponentType<EntityStore, TickThrottled> tickThrottledType = TickThrottled.getComponentType();
@@ -41,24 +42,21 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
                 if (!isNpcTypeExcluded(ref, commandBuffer, cfg, AiTickThrottlerConfig.CLEANUP_EXCLUDED_NPC_TYPES)) {
                     commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                     commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
-                    commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+                    if (!throttlerEnabled) {
+                        commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+                    }
                 }
             }
         }
 
         if (cfg.getValue(AiTickThrottlerConfig.LEGACY_CLEANUP)) {
-            ComponentType<EntityStore, TickThrottled> tickThrottledType = TickThrottled.getComponentType();
             boolean hasOrphan = commandBuffer.getComponent(ref, Frozen.getComponentType()) != null
-                    || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null
-                    || (tickThrottledType != null && commandBuffer.getComponent(ref, tickThrottledType) != null);
+                    || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null;
             if (hasOrphan
                     && !isNpcTypeExcluded(
                             ref, commandBuffer, cfg, AiTickThrottlerConfig.LEGACY_CLEANUP_EXCLUDED_NPC_TYPES)) {
                 commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                 commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
-                if (tickThrottledType != null) {
-                    commandBuffer.tryRemoveComponent(ref, tickThrottledType);
-                }
             }
         }
     }
