@@ -43,8 +43,6 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
             new ConfigurationKey<>("ThrottleExcludeMounts", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_FLYING =
             new ConfigurationKey<>("ThrottleExcludeFlying", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_SPAWN_MARKER_NPCS =
-            new ConfigurationKey<>("ThrottleExcludeSpawnMarkerNpcs", ConfigField.BOOLEAN, true);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
             new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, true);
@@ -75,7 +73,6 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 THROTTLE_EXCLUDED_NPC_TYPES,
                 THROTTLE_EXCLUDE_MOUNTS,
                 THROTTLE_EXCLUDE_FLYING,
-                THROTTLE_EXCLUDE_SPAWN_MARKER_NPCS,
                 CLEANUP_FROZEN_ENTITIES,
                 CLEANUP_EXCLUDED_NPC_TYPES,
                 LEGACY_CLEANUP,
