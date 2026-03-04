@@ -45,7 +45,7 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
             new ConfigurationKey<>("ThrottleExcludeFlying", ConfigField.BOOLEAN, false);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
-            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, true);
+            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<AiTickThrottlerConfig, String[]> CLEANUP_EXCLUDED_NPC_TYPES =
             new ConfigurationKey<>("CleanupExcludedNpcTypes", ConfigField.STRING_ARRAY, new String[0]);
 
