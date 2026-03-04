@@ -1,21 +1,30 @@
 package cc.irori.refixes.listener;
 
+import cc.irori.refixes.config.impl.ListenerConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.events.ChunkPreLoadProcessEvent;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 
 public final class UnknownBlockCleaner {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+    private static final Queue<WorldChunk> pendingChunks = new ConcurrentLinkedQueue<>();
 
     private static volatile Field blockChunkField;
     private static volatile boolean fieldSearchDone;
@@ -24,11 +33,57 @@ public final class UnknownBlockCleaner {
 
     public static void registerEvents(JavaPlugin plugin) {
         plugin.getEventRegistry()
-                .registerGlobal(ChunkPreLoadProcessEvent.class, UnknownBlockCleaner::cleanUnknownBlocks);
+                .registerGlobal(ChunkPreLoadProcessEvent.class, event -> pendingChunks.add(event.getChunk()));
+
+        int intervalMs = Math.max(20, ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_INTERVAL_MS));
+        HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
+                () -> {
+                    try {
+                        drainQueue();
+                    } catch (Exception e) {
+                        LOGGER.atSevere().withCause(e).log("Error in unknown block cleaner");
+                    }
+                },
+                1000,
+                intervalMs,
+                TimeUnit.MILLISECONDS);
     }
 
-    private static void cleanUnknownBlocks(ChunkPreLoadProcessEvent event) {
-        WorldChunk chunk = event.getChunk();
+    private static void drainQueue() {
+        if (pendingChunks.isEmpty()) {
+            return;
+        }
+
+        Map<World, List<WorldChunk>> byWorld = new HashMap<>();
+        WorldChunk chunk;
+        while ((chunk = pendingChunks.poll()) != null) {
+            World world = chunk.getWorld();
+            if (world != null) {
+                byWorld.computeIfAbsent(world, k -> new ArrayList<>()).add(chunk);
+            }
+        }
+
+        for (Map.Entry<World, List<WorldChunk>> entry : byWorld.entrySet()) {
+            List<WorldChunk> chunks = entry.getValue();
+            entry.getKey().execute(() -> processChunks(chunks));
+        }
+    }
+
+    private static void processChunks(List<WorldChunk> chunks) {
+        int budgetMs = Math.max(1, ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_BUDGET_MS));
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMs);
+        for (int i = 0; i < chunks.size(); i++) {
+            cleanChunk(chunks.get(i));
+            if (System.nanoTime() > deadline && i + 1 < chunks.size()) {
+                for (int j = i + 1; j < chunks.size(); j++) {
+                    pendingChunks.add(chunks.get(j));
+                }
+                return;
+            }
+        }
+    }
+
+    private static void cleanChunk(WorldChunk chunk) {
         Map<String, Integer> removedCounts = new HashMap<>();
 
         BlockChunk blockChunk = resolveBlockChunk(chunk);
