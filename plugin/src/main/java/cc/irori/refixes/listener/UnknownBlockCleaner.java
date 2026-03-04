@@ -137,24 +137,8 @@ public final class UnknownBlockCleaner {
     }
 
     private static void cleanAll(WorldChunk chunk, Map<String, Integer> removedCounts) {
-        for (int x = 0; x < ChunkUtil.SIZE; x++) {
-            for (int z = 0; z < ChunkUtil.SIZE; z++) {
-                for (int y = 0; y < ChunkUtil.HEIGHT; y++) {
-                    try {
-                        BlockType blockType = chunk.getBlockType(x, y, z);
-                        if (blockType != null && blockType.isUnknown()) {
-                            removedCounts.merge(blockType.getId(), 1, Integer::sum);
-                            chunk.setBlock(x, y, z, BlockType.EMPTY_KEY);
-                        }
-                    } catch (Throwable t) {
-                        int blockX = chunk.getX() * ChunkUtil.SIZE + x;
-                        int blockZ = chunk.getZ() * ChunkUtil.SIZE + z;
-                        LOGGER.atWarning().withCause(t).log(
-                                "Error cleaning block at (%d, %d, %d) in world '%s'",
-                                blockX, y, blockZ, chunk.getWorld().getName());
-                    }
-                }
-            }
+        for (int sectionY = 0; sectionY < ChunkUtil.HEIGHT; sectionY += ChunkUtil.SIZE) {
+            cleanSection(chunk, sectionY, removedCounts);
         }
     }
 
