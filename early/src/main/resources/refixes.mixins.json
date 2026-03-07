@@ -50,6 +50,7 @@
         "MixinServerAuthManager",
         "MixinUpdateCheckCommand",
         "MixinUpdateDownloadCommand",
-        "MixinUpdateModule"
+        "MixinUpdateModule",
+        "MixinUpdateService"
     ]
 }
