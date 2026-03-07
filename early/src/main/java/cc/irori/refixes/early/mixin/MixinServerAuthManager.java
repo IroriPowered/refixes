@@ -10,8 +10,9 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-// Controls auth store priority when both external and internal stores are available.
+// Controls auth store priority and OAuth token fallback for external auth.
 @Mixin(ServerAuthManager.class)
 public abstract class MixinServerAuthManager {
 
@@ -23,6 +24,12 @@ public abstract class MixinServerAuthManager {
 
     @Shadow
     public abstract boolean hasIdentityToken();
+
+    @Shadow
+    public abstract String getSessionToken();
+
+    @Shadow
+    public abstract String getIdentityToken();
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
@@ -47,6 +54,25 @@ public abstract class MixinServerAuthManager {
             ci.cancel();
         } else {
             refixes$LOGGER.atInfo().log("External session has no tokens, falling back to internal auth store");
+        }
+    }
+
+    // When OAuth token is unavailable (external auth), fall back to session/identity token
+    @Inject(method = "getOAuthAccessToken", at = @At("RETURN"), cancellable = true)
+    private void refixes$oauthFallback(CallbackInfoReturnable<String> cir) {
+        if (cir.getReturnValue() != null) {
+            return;
+        }
+        String token = getSessionToken();
+        if (token != null) {
+            refixes$LOGGER.atInfo().log("OAuth token unavailable, using session token as fallback");
+            cir.setReturnValue(token);
+            return;
+        }
+        token = getIdentityToken();
+        if (token != null) {
+            refixes$LOGGER.atInfo().log("OAuth token unavailable, using identity token as fallback");
+            cir.setReturnValue(token);
         }
     }
 }
