@@ -33,7 +33,7 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         boolean sweep;
         if (AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.LEGACY_CLEANUP)) {
             sweep = commandBuffer.getComponent(ref, Frozen.getComponentType()) != null
-                        || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null;
+                    || commandBuffer.getComponent(ref, StepComponent.getComponentType()) != null;
         } else {
             sweep = commandBuffer.getComponent(ref, TickThrottled.getComponentType()) != null;
         }

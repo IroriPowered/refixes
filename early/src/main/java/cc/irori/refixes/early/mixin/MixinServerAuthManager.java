@@ -33,7 +33,9 @@ public abstract class MixinServerAuthManager {
             return;
         }
 
-        boolean preferExternal = !EarlyOptions.isAvailable() || EarlyOptions.PREFER_EXTERNAL_AUTH.get();
+        boolean preferExternal = !EarlyOptions.isAvailable()
+                || !EarlyOptions.PREFER_EXTERNAL_AUTH.isSet()
+                || EarlyOptions.PREFER_EXTERNAL_AUTH.get();
         if (!preferExternal) {
             return;
         }
