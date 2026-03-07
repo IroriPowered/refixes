@@ -177,6 +177,7 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.SECTION_CACHE_ENABLED.setSupplier(() -> config.getValue(EarlyConfig.SECTION_CACHE_ENABLED));
         EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.setSupplier(
                 () -> config.getValue(EarlyConfig.SKIP_EMPTY_LIGHT_SECTIONS));
+        EarlyOptions.PREFER_EXTERNAL_AUTH.setSupplier(() -> config.getValue(EarlyConfig.PREFER_EXTERNAL_AUTH));
 
         EarlyOptions.setAvailable(true);
 

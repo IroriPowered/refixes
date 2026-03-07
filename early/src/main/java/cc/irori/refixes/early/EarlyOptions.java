@@ -48,6 +48,9 @@ public final class EarlyOptions {
     /* Skip Empty Light Sections */
     public static final Value<Boolean> SKIP_EMPTY_LIGHT_SECTIONS = new Value<>();
 
+    /* Auth Store */
+    public static final Value<Boolean> PREFER_EXTERNAL_AUTH = new Value<>();
+
     // Private constructor to prevent instantiation
     private EarlyOptions() {}
 
