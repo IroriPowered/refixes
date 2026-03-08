@@ -3,7 +3,9 @@ package cc.irori.refixes.early.mixin;
 import cc.irori.refixes.early.RefixesOptions;
 import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.Options;
+import com.hypixel.hytale.server.core.auth.AuthCredentialStoreProvider;
 import com.hypixel.hytale.server.core.auth.IAuthCredentialStore;
 import com.hypixel.hytale.server.core.auth.ServerAuthManager;
 import java.time.Instant;
@@ -41,9 +43,30 @@ public abstract class MixinServerAuthManager {
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
+    @Inject(method = "initializeCredentialStore", at = @At("HEAD"), cancellable = true)
+    private void refixes$initCredentialStoreForExternalSession(CallbackInfo ci) {
+        if (getAuthMode() != ServerAuthManager.AuthMode.EXTERNAL_SESSION) {
+            return; 
+        }
+
+        AuthCredentialStoreProvider provider = HytaleServer.get().getConfig().getAuthCredentialStoreProvider();
+        credentialStore.set(provider.createStore());
+        refixes$LOGGER.atInfo().log(
+                "Auth credential store (external session): %s",
+                AuthCredentialStoreProvider.CODEC.getIdFor(provider.getClass()));
+
+        refixes$seedOAuthTokensImpl();
+
+        ci.cancel();
+    }
 
     @Inject(method = "initializeCredentialStore", at = @At("TAIL"))
     private void refixes$seedOAuthTokens(CallbackInfo ci) {
+        refixes$seedOAuthTokensImpl();
+    }
+
+    @Unique
+    private void refixes$seedOAuthTokensImpl() {
         String accessToken = refixes$readToken(RefixesOptions.OAUTH_ACCESS_TOKEN, "HYTALE_SERVER_OAUTH_ACCESS_TOKEN");
         String refreshToken =
                 refixes$readToken(RefixesOptions.OAUTH_REFRESH_TOKEN, "HYTALE_SERVER_OAUTH_REFRESH_TOKEN");
