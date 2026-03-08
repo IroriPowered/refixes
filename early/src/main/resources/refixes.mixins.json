@@ -46,6 +46,11 @@
         "MixinBlockChunk",
         "MixinBlockSection",
         "MixinFloodLightCalculation",
-        "MixinStatModifiersManager"
+        "MixinStatModifiersManager",
+        "MixinServerAuthManager",
+        "MixinUpdateCheckCommand",
+        "MixinUpdateDownloadCommand",
+        "MixinUpdateModule",
+        "MixinOptions"
     ]
 }
