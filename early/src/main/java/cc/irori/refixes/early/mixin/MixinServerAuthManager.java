@@ -47,6 +47,9 @@ public abstract class MixinServerAuthManager {
     @Shadow
     private Map<UUID, SessionServiceClient.GameProfile> availableProfiles;
 
+    @Shadow
+    private void setExpiryAndScheduleRefresh(Instant expiry) {}
+
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
@@ -62,7 +65,7 @@ public abstract class MixinServerAuthManager {
                 "Auth credential store (external session): %s",
                 AuthCredentialStoreProvider.CODEC.getIdFor(provider.getClass()));
 
-        refixes$seedOAuthTokensImpl();
+        Instant seededExpiry = refixes$seedOAuthTokensImpl();
 
         String profileUuid = refixes$readToken(RefixesOptions.PROFILE_UUID, "HYTALE_PROFILE_UUID");
         if (profileUuid != null && !profileUuid.isEmpty()) {
@@ -79,6 +82,11 @@ public abstract class MixinServerAuthManager {
             refixes$LOGGER.atInfo().log("Profile set from environment: %s (%s)", profile.username, profileUuid);
         }
 
+        if (seededExpiry != null) {
+            setExpiryAndScheduleRefresh(seededExpiry);
+            refixes$LOGGER.atInfo().log("Token refresh scheduler started (expires: %s)", seededExpiry);
+        }
+
         ci.cancel();
     }
 
@@ -87,14 +95,57 @@ public abstract class MixinServerAuthManager {
         refixes$seedOAuthTokensImpl();
     }
 
+    @Shadow
+    private AtomicReference<SessionServiceClient.GameSessionResponse> gameSession;
+
+    @Shadow
+    private SessionServiceClient.GameSessionResponse createGameSession(UUID profileUuid) {
+        return null;
+    }
+
+    @Shadow
+    private Instant getEffectiveExpiry(SessionServiceClient.GameSessionResponse response) {
+        return null;
+    }
+
+    @Inject(method = "refreshGameSessionViaOAuth", at = @At("HEAD"), cancellable = true)
+    private void refixes$allowExternalSessionRefresh(CallbackInfoReturnable<Boolean> cir) {
+        if (getAuthMode() != ServerAuthManager.AuthMode.EXTERNAL_SESSION) {
+            return;
+        }
+
+        UUID currentProfile = credentialStore.get().getProfile();
+        if (currentProfile == null) {
+            refixes$LOGGER.atWarning().log("No current profile, cannot refresh game session via OAuth");
+            cir.setReturnValue(false);
+            return;
+        }
+
+        SessionServiceClient.GameSessionResponse newSession = createGameSession(currentProfile);
+        if (newSession == null) {
+            refixes$LOGGER.atWarning().log("Failed to create new game session via OAuth refresh");
+            cir.setReturnValue(false);
+            return;
+        }
+
+        gameSession.set(newSession);
+        Instant effectiveExpiry = getEffectiveExpiry(newSession);
+        if (effectiveExpiry != null) {
+            setExpiryAndScheduleRefresh(effectiveExpiry);
+        }
+
+        refixes$LOGGER.atInfo().log("Game session refreshed via OAuth for external session");
+        cir.setReturnValue(true);
+    }
+
     @Unique
-    private void refixes$seedOAuthTokensImpl() {
+    private Instant refixes$seedOAuthTokensImpl() {
         String accessToken = refixes$readToken(RefixesOptions.OAUTH_ACCESS_TOKEN, "HYTALE_SERVER_OAUTH_ACCESS_TOKEN");
         String refreshToken =
                 refixes$readToken(RefixesOptions.OAUTH_REFRESH_TOKEN, "HYTALE_SERVER_OAUTH_REFRESH_TOKEN");
 
         if (accessToken == null && refreshToken == null) {
-            return;
+            return null;
         }
 
         Instant expiresAt = null;
@@ -123,6 +174,8 @@ public abstract class MixinServerAuthManager {
                     refreshToken != null ? "present" : "missing",
                     expiresAt != null ? expiresAt.toString() : "not set");
         }
+
+        return expiresAt;
     }
 
     @Unique
@@ -130,12 +183,12 @@ public abstract class MixinServerAuthManager {
         OptionSet optionSet = Options.getOptionSet();
         if (optionSet != null && optionSet.has(cliOption)) {
             String value = optionSet.valueOf(cliOption);
-            refixes$LOGGER.atInfo().log("OAuth token loaded from CLI: %s", cliOption.toString());
+            refixes$LOGGER.atInfo().log("Token loaded from CLI: %s", cliOption.toString());
             return value;
         }
         String envValue = System.getenv(envVar);
         if (envValue != null && !envValue.isEmpty()) {
-            refixes$LOGGER.atInfo().log("OAuth token loaded from environment: %s", envVar);
+            refixes$LOGGER.atInfo().log("Token loaded from environment: %s", envVar);
             return envValue;
         }
         return null;
