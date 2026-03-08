@@ -193,22 +193,4 @@ public abstract class MixinServerAuthManager {
         }
         return null;
     }
-
-    @Inject(method = "getOAuthAccessToken", at = @At("RETURN"), cancellable = true)
-    private void refixes$oauthFallback(CallbackInfoReturnable<String> cir) {
-        if (cir.getReturnValue() != null) {
-            return;
-        }
-        String token = getSessionToken();
-        if (token != null) {
-            refixes$LOGGER.atInfo().log("OAuth token unavailable, using session token as fallback");
-            cir.setReturnValue(token);
-            return;
-        }
-        token = getIdentityToken();
-        if (token != null) {
-            refixes$LOGGER.atInfo().log("OAuth token unavailable, using identity token as fallback");
-            cir.setReturnValue(token);
-        }
-    }
 }
