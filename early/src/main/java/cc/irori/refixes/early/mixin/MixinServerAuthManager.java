@@ -49,6 +49,9 @@ public abstract class MixinServerAuthManager {
     private Map<UUID, SessionServiceClient.GameProfile> availableProfiles;
 
     @Shadow
+    private SessionServiceClient sessionServiceClient;
+
+    @Shadow
     private void setExpiryAndScheduleRefresh(Instant expiry) {}
 
     @Unique
@@ -230,5 +233,17 @@ public abstract class MixinServerAuthManager {
             return envValue;
         }
         return null;
+    }
+
+    @Inject(method = "shutdown", at = @At("TAIL"))
+    private void refixes$terminateExternalSession(CallbackInfo ci) {
+        String currentSessionToken = getSessionToken();
+        if (currentSessionToken != null && !currentSessionToken.isEmpty()) {
+            if (sessionServiceClient == null) {
+                sessionServiceClient = new SessionServiceClient("https://sessions.hytale.com");
+            }
+            sessionServiceClient.terminateSession(currentSessionToken);
+            refixes$LOGGER.atInfo().log("Terminated session on shutdown");
+        }
     }
 }
