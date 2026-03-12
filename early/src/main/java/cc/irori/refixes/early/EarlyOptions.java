@@ -69,6 +69,10 @@ public final class EarlyOptions {
             this.supplier = supplier;
         }
 
+        public boolean isSet() {
+            return supplier != null;
+        }
+
         public T get() {
             if (supplier == null) {
                 throw new IllegalStateException("Value supplier has not been set");
