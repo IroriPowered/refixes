@@ -292,6 +292,30 @@ public abstract class MixinServerAuthManager {
                 json.addProperty("access_expires", tokens.accessTokenExpiresAt().getEpochSecond());
             }
 
+            String sessionToken = getSessionToken();
+            if (sessionToken != null && !sessionToken.isEmpty()) {
+                json.addProperty("session_token", sessionToken);
+            }
+
+            String identityToken = getIdentityToken();
+            if (identityToken != null && !identityToken.isEmpty()) {
+                json.addProperty("identity_token", identityToken);
+            }
+
+            SessionServiceClient.GameSessionResponse session = gameSession.get();
+            if (session != null && session.expiresAt != null) {
+                json.addProperty("session_expires", session.expiresAt.getEpochSecond());
+            }
+
+            UUID profileUuid = store.getProfile();
+            if (profileUuid != null) {
+                json.addProperty("profile_uuid", profileUuid.toString());
+                SessionServiceClient.GameProfile profile = availableProfiles.get(profileUuid);
+                if (profile != null && profile.username != null) {
+                    json.addProperty("profile_name", profile.username);
+                }
+            }
+
             Files.writeString(authFile, refixes$GSON.toJson(json));
             refixes$LOGGER.atInfo().log("Synced OAuth tokens to external auth file");
         } catch (Exception e) {
