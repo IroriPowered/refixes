@@ -7,9 +7,7 @@ import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.shape.Box2D;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.server.core.HytaleServer;
-import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -17,12 +15,9 @@ import com.hypixel.hytale.server.core.universe.world.chunk.ChunkFlag;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
-import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -67,14 +62,12 @@ public class ActiveChunkUnloader {
         // Clean cached state for worlds that no longer exist
         outOfRangeSinceByWorld.keySet().removeIf(name -> !worldsByName.containsKey(name));
 
-        int offset = Math.max(config.getValue(ChunkUnloaderConfig.UNLOAD_DISTANCE_OFFSET), 0);
-
         for (World world : worldsByName.values()) {
-            world.execute(() -> unloadWorld(world, offset, config));
+            world.execute(() -> unloadWorld(world, config));
         }
     }
 
-    private void unloadWorld(World world, int offset, ChunkUnloaderConfig config) {
+    private void unloadWorld(World world, ChunkUnloaderConfig config) {
         if (!world.getWorldConfig().canUnloadChunks()) {
             return;
         }
@@ -86,13 +79,13 @@ public class ActiveChunkUnloader {
             return;
         }
 
-        List<PlayerSnapshot> playerSnapshots = collectPlayerSnapshots(world.getPlayerRefs(), offset);
+        int playerCount = world.getPlayerRefs().size();
 
-        // Compatibility  with view radius reducer plugins, prevents unloading when no chunks are loaded.
-        if (!playerSnapshots.isEmpty()) {
+        // Compatibility with view radius reducer plugins, prevents unloading when no chunks are loaded.
+        if (playerCount > 0) {
             boolean anyPlayerChunkLoaded = false;
-            for (PlayerSnapshot snapshot : playerSnapshots) {
-                if (chunkStore.getChunkReference(snapshot.chunkIndex()) != null) {
+            for (PlayerRef playerRef : world.getPlayerRefs()) {
+                if (playerRef != null && playerRef.getChunkTracker().shouldBeVisible(ChunkUtil.indexChunk(0, 0))) {
                     anyPlayerChunkLoaded = true;
                     break;
                 }
@@ -146,8 +139,15 @@ public class ActiveChunkUnloader {
                 continue;
             }
 
-            // Skip chunks still within a player's safe radius (per-player view radius + offset)
-            if (isChunkNeeded(playerSnapshots, chunkIndex)) {
+            // Skip spawn chunk if configured
+            if (config.getValue(ChunkUnloaderConfig.KEEP_SPAWN_LOADED) && isSpawnChunk(world, worldChunk)) {
+                outOfRangeSince.remove(chunkIndex);
+                skippedKeepLoaded++;
+                continue;
+            }
+
+            // Skip chunks still within a player's view range
+            if (isChunkNeeded(world, chunkIndex)) {
                 outOfRangeSince.remove(chunkIndex);
                 skippedInRange++;
                 continue;
@@ -195,7 +195,7 @@ public class ActiveChunkUnloader {
 
         if (unloaded > 0) {
             LOGGER.atInfo().log(
-                    "[%s] ChunkUnloader: total=%d, unloaded=%d, inRange=%d, keepLoaded=%d, keepLoadedRegion=%d, waitingDelay=%d, tickingStripped=%d, eventCancelled=%d, players=%d, offset=%d",
+                    "[%s] ChunkUnloader: total=%d, unloaded=%d, inRange=%d, keepLoaded=%d, keepLoadedRegion=%d, waitingDelay=%d, tickingStripped=%d, eventCancelled=%d, players=%d",
                     world.getName(),
                     totalChunks,
                     unloaded,
@@ -205,60 +205,17 @@ public class ActiveChunkUnloader {
                     skippedWaitingDelay,
                     skippedTickingStripped,
                     skippedEventCancelled,
-                    playerSnapshots.size(),
-                    offset);
+                    playerCount);
         }
     }
 
-    private static List<PlayerSnapshot> collectPlayerSnapshots(java.util.Collection<PlayerRef> players, int offset) {
-        List<PlayerSnapshot> snapshots = new ArrayList<>();
-        if (players == null || players.isEmpty()) {
-            return snapshots;
-        }
-        for (PlayerRef playerRef : players) {
-            if (playerRef == null) {
-                continue;
-            }
-            Transform transform = playerRef.getTransform();
-            int chunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
-            int chunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
-            long chunkIndex = ChunkUtil.indexChunk(chunkX, chunkZ);
-
-            int viewRadius = Player.DEFAULT_VIEW_RADIUS_CHUNKS;
-            try {
-                Ref<EntityStore> entityRef = playerRef.getReference();
-                if (entityRef != null && entityRef.isValid()) {
-                    Player player = entityRef.getStore().getComponent(entityRef, Player.getComponentType());
-                    if (player != null) {
-                        viewRadius = player.getViewRadius();
-                    }
-                }
-            } catch (Throwable ignored) {
-                // Fall back to default
-            }
-
-            snapshots.add(new PlayerSnapshot(chunkIndex, Math.max(viewRadius + offset, 2)));
-        }
-        return snapshots;
-    }
-
-    private static boolean isChunkNeeded(List<PlayerSnapshot> playerSnapshots, long chunkIndex) {
-        for (PlayerSnapshot snapshot : playerSnapshots) {
-            if (chebyshevDistance(chunkIndex, snapshot.chunkIndex) <= snapshot.safeRadius) {
+    private boolean isChunkNeeded(World world, long chunkIndex) {
+        for (PlayerRef playerRef : world.getPlayerRefs()) {
+            if (playerRef != null && playerRef.getChunkTracker().shouldBeVisible(chunkIndex)) {
                 return true;
             }
         }
         return false;
-    }
-
-    private record PlayerSnapshot(long chunkIndex, int safeRadius) {}
-
-    private static int chebyshevDistance(long index1, long index2) {
-        int x1 = ChunkUtil.xOfChunkIndex(index1);
-        int z1 = ChunkUtil.zOfChunkIndex(index1);
-        int x2 = ChunkUtil.xOfChunkIndex(index2);
-        int z2 = ChunkUtil.zOfChunkIndex(index2);
-        return Math.max(Math.abs(x1 - x2), Math.abs(z1 - z2));
     }
 
     private static boolean isInKeepLoadedRegion(World world, WorldChunk worldChunk) {
@@ -274,5 +231,10 @@ public class ActiveChunkUnloader {
                 && minX <= keepLoaded.max.x
                 && maxZ >= keepLoaded.min.y
                 && minZ <= keepLoaded.max.y;
+    }
+
+    private static boolean isSpawnChunk(World world, WorldChunk worldChunk) {
+        // Protect spawn chunk at origin (0,0)
+        return worldChunk.getX() == 0 && worldChunk.getZ() == 0;
     }
 }

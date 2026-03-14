@@ -25,6 +25,8 @@ public final class EarlyOptions {
     /* ChunkTracker Rate Limits */
     public static final Value<Integer> MAX_CHUNKS_PER_SECOND = new Value<>();
     public static final Value<Integer> MAX_CHUNKS_PER_TICK = new Value<>();
+    public static final Value<Integer> CHUNK_UNLOAD_OFFSET = new Value<>();
+    public static final Value<Boolean> VANILLA_KEEP_SPAWN_LOADED = new Value<>();
 
     /* KDTree Optimization */
     public static final Value<Boolean> KDTREE_OPTIMIZATION_OPTIMIZE_SORT = new Value<>();

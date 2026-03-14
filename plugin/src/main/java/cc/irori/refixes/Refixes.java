@@ -1,5 +1,6 @@
 package cc.irori.refixes;
 
+import cc.irori.refixes.command.ChunkLoaderCommand;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
@@ -17,11 +18,13 @@ import cc.irori.refixes.config.impl.TickSleepOptimizationConfig;
 import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
+import cc.irori.refixes.listener.ChunkLoaderWorldListener;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
 import cc.irori.refixes.listener.UnknownBlockCleaner;
 import cc.irori.refixes.service.ActiveChunkUnloader;
 import cc.irori.refixes.service.AiTickThrottlerService;
+import cc.irori.refixes.service.ChunkLoaderService;
 import cc.irori.refixes.service.IdlePlayerService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.WatchdogService;
@@ -64,11 +67,13 @@ public class Refixes extends JavaPlugin {
 
     private IdlePlayerService idlePlayerService;
     private AiTickThrottlerService aiTickThrottler;
+    private ChunkLoaderService chunkLoaderService;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
         instance = this;
         config = withConfig(RefixesConfig.get().getCodec());
+        chunkLoaderService = new ChunkLoaderService(init.getDataDirectory());
     }
 
     @Override
@@ -148,6 +153,10 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.ASYNC_BLOCK_PRE_PROCESS.setSupplier(() -> config.getValue(EarlyConfig.ASYNC_BLOCK_PRE_PROCESS));
         EarlyOptions.MAX_CHUNKS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_SECOND));
         EarlyOptions.MAX_CHUNKS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_TICK));
+        EarlyOptions.CHUNK_UNLOAD_OFFSET.setSupplier(
+                () -> ChunkUnloaderConfig.get().getValue(ChunkUnloaderConfig.UNLOAD_DISTANCE_OFFSET));
+        EarlyOptions.VANILLA_KEEP_SPAWN_LOADED.setSupplier(
+                () -> config.getValue(EarlyConfig.VANILLA_KEEP_SPAWN_LOADED));
 
         EarlyOptions.CYLINDER_VISIBILITY_ENABLED.setSupplier(
                 () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.ENABLED));
@@ -254,6 +263,9 @@ public class Refixes extends JavaPlugin {
                 "AI tick throttler",
                 AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED),
                 () -> aiTickThrottler = new AiTickThrottlerService());
+
+        getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
+        new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
 
         applyFix(
                 "Shared instance worlds",

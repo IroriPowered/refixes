@@ -23,6 +23,8 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
             new ConfigurationKey<>("MaxChunksPerSecond", ConfigField.INTEGER, 36);
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_TICK =
             new ConfigurationKey<>("MaxChunksPerTick", ConfigField.INTEGER, 4);
+    public static final ConfigurationKey<EarlyConfig, Boolean> VANILLA_KEEP_SPAWN_LOADED =
+            new ConfigurationKey<>("VanillaKeepSpawnLoaded", ConfigField.BOOLEAN, true);
 
     public static final ConfigurationKey<EarlyConfig, Boolean> BLOCK_ENTITY_SLEEP_ENABLED =
             new ConfigurationKey<>("BlockEntitySleepEnabled", ConfigField.BOOLEAN, false);
@@ -49,6 +51,7 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 ASYNC_BLOCK_PRE_PROCESS,
                 MAX_CHUNKS_PER_SECOND,
                 MAX_CHUNKS_PER_TICK,
+                VANILLA_KEEP_SPAWN_LOADED,
                 BLOCK_ENTITY_SLEEP_ENABLED,
                 BLOCK_ENTITY_SLEEP_INTERVAL,
                 STAT_RECALC_THROTTLE_ENABLED,
