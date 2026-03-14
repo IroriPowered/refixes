@@ -85,8 +85,7 @@ public class ActiveChunkUnloader {
         if (playerCount > 0) {
             boolean anyPlayerChunkLoaded = false;
             for (PlayerRef playerRef : world.getPlayerRefs()) {
-                if (playerRef != null && playerRef.getChunkTracker().shouldBeVisible(
-                        ChunkUtil.indexChunk(0, 0))) {
+                if (playerRef != null && playerRef.getChunkTracker().shouldBeVisible(ChunkUtil.indexChunk(0, 0))) {
                     anyPlayerChunkLoaded = true;
                     break;
                 }
@@ -235,10 +234,7 @@ public class ActiveChunkUnloader {
     }
 
     private static boolean isSpawnChunk(World world, WorldChunk worldChunk) {
-        int spawnX = (int) world.getWorldConfig().getSpawnPosition().getX();
-        int spawnZ = (int) world.getWorldConfig().getSpawnPosition().getZ();
-        int spawnChunkX = ChunkUtil.chunkCoordinate(spawnX);
-        int spawnChunkZ = ChunkUtil.chunkCoordinate(spawnZ);
-        return worldChunk.getX() == spawnChunkX && worldChunk.getZ() == spawnChunkZ;
+        // Protect spawn chunk at origin (0,0)
+        return worldChunk.getX() == 0 && worldChunk.getZ() == 0;
     }
 }

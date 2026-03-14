@@ -7,16 +7,12 @@ import com.google.gson.reflect.TypeToken;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -39,13 +35,16 @@ public class ChunkLoaderService {
         long chunkIndex = ChunkUtil.indexChunk(chunkX, chunkZ);
         String worldName = world.getName();
 
-        keptChunksByWorld.computeIfAbsent(worldName, k -> new ConcurrentHashMap<>()).put(chunkIndex, label != null ? label : "");
+        keptChunksByWorld
+                .computeIfAbsent(worldName, k -> new ConcurrentHashMap<>())
+                .put(chunkIndex, label != null ? label : "");
         save(worldName);
 
         world.execute(() -> {
             Ref<ChunkStore> chunkRef = world.getChunkStore().getChunkReference(chunkIndex);
             if (chunkRef != null && chunkRef.isValid()) {
-                WorldChunk chunk = world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
+                WorldChunk chunk =
+                        world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
                 if (chunk != null) {
                     chunk.addKeepLoaded();
                     LOGGER.atInfo().log("Added chunk loader at %d, %d in world %s", chunkX, chunkZ, worldName);
@@ -67,7 +66,8 @@ public class ChunkLoaderService {
         world.execute(() -> {
             Ref<ChunkStore> chunkRef = world.getChunkStore().getChunkReference(chunkIndex);
             if (chunkRef != null && chunkRef.isValid()) {
-                WorldChunk chunk = world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
+                WorldChunk chunk =
+                        world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
                 if (chunk != null) {
                     chunk.removeKeepLoaded();
                     LOGGER.atInfo().log("Removed chunk loader at %d, %d in world %s", chunkX, chunkZ, worldName);
@@ -105,7 +105,8 @@ public class ChunkLoaderService {
             for (long chunkIndex : chunks.keySet()) {
                 Ref<ChunkStore> chunkRef = world.getChunkStore().getChunkReference(chunkIndex);
                 if (chunkRef != null && chunkRef.isValid()) {
-                    WorldChunk chunk = world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
+                    WorldChunk chunk =
+                            world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
                     if (chunk != null) {
                         chunk.addKeepLoaded();
                         loaded++;
@@ -129,7 +130,8 @@ public class ChunkLoaderService {
             for (long chunkIndex : chunks.keySet()) {
                 Ref<ChunkStore> chunkRef = world.getChunkStore().getChunkReference(chunkIndex);
                 if (chunkRef != null && chunkRef.isValid()) {
-                    WorldChunk chunk = world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
+                    WorldChunk chunk =
+                            world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
                     if (chunk != null) {
                         chunk.removeKeepLoaded();
                     }
@@ -151,10 +153,7 @@ public class ChunkLoaderService {
             for (Map.Entry<Long, String> entry : chunks.entrySet()) {
                 long chunkIndex = entry.getKey();
                 chunkDataList.add(new ChunkData(
-                        ChunkUtil.chunkX(chunkIndex),
-                        ChunkUtil.chunkZ(chunkIndex),
-                        entry.getValue()
-                ));
+                        ChunkUtil.xOfChunkIndex(chunkIndex), ChunkUtil.zOfChunkIndex(chunkIndex), entry.getValue()));
             }
 
             String json = GSON.toJson(chunkDataList);
@@ -176,7 +175,8 @@ public class ChunkLoaderService {
                         try {
                             String worldName = path.getFileName().toString().replace(".json", "");
                             String json = Files.readString(path);
-                            List<ChunkData> chunkDataList = GSON.fromJson(json, new TypeToken<List<ChunkData>>() {}.getType());
+                            List<ChunkData> chunkDataList =
+                                    GSON.fromJson(json, new TypeToken<List<ChunkData>>() {}.getType());
 
                             Map<Long, String> chunks = new ConcurrentHashMap<>();
                             for (ChunkData data : chunkDataList) {

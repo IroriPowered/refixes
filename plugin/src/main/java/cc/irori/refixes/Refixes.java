@@ -264,7 +264,7 @@ public class Refixes extends JavaPlugin {
                 AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED),
                 () -> aiTickThrottler = new AiTickThrottlerService());
 
-        registerCommand(new ChunkLoaderCommand(chunkLoaderService));
+        getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
         new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
 
         applyFix(
