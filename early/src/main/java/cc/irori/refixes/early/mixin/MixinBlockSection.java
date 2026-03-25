@@ -29,7 +29,7 @@ public abstract class MixinBlockSection {
             Object t,
             Object v,
             int sectionIndex,
-            ObjectPositionBlockFunction acceptor,
+            ObjectPositionBlockFunction<?, ?, ?> acceptor,
             CallbackInfoReturnable<Integer> cir) {
         if (!EarlyOptions.isAvailable() || !EarlyOptions.BLOCK_ENTITY_SLEEP_ENABLED.get()) {
             return;

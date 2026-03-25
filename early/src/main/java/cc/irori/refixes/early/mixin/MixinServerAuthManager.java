@@ -5,9 +5,7 @@ import cc.irori.refixes.early.util.Logs;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.Options;
-import com.hypixel.hytale.server.core.auth.AuthCredentialStoreProvider;
 import com.hypixel.hytale.server.core.auth.EncryptedAuthCredentialStoreProvider;
 import com.hypixel.hytale.server.core.auth.IAuthCredentialStore;
 import com.hypixel.hytale.server.core.auth.ServerAuthManager;
@@ -82,8 +80,10 @@ public abstract class MixinServerAuthManager {
 
         IAuthCredentialStore store = credentialStore.get();
 
-        String envAccessToken = refixes$readToken(RefixesOptions.OAUTH_ACCESS_TOKEN, "HYTALE_SERVER_OAUTH_ACCESS_TOKEN");
-        String envRefreshToken = refixes$readToken(RefixesOptions.OAUTH_REFRESH_TOKEN, "HYTALE_SERVER_OAUTH_REFRESH_TOKEN");
+        String envAccessToken =
+                refixes$readToken(RefixesOptions.OAUTH_ACCESS_TOKEN, "HYTALE_SERVER_OAUTH_ACCESS_TOKEN");
+        String envRefreshToken =
+                refixes$readToken(RefixesOptions.OAUTH_REFRESH_TOKEN, "HYTALE_SERVER_OAUTH_REFRESH_TOKEN");
 
         if (envAccessToken != null || envRefreshToken != null) {
             refixes$LOGGER.atInfo().log("Loading fresh tokens from environment variables");
@@ -94,15 +94,19 @@ public abstract class MixinServerAuthManager {
             }
         } else {
             IAuthCredentialStore.OAuthTokens existingTokens = store != null ? store.getTokens() : null;
-            if (existingTokens != null && (existingTokens.accessToken() != null || existingTokens.refreshToken() != null)) {
+            if (existingTokens != null
+                    && (existingTokens.accessToken() != null || existingTokens.refreshToken() != null)) {
                 Instant expiresAt = existingTokens.accessTokenExpiresAt();
-                boolean accessValid = expiresAt != null && expiresAt.isAfter(Instant.now().plusSeconds(60));
+                boolean accessValid =
+                        expiresAt != null && expiresAt.isAfter(Instant.now().plusSeconds(60));
 
                 if (accessValid) {
-                    refixes$LOGGER.atInfo().log("Using persisted tokens from credential store (expires: %s)", expiresAt);
+                    refixes$LOGGER.atInfo().log(
+                            "Using persisted tokens from credential store (expires: %s)", expiresAt);
                     setExpiryAndScheduleRefresh(expiresAt);
                 } else if (existingTokens.refreshToken() != null) {
-                    refixes$LOGGER.atInfo().log("Access token expired, but refresh token available. Attempting refresh");
+                    refixes$LOGGER.atInfo().log(
+                            "Access token expired, but refresh token available. Attempting refresh");
                     if (expiresAt != null) {
                         setExpiryAndScheduleRefresh(expiresAt);
                     }
@@ -174,8 +178,8 @@ public abstract class MixinServerAuthManager {
                     break;
                 }
             } catch (Exception e) {
-                refixes$LOGGER.atWarning().log("Game session creation attempt %d/%d failed: %s",
-                    attempt, maxRetries, e.getMessage());
+                refixes$LOGGER.atWarning().log(
+                        "Game session creation attempt %d/%d failed: %s", attempt, maxRetries, e.getMessage());
             }
 
             if (attempt < maxRetries) {
@@ -191,7 +195,8 @@ public abstract class MixinServerAuthManager {
         }
 
         if (newSession == null) {
-            refixes$LOGGER.atWarning().log("Failed to create new game session after %d attempts, falling back to OAuth refresh", maxRetries);
+            refixes$LOGGER.atWarning().log(
+                    "Failed to create new game session after %d attempts, falling back to OAuth refresh", maxRetries);
             return;
         }
 

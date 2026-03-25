@@ -1,25 +1,25 @@
 package cc.irori.refixes.early.mixin;
 
-import java.util.List;
-
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
+import cc.irori.refixes.early.EarlyOptions;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-
-import cc.irori.refixes.early.EarlyOptions;
+import com.hypixel.hytale.server.core.universe.world.storage.component.ChunkUnloadingSystem;
+import java.util.List;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 // Fixes vanilla bug where paused players' chunks unload after 7.5 seconds
-@Mixin(targets = "com.hypixel.hytale.server.core.universe.world.storage.component.ChunkUnloadingSystem")
+@Mixin(ChunkUnloadingSystem.class)
 public class MixinChunkUnloadingSystem {
 
     @Inject(
@@ -48,6 +48,10 @@ public class MixinChunkUnloadingSystem {
         }
     }
 
+    /**
+     * @author Refixes
+     * @reason
+     */
     @Overwrite
     private static void collectTrackers(
             ArchetypeChunk<EntityStore> archetypeChunk, CommandBuffer<EntityStore> commandBuffer) {
@@ -65,14 +69,15 @@ public class MixinChunkUnloadingSystem {
         }
     }
 
-    @Mixin(targets = "com.hypixel.hytale.server.core.universe.world.storage.component.ChunkUnloadingSystem$Data")
+    @Mixin(ChunkUnloadingSystem.Data.class)
     interface DataAccessor {
+        @Accessor
         List<ChunkTracker> getChunkTrackers();
     }
 
     @Mixin(ChunkTracker.class)
     interface ChunkTrackerAccessor {
-        @org.spongepowered.asm.mixin.gen.Accessor("transformComponent")
-        Object getTransformComponent();
+        @Accessor("transformComponent")
+        TransformComponent getTransformComponent();
     }
 }

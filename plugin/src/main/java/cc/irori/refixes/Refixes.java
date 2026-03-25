@@ -32,7 +32,6 @@ import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.EntityDespawnTimerSystem;
 import cc.irori.refixes.system.InteractionManagerFixSystem;
-import cc.irori.refixes.system.ProcessingBenchFixSystem;
 import cc.irori.refixes.system.RespawnBlockFixSystem;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
@@ -222,10 +221,6 @@ public class Refixes extends JavaPlugin {
                 "Respawn block fix",
                 SystemConfig.get().getValue(SystemConfig.RESPAWN_BLOCK),
                 () -> getChunkStoreRegistry().registerSystem(new RespawnBlockFixSystem()));
-        applyFix(
-                "Processing bench fix",
-                SystemConfig.get().getValue(SystemConfig.PROCESSING_BENCH),
-                () -> getChunkStoreRegistry().registerSystem(new ProcessingBenchFixSystem()));
         applyFix(
                 "Crafting manager fix",
                 SystemConfig.get().getValue(SystemConfig.CRAFTING_MANAGER)

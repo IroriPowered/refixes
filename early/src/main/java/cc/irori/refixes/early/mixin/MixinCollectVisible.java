@@ -12,7 +12,7 @@ import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.tracker.EntityTrackerSystems;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import it.unimi.dsi.fastutil.objects.ObjectList;
+import java.util.List;
 import javax.annotation.Nonnull;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -25,7 +25,10 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(EntityTrackerSystems.CollectVisible.class)
 public abstract class MixinCollectVisible {
 
-    // Use cylindrical query instead of spherical for entity visibility collection
+    /**
+     * @author Refixes
+     * @reason Use cylindrical query instead of spherical for entity visibility collection
+     */
     @Overwrite
     public void tick(
             float dt,
@@ -46,7 +49,7 @@ public abstract class MixinCollectVisible {
                         EntityModule.get().getNetworkSendableSpatialResourceType())
                 .getSpatialStructure();
 
-        ObjectList<Ref<EntityStore>> results = SpatialResource.getThreadLocalReferenceList();
+        List<Ref<EntityStore>> results = SpatialResource.getThreadLocalReferenceList();
 
         if (EarlyOptions.isAvailable() && EarlyOptions.CYLINDER_VISIBILITY_ENABLED.get()) {
             double radius = entityViewerComponent.viewRadiusBlocks;

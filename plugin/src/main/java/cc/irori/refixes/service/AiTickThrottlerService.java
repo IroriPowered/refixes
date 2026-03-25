@@ -273,10 +273,7 @@ public class AiTickThrottlerService {
     }
 
     private void freezeAllNpcs(
-            Store<EntityStore> store,
-            Set<String> excludedNpcTypes,
-            boolean excludeMounts,
-            boolean excludeFlying) {
+            Store<EntityStore> store, Set<String> excludedNpcTypes, boolean excludeMounts, boolean excludeFlying) {
         store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
             if (isExcluded(index, archetypeChunk, excludedNpcTypes, excludeMounts, excludeFlying)) {
                 return;

@@ -49,6 +49,10 @@ public class MixinFluidReplicateChanges {
     @Nonnull
     private ComponentType<ChunkStore, WorldChunk> worldChunkComponentType;
 
+    /**
+     * @author Refixes
+     * @reason
+     */
     @Overwrite
     public void tick(
             float dt,
@@ -70,12 +74,15 @@ public class MixinFluidReplicateChanges {
         World world = commandBuffer.getExternalData().getWorld();
         WorldChunk worldChunk =
                 commandBuffer.getComponent(section.getChunkColumnReference(), this.worldChunkComponentType);
-        int sectionY = section.getY();
 
         // Defer light invalidation to merge phase
         commandBuffer.run(s -> {
             if (worldChunk == null || worldChunk.getWorld() == null) return;
-            worldChunk.getWorld().getChunkLighting().invalidateLightInChunkSection(worldChunk, sectionY);
+            worldChunk
+                    .getWorld()
+                    .getChunkLighting()
+                    .invalidateLightInChunkSection(
+                            store.getExternalData(), section.getX(), section.getY(), section.getZ());
         });
 
         Collection<PlayerRef> playerRefs = store.getExternalData().getWorld().getPlayerRefs();
