@@ -22,6 +22,7 @@ tasks {
     shadowJar {
         relocate("com.google", "cc.irori.refixes.lib.com.google") {
             exclude("com.google.common.flogger.*")
+            exclude("com.google.gson.*")
         }
         relocate("org.jspecify", "cc.irori.refixes.lib.org.jspecify")
     }
