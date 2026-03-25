@@ -25,6 +25,10 @@ public abstract class MixinPlayerViewRadius {
         }
 
         Ref<EntityStore> ref = this.playerRef.getReference();
+        if (ref == null) {
+            return;
+        }
+
         ChunkTracker chunkTracker = ref.getStore().getComponent(ref, ChunkTracker.getComponentType());
         if (chunkTracker != null) {
             int offset = EarlyOptions.CHUNK_UNLOAD_OFFSET.get();
