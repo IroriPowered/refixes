@@ -217,8 +217,8 @@ public abstract class MixinServerAuthManager {
         }
     }
 
-    @Inject(method = "refreshOAuthTokens", at = @At("RETURN"))
-    private void refixes$syncTokensAfterRefresh(CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "refreshOAuthTokens(Z)Z", at = @At("RETURN"))
+    private void refixes$syncTokensAfterRefresh(boolean force, CallbackInfoReturnable<Boolean> cir) {
         if (getAuthMode() == ServerAuthManager.AuthMode.EXTERNAL_SESSION && cir.getReturnValue() == Boolean.TRUE) {
             refixes$syncTokensToEntrypoint();
         }

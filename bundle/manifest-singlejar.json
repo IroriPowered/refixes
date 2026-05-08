@@ -1,7 +1,7 @@
 {
     "Group": "IroriPowered",
     "Name": "Refixes",
-    "Version": "${version}",
+    "Version": "${modVersion}",
     "Website": "https://www.irori.cc/",
     "Description": "Patches and optimizations for Hytale server (single-jar build).",
     "Main": "cc.irori.refixes.Refixes",

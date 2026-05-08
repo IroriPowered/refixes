@@ -65,7 +65,7 @@ tasks {
         }
         into(layout.buildDirectory.dir("singlejar"))
         expand(
-            "version" to modVersion,
+            "modVersion" to modVersion,
             "hytaleVersion" to libs.versions.hytale.get()
         )
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
