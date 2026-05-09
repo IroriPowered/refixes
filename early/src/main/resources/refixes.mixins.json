@@ -5,6 +5,7 @@
     "plugin": "cc.irori.refixes.early.RefixesMixinPlugin",
     "mixins": [
         "MixinArchetypeChunk",
+        "MixinAssetPrefabFileProvider",
         "MixinBeaconAddRemoveSystem",
         "MixinBlockChunk",
         "MixinBlockComponentChunk",
