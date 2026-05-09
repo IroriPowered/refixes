@@ -173,6 +173,10 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Helpers", "PortalWorldAccessor"},
                     true,
                     List.of("MixinPortalWorldAccessor")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Helpers", "PrefabListExtraRoots"},
+                    true,
+                    List.of("MixinAssetPrefabFileProvider", "MixinPrefabPage")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "PrefabLoader"}, true, List.of("MixinPrefabLoader")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "RemovalSystem"}, true, List.of("MixinRemovalSystem")),
             new MixinToggle(
