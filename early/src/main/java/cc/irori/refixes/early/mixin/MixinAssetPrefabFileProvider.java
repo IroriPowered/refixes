@@ -5,7 +5,8 @@ import com.hypixel.hytale.common.util.PathUtil;
 import com.hypixel.hytale.common.util.StringCompareUtil;
 import com.hypixel.hytale.server.core.prefab.PrefabStore;
 import com.hypixel.hytale.server.core.ui.browser.FileListProvider;
-import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -21,9 +22,6 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(AssetPrefabFileProvider.class)
 public abstract class MixinAssetPrefabFileProvider {
@@ -36,6 +34,9 @@ public abstract class MixinAssetPrefabFileProvider {
 
     @Unique
     private static final String K_ASSETROOT = "__assets";
+
+    @Unique
+    private static final String[] EXTRA_KEYS = {K_SERVER, K_WORLDGEN, K_ASSETROOT};
 
     @Unique
     private static final int MAX_SEARCH_RESULTS = 50;
@@ -65,10 +66,11 @@ public abstract class MixinAssetPrefabFileProvider {
         };
     }
 
-    @ModifyReturnValue(method = "buildPackListings", at = @At("RETURN"))
-    private List<FileListProvider.FileEntry> refixes$addExtraRoots(List<FileListProvider.FileEntry> orig) {
-        List<FileListProvider.FileEntry> out = new ObjectArrayList<>(orig);
-        for (String key : new String[] {K_SERVER, K_WORLDGEN, K_ASSETROOT}) {
+    @WrapMethod(method = "buildPackListings")
+    private List<FileListProvider.FileEntry> refixes$wrapListings(
+            Operation<List<FileListProvider.FileEntry>> orig) {
+        List<FileListProvider.FileEntry> out = new ObjectArrayList<>(orig.call());
+        for (String key : EXTRA_KEYS) {
             Path base = refixes$baseFor(key);
             if (base != null && Files.isDirectory(base, new LinkOption[0])) {
                 out.add(new FileListProvider.FileEntry(key, refixes$displayFor(key), true));
@@ -77,65 +79,58 @@ public abstract class MixinAssetPrefabFileProvider {
         return out;
     }
 
-    @Inject(method = "resolveVirtualPath", at = @At("HEAD"), cancellable = true)
-    private void refixes$resolveExtra(String virtualPath, CallbackInfoReturnable<Path> cir) {
-        if (virtualPath.isEmpty()) return;
+    @WrapMethod(method = "resolveVirtualPath")
+    private Path refixes$wrapResolve(String virtualPath, Operation<Path> orig) {
+        if (virtualPath.isEmpty()) return orig.call(virtualPath);
         String[] parts = virtualPath.split("/", 2);
         Path base = refixes$baseFor(parts[0]);
-        if (base == null) return;
+        if (base == null) return orig.call(virtualPath);
         String sub = parts.length > 1 ? parts[1] : "";
-        cir.setReturnValue(sub.isEmpty() ? base : PathUtil.resolvePathWithinDir(base, sub));
+        return sub.isEmpty() ? base : PathUtil.resolvePathWithinDir(base, sub);
     }
 
-    @Inject(method = "buildPackDirectoryListing", at = @At("HEAD"), cancellable = true)
-    private void refixes$listExtra(String currentDirStr, CallbackInfoReturnable<List<FileListProvider.FileEntry>> cir) {
+    @WrapMethod(method = "buildPackDirectoryListing")
+    private List<FileListProvider.FileEntry> refixes$wrapList(
+            String currentDirStr, Operation<List<FileListProvider.FileEntry>> orig) {
         String[] parts = currentDirStr.split("/", 2);
         Path base = refixes$baseFor(parts[0]);
-        if (base == null) return;
+        if (base == null) return orig.call(currentDirStr);
         String sub = parts.length > 1 ? parts[1] : "";
         Path target = sub.isEmpty() ? base : PathUtil.resolvePathWithinDir(base, sub);
-        cir.setReturnValue(refixes$walkDir(target));
+        return refixes$walkDir(target);
     }
 
-    @Inject(method = "buildSearchResults", at = @At("HEAD"), cancellable = true)
-    private void refixes$searchExtra(
+    @WrapMethod(method = "buildSearchResults")
+    private List<FileListProvider.FileEntry> refixes$wrapSearch(
             String currentDirStr,
             String searchQuery,
-            CallbackInfoReturnable<List<FileListProvider.FileEntry>> cir) {
-        String lowerQuery = searchQuery.toLowerCase();
-        List<FileListProvider.FileEntry> all = new ObjectArrayList<>();
-
-        if (currentDirStr.isEmpty()) {
-            for (PrefabStore.AssetPackPrefabPath p : PrefabStore.get().getAllAssetPrefabPaths()) {
-                refixes$searchInRoot(p.prefabsPath(), p.getDisplayName(), "", lowerQuery, all);
-            }
-            for (String key : new String[] {K_SERVER, K_WORLDGEN, K_ASSETROOT}) {
-                Path base = refixes$baseFor(key);
-                if (base != null) refixes$searchInRoot(base, key, "", lowerQuery, all);
-            }
-        } else {
-            String[] parts = currentDirStr.split("/", 2);
+            Operation<List<FileListProvider.FileEntry>> orig) {
+        String[] parts = currentDirStr.split("/", 2);
+        Path syntheticBase = currentDirStr.isEmpty() ? null : refixes$baseFor(parts[0]);
+        if (syntheticBase != null) {
             String sub = parts.length > 1 ? parts[1] : "";
-            Path base = refixes$baseFor(parts[0]);
-            if (base == null) {
-                for (PrefabStore.AssetPackPrefabPath p : PrefabStore.get().getAllAssetPrefabPaths()) {
-                    if (parts[0].equals(p.getDisplayName())) {
-                        base = p.prefabsPath();
-                        break;
-                    }
-                }
-            }
-            if (base != null) {
-                Path root = sub.isEmpty() ? base : PathUtil.resolvePathWithinDir(base, sub);
-                if (root != null) refixes$searchInRoot(root, parts[0], sub, lowerQuery, all);
-            }
+            Path root = sub.isEmpty() ? syntheticBase : PathUtil.resolvePathWithinDir(syntheticBase, sub);
+            List<FileListProvider.FileEntry> results = new ObjectArrayList<>();
+            if (root != null)
+                refixes$searchInRoot(root, parts[0], sub, searchQuery.toLowerCase(), results);
+            results.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore).reversed());
+            return results.size() > MAX_SEARCH_RESULTS
+                    ? new ObjectArrayList<>(results.subList(0, MAX_SEARCH_RESULTS))
+                    : results;
         }
-
-        all.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore).reversed());
-        cir.setReturnValue(
-                all.size() > MAX_SEARCH_RESULTS
-                        ? new ObjectArrayList<>(all.subList(0, MAX_SEARCH_RESULTS))
-                        : all);
+        List<FileListProvider.FileEntry> out =
+                new ObjectArrayList<>(orig.call(currentDirStr, searchQuery));
+        if (currentDirStr.isEmpty()) {
+            String lowerQuery = searchQuery.toLowerCase();
+            for (String key : EXTRA_KEYS) {
+                Path base = refixes$baseFor(key);
+                if (base != null) refixes$searchInRoot(base, key, "", lowerQuery, out);
+            }
+            out.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore).reversed());
+            if (out.size() > MAX_SEARCH_RESULTS)
+                out = new ObjectArrayList<>(out.subList(0, MAX_SEARCH_RESULTS));
+        }
+        return out;
     }
 
     @Unique
@@ -174,8 +169,8 @@ public abstract class MixinAssetPrefabFileProvider {
                     String fn = file.getFileName().toString();
                     if (!fn.endsWith(PREFAB_EXT)) return FileVisitResult.CONTINUE;
                     String base = fn.substring(0, fn.length() - PREFAB_EXT.length());
-                    int score =
-                            StringCompareUtil.getFuzzyDistance(base.toLowerCase(), lowerQuery, Locale.ENGLISH);
+                    int score = StringCompareUtil.getFuzzyDistance(
+                            base.toLowerCase(), lowerQuery, Locale.ENGLISH);
                     if (score > 0) {
                         Path rel = root.relativize(file);
                         String full = basePath.isEmpty()

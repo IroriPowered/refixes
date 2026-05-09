@@ -42,6 +42,7 @@
         "MixinPortalDeviceSummonPage",
         "MixinPortalWorldAccessor",
         "MixinPrefabLoader",
+        "MixinPrefabPage",
         "MixinRemovalSystem",
         "MixinServerAuthManager",
         "MixinSetMemoriesCapacityInteraction",
