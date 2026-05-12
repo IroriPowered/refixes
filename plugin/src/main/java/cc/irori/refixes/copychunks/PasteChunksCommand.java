@@ -23,6 +23,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.universe.world.storage.IChunkSaver;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,6 +35,31 @@ import org.joml.Vector3i;
 public class PasteChunksCommand extends AbstractPlayerCommand {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+
+    private static final Field RAW_POS1_FIELD;
+
+    static {
+        Field f = null;
+        try {
+            f = BuilderToolsPlugin.BuilderState.class.getDeclaredField("rawPos1");
+            f.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            LOGGER.atWarning().withCause(e).log(
+                    "pastechunks: BuilderState.rawPos1 not found; --here will fall back to selection.min");
+        }
+        RAW_POS1_FIELD = f;
+    }
+
+    private static Vector3i readRawPos1(BuilderToolsPlugin.BuilderState state) {
+        if (RAW_POS1_FIELD == null) {
+            return null;
+        }
+        try {
+            return (Vector3i) RAW_POS1_FIELD.get(state);
+        } catch (IllegalAccessException e) {
+            return null;
+        }
+    }
 
     @Nonnull
     private final RequiredArg<String> nameArg;
@@ -110,7 +136,8 @@ public class PasteChunksCommand extends AbstractPlayerCommand {
                         Message.raw("pastechunks: --here requires a selection (use /pos1 at the new min corner)."));
                 return;
             }
-            Vector3i newMin = selection.getSelectionMin();
+            Vector3i rawPos1 = readRawPos1(state);
+            Vector3i newMin = rawPos1 != null ? rawPos1 : selection.getSelectionMin();
             if (newMin == null) {
                 context.sendMessage(Message.raw("pastechunks: --here selection has no bounds."));
                 return;
