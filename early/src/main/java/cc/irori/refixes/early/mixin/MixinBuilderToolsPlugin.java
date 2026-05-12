@@ -17,7 +17,7 @@ public abstract class MixinBuilderToolsPlugin {
 
     @Shadow
     @Nonnull
-    protected abstract CommandRegistry getCommandRegistry();
+    public abstract CommandRegistry getCommandRegistry();
 
     @Inject(method = "setup", at = @At("TAIL"))
     private void refixes$registerCopyChunks(CallbackInfo ci) {
