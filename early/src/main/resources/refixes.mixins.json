@@ -68,7 +68,6 @@
         "MixinWorldSpawningSystem",
         "MixinAStarBase",
         "MixinBlockSectionSafety",
-        "MixinBuilderToolsPlugin",
         "MixinChunkLightDataSerializeSafety",
         "MixinEntityChunkLoadingSystem",
         "MixinMotionControllerBase",

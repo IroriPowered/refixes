@@ -1,6 +1,6 @@
-package cc.irori.refixes.early.copychunks;
+package cc.irori.refixes.copychunks;
 
-import cc.irori.refixes.early.util.Logs;
+import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.buildertools.BuilderToolsPlugin;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -75,8 +75,10 @@ public class CopyChunksCommand extends AbstractPlayerCommand {
             return;
         }
 
-        boolean aligned =
-                ((min.x & 31) == 0) && ((min.z & 31) == 0) && (((max.x + 1) & 31) == 0) && (((max.z + 1) & 31) == 0);
+        boolean aligned = ((min.x & 31) == 0)
+                && ((min.z & 31) == 0)
+                && (((max.x + 1) & 31) == 0)
+                && (((max.z + 1) & 31) == 0);
         if (!aligned) {
             context.sendMessage(Message.raw(String.format(
                     "copychunks: selection not chunk-aligned; snapping to enclosing chunks (min=(%d,%d,%d), max=(%d,%d,%d)).",

@@ -1,4 +1,4 @@
-package cc.irori.refixes.early.copychunks;
+package cc.irori.refixes.copychunks;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.RemoveReason;

@@ -1,6 +1,8 @@
 package cc.irori.refixes;
 
 import cc.irori.refixes.command.ChunkLoaderCommand;
+import cc.irori.refixes.copychunks.CopyChunksCommand;
+import cc.irori.refixes.copychunks.PasteChunksCommand;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
@@ -251,6 +253,8 @@ public class Refixes extends JavaPlugin {
                 () -> aiTickThrottler = new AiTickThrottlerService());
 
         getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
+        getCommandRegistry().registerCommand(new CopyChunksCommand());
+        getCommandRegistry().registerCommand(new PasteChunksCommand());
         new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
 
         applyFix(

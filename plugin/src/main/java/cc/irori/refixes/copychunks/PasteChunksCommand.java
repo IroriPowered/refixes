@@ -1,6 +1,6 @@
-package cc.irori.refixes.early.copychunks;
+package cc.irori.refixes.copychunks;
 
-import cc.irori.refixes.early.util.Logs;
+import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.buildertools.BuilderToolsPlugin;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;

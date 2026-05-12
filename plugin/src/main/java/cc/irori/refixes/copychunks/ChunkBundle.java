@@ -1,4 +1,4 @@
-package cc.irori.refixes.early.copychunks;
+package cc.irori.refixes.copychunks;
 
 import java.io.IOException;
 import java.io.InputStream;
