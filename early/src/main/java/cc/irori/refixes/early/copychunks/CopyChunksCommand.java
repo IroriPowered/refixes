@@ -5,7 +5,6 @@ import com.hypixel.hytale.builtin.buildertools.BuilderToolsPlugin;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
@@ -17,9 +16,11 @@ import com.hypixel.hytale.server.core.prefab.selection.standard.BlockSelection;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.BufferChunkLoader;
+import com.hypixel.hytale.server.core.universe.world.storage.BufferChunkSaver;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.universe.world.storage.IChunkLoader;
+import com.hypixel.hytale.server.core.universe.world.storage.IChunkSaver;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -82,71 +83,64 @@ public class CopyChunksCommand extends AbstractPlayerCommand {
                     min.x, min.y, min.z, max.x, max.y, max.z)));
         }
 
-        int minCx = min.x >> 5;
-        int minCz = min.z >> 5;
-        int maxCx = max.x >> 5;
-        int maxCz = max.z >> 5;
+        final int minCx = min.x >> 5;
+        final int minCz = min.z >> 5;
+        final int maxCx = max.x >> 5;
+        final int maxCz = max.z >> 5;
 
         ChunkStore chunkStore = world.getChunkStore();
         IChunkLoader rawLoader = chunkStore.getLoader();
-        if (rawLoader == null) {
-            context.sendMessage(Message.raw("copychunks: no chunk loader for this world."));
+        IChunkSaver rawSaver = chunkStore.getSaver();
+        if (rawLoader == null || rawSaver == null) {
+            context.sendMessage(Message.raw("copychunks: no chunk loader/saver for this world."));
             return;
         }
-        if (!(rawLoader instanceof BufferChunkLoader)) {
-            context.sendMessage(Message.raw("copychunks: world chunk loader is not buffer-based."));
+        if (!(rawLoader instanceof BufferChunkLoader) || !(rawSaver instanceof BufferChunkSaver)) {
+            context.sendMessage(Message.raw("copychunks: world chunk loader/saver is not buffer-based."));
             return;
         }
         BufferChunkLoader loader = (BufferChunkLoader) rawLoader;
+        BufferChunkSaver saver = (BufferChunkSaver) rawSaver;
 
-        List<int[]> blockers = new ArrayList<>();
-        for (int cx = minCx; cx <= maxCx && blockers.size() < 5; cx++) {
-            for (int cz = minCz; cz <= maxCz && blockers.size() < 5; cz++) {
-                long idx = ChunkUtil.indexChunk(cx, cz);
-                if (chunkStore.getChunkReference(idx) != null) {
-                    blockers.add(new int[] {cx, cz});
-                }
-            }
-        }
-        if (!blockers.isEmpty()) {
-            context.sendMessage(Message.raw(formatBlockerMessage("copychunks", blockers)));
-            return;
-        }
-
-        int totalChunks = (maxCx - minCx + 1) * (maxCz - minCz + 1);
-        List<CompletableFuture<ChunkBundle.Entry>> futures = new ArrayList<>(totalChunks);
+        List<int[]> coords = new ArrayList<>();
         for (int cx = minCx; cx <= maxCx; cx++) {
             for (int cz = minCz; cz <= maxCz; cz++) {
-                final int fcx = cx;
-                final int fcz = cz;
-                futures.add(loader.loadBuffer(cx, cz).thenApply(buf -> {
-                    ByteBuffer blob = (buf == null) ? ByteBuffer.allocate(0) : buf;
-                    return new ChunkBundle.Entry(fcx, fcz, blob);
-                }));
+                coords.add(new int[] {cx, cz});
             }
         }
 
         final String worldName = world.getName();
         final Path bundlePath = ChunkBundle.pathFor(name);
-        final int finalMinCx = minCx;
-        final int finalMinCz = minCz;
-        final int finalMaxCx = maxCx;
-        final int finalMaxCz = maxCz;
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .thenAccept(unused -> {
-                    try {
-                        List<ChunkBundle.Entry> entries = new ArrayList<>(futures.size());
-                        int nonEmpty = 0;
-                        for (CompletableFuture<ChunkBundle.Entry> f : futures) {
-                            ChunkBundle.Entry e = f.join();
-                            entries.add(e);
-                            if (e.blob.remaining() > 0) {
-                                nonEmpty++;
-                            }
+        ChunkClipboardOps.forceUnloadAndDrain(world, chunkStore, saver, coords)
+                .thenComposeAsync(unused -> {
+                    List<CompletableFuture<ChunkBundle.Entry>> futures = new ArrayList<>(coords.size());
+                    for (int[] coord : coords) {
+                        final int fcx = coord[0];
+                        final int fcz = coord[1];
+                        futures.add(loader.loadBuffer(fcx, fcz).thenApply(buf -> {
+                            ByteBuffer blob = (buf == null) ? ByteBuffer.allocate(0) : buf;
+                            return new ChunkBundle.Entry(fcx, fcz, blob);
+                        }));
+                    }
+                    return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                            .thenApply(v -> {
+                                List<ChunkBundle.Entry> entries = new ArrayList<>(futures.size());
+                                for (CompletableFuture<ChunkBundle.Entry> f : futures) {
+                                    entries.add(f.join());
+                                }
+                                return entries;
+                            });
+                })
+                .thenAccept(entries -> {
+                    int nonEmpty = 0;
+                    for (ChunkBundle.Entry e : entries) {
+                        if (e.blob.remaining() > 0) {
+                            nonEmpty++;
                         }
-                        ChunkBundle bundle =
-                                new ChunkBundle(worldName, finalMinCx, finalMinCz, finalMaxCx, finalMaxCz, 0, entries);
+                    }
+                    try {
+                        ChunkBundle bundle = new ChunkBundle(worldName, minCx, minCz, maxCx, maxCz, 0, entries);
                         bundle.write(bundlePath);
                         context.sendMessage(Message.raw(String.format(
                                 "copychunks: wrote %d chunks (%d non-empty) to %s",
@@ -157,23 +151,9 @@ public class CopyChunksCommand extends AbstractPlayerCommand {
                     }
                 })
                 .exceptionally(e -> {
-                    LOGGER.atSevere().withCause(e).log("copychunks: load failed");
-                    context.sendMessage(Message.raw("copychunks: load failed: " + e.getMessage()));
+                    LOGGER.atSevere().withCause(e).log("copychunks: failed");
+                    context.sendMessage(Message.raw("copychunks: failed: " + e.getMessage()));
                     return null;
                 });
-    }
-
-    static String formatBlockerMessage(String label, List<int[]> blockers) {
-        StringBuilder sb = new StringBuilder(label).append(": refusing - chunks currently loaded: ");
-        for (int i = 0; i < blockers.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append("(")
-                    .append(blockers.get(i)[0])
-                    .append(", ")
-                    .append(blockers.get(i)[1])
-                    .append(")");
-        }
-        sb.append(". Move all players far away or run /chunk unload <x> <z> for each, then retry.");
-        return sb.toString();
     }
 }
