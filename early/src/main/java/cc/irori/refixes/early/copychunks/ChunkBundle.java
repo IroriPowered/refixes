@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 
 public final class ChunkBundle {
 
-    private static final int MAGIC = 0x52465843; // "RFXC"
+    private static final int MAGIC = 0x52465843;
     private static final int VERSION = 1;
     private static final Pattern NAME_PATTERN = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     private static final Path CLIPBOARD_ROOT = Paths.get("refixes-clipboards");

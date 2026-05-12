@@ -11,7 +11,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// Registers /copychunks and /pastechunks alongside the builtin /pos1, /set, etc.
 @Mixin(BuilderToolsPlugin.class)
 public abstract class MixinBuilderToolsPlugin {
 

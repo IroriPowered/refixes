@@ -15,20 +15,12 @@ public final class ChunkClipboardOps {
 
     private ChunkClipboardOps() {}
 
-    /**
-     * Force-unloads any currently-loaded chunks in {@code coords}, waits for all in-flight saves
-     * captured at unload-time to drain (so they can't race with our subsequent writes), then
-     * flushes the buffer chunk saver's region files. Caller MUST invoke from the world's ticking
-     * thread.
-     */
     public static CompletableFuture<Void> forceUnloadAndDrain(
             World world, ChunkStore chunkStore, BufferChunkSaver saver, List<int[]> coords) {
         for (int[] coord : coords) {
             long idx = ChunkUtil.indexChunk(coord[0], coord[1]);
             Ref<ChunkStore> ref = chunkStore.getChunkReference(idx);
             if (ref != null) {
-                // remove() also invalidates the Ref so any queued auto-save no-ops (verified in
-                // ChunkSavingSystems#saveChunk: !reference.isValid() => log+skip).
                 chunkStore.remove(ref, RemoveReason.UNLOAD);
                 world.getNotificationHandler().updateChunk(idx);
             }
