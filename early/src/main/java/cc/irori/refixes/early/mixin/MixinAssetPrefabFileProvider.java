@@ -67,8 +67,7 @@ public abstract class MixinAssetPrefabFileProvider {
     }
 
     @WrapMethod(method = "buildPackListings")
-    private List<FileListProvider.FileEntry> refixes$wrapListings(
-            Operation<List<FileListProvider.FileEntry>> orig) {
+    private List<FileListProvider.FileEntry> refixes$wrapListings(Operation<List<FileListProvider.FileEntry>> orig) {
         List<FileListProvider.FileEntry> out = new ObjectArrayList<>(orig.call());
         for (String key : EXTRA_KEYS) {
             Path base = refixes$baseFor(key);
@@ -102,33 +101,30 @@ public abstract class MixinAssetPrefabFileProvider {
 
     @WrapMethod(method = "buildSearchResults")
     private List<FileListProvider.FileEntry> refixes$wrapSearch(
-            String currentDirStr,
-            String searchQuery,
-            Operation<List<FileListProvider.FileEntry>> orig) {
+            String currentDirStr, String searchQuery, Operation<List<FileListProvider.FileEntry>> orig) {
         String[] parts = currentDirStr.split("/", 2);
         Path syntheticBase = currentDirStr.isEmpty() ? null : refixes$baseFor(parts[0]);
         if (syntheticBase != null) {
             String sub = parts.length > 1 ? parts[1] : "";
             Path root = sub.isEmpty() ? syntheticBase : PathUtil.resolvePathWithinDir(syntheticBase, sub);
             List<FileListProvider.FileEntry> results = new ObjectArrayList<>();
-            if (root != null)
-                refixes$searchInRoot(root, parts[0], sub, searchQuery.toLowerCase(), results);
-            results.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore).reversed());
+            if (root != null) refixes$searchInRoot(root, parts[0], sub, searchQuery.toLowerCase(), results);
+            results.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore)
+                    .reversed());
             return results.size() > MAX_SEARCH_RESULTS
                     ? new ObjectArrayList<>(results.subList(0, MAX_SEARCH_RESULTS))
                     : results;
         }
-        List<FileListProvider.FileEntry> out =
-                new ObjectArrayList<>(orig.call(currentDirStr, searchQuery));
+        List<FileListProvider.FileEntry> out = new ObjectArrayList<>(orig.call(currentDirStr, searchQuery));
         if (currentDirStr.isEmpty()) {
             String lowerQuery = searchQuery.toLowerCase();
             for (String key : EXTRA_KEYS) {
                 Path base = refixes$baseFor(key);
                 if (base != null) refixes$searchInRoot(base, key, "", lowerQuery, out);
             }
-            out.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore).reversed());
-            if (out.size() > MAX_SEARCH_RESULTS)
-                out = new ObjectArrayList<>(out.subList(0, MAX_SEARCH_RESULTS));
+            out.sort(Comparator.comparingInt(FileListProvider.FileEntry::matchScore)
+                    .reversed());
+            if (out.size() > MAX_SEARCH_RESULTS) out = new ObjectArrayList<>(out.subList(0, MAX_SEARCH_RESULTS));
         }
         return out;
     }
@@ -156,11 +152,7 @@ public abstract class MixinAssetPrefabFileProvider {
 
     @Unique
     private static void refixes$searchInRoot(
-            Path root,
-            String key,
-            String basePath,
-            String lowerQuery,
-            List<FileListProvider.FileEntry> out) {
+            Path root, String key, String basePath, String lowerQuery, List<FileListProvider.FileEntry> out) {
         if (!Files.isDirectory(root, new LinkOption[0])) return;
         try {
             Files.walkFileTree(root, new SimpleFileVisitor<>() {
@@ -169,8 +161,7 @@ public abstract class MixinAssetPrefabFileProvider {
                     String fn = file.getFileName().toString();
                     if (!fn.endsWith(PREFAB_EXT)) return FileVisitResult.CONTINUE;
                     String base = fn.substring(0, fn.length() - PREFAB_EXT.length());
-                    int score = StringCompareUtil.getFuzzyDistance(
-                            base.toLowerCase(), lowerQuery, Locale.ENGLISH);
+                    int score = StringCompareUtil.getFuzzyDistance(base.toLowerCase(), lowerQuery, Locale.ENGLISH);
                     if (score > 0) {
                         Path rel = root.relativize(file);
                         String full = basePath.isEmpty()

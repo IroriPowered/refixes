@@ -80,20 +80,20 @@ public abstract class MixinChunkLightDataSerializeSafety {
     @Unique
     private int refixes$writeNeutralChain(MemorySegment data, int offset, boolean withHeader, int n) {
         if (n <= 0) {
-            if (withHeader) {
-                data.set(MemorySegmentUtil.SHORT_BE, (long) offset, (short) 0);
-                data.set(ValueLayout.JAVA_BOOLEAN, (long) (offset + 2), false);
-                return 3;
-            } else {
-                data.set(ValueLayout.JAVA_BOOLEAN, (long) offset, false);
-                return 1;
-            }
+            return refixes$writeNoLight(data, offset, withHeader);
         }
 
         int octreeSize = 15 * n + 2;
         int headerSize = withHeader ? 7 : 1;
         int totalSize = headerSize + octreeSize;
 
+        long remaining = data.byteSize() - offset;
+        if (remaining < totalSize) {
+            refixes$LOGGER.atWarning().log(
+                    "ChunkLightData fallback does not fit (remaining=%d, required=%d), writing no-light fallback",
+                    remaining, totalSize);
+            return refixes$writeNoLight(data, offset, withHeader);
+        }
         data.asSlice((long) offset, (long) totalSize).fill((byte) 0);
 
         if (withHeader) {
@@ -110,6 +110,24 @@ public abstract class MixinChunkLightDataSerializeSafety {
         }
         data.set(ValueLayout.JAVA_BYTE, (long) (octreeStart + (n - 1)), (byte) 0x00);
 
+        return totalSize;
+    }
+
+    @Unique
+    private int refixes$writeNoLight(MemorySegment data, int offset, boolean withHeader) {
+        int totalSize = withHeader ? 3 : 1;
+        long remaining = data.byteSize() - offset;
+        if (remaining < totalSize) {
+            throw new IndexOutOfBoundsException(
+                    "Cannot write no-light fallback at offset " + offset + " with " + remaining + " bytes remaining");
+        }
+
+        if (withHeader) {
+            data.set(MemorySegmentUtil.SHORT_BE, (long) offset, (short) 0);
+            data.set(ValueLayout.JAVA_BOOLEAN, (long) (offset + 2), false);
+        } else {
+            data.set(ValueLayout.JAVA_BOOLEAN, (long) offset, false);
+        }
         return totalSize;
     }
 }
