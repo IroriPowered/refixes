@@ -5,6 +5,7 @@ plugins {
 /* Project Properties */
 val modGroup    = project.property("mod_group")     as String
 val modVersion  = project.property("mod_version")   as String
+val hytaleServerVersion = project.property("hytale_server_version") as String
 
 allprojects {
     group = modGroup
@@ -14,10 +15,13 @@ allprojects {
 tasks {
     register<Delete>("cleanBundle") {
         delete(layout.buildDirectory.dir("bundle"))
+        delete(layout.buildDirectory.dir("singlejar"))
     }
 
     register<Copy>("copyBundleManifest") {
         dependsOn("cleanBundle")
+        inputs.property("version", modVersion)
+        inputs.property("hytaleVersion", hytaleServerVersion)
         from("bundle") {
             include(
                 "manifest.json",
@@ -28,7 +32,7 @@ tasks {
         into(layout.buildDirectory.dir("bundle"))
         expand(
             "version" to modVersion,
-            "hytaleVersion" to libs.versions.hytale.get()
+            "hytaleVersion" to hytaleServerVersion
         )
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
@@ -59,6 +63,8 @@ tasks {
     // `earlyplugins/` and Hyinit auto-discovers both the runtime plugin and Mixins.
     register<Copy>("copySingleJarManifest") {
         dependsOn("cleanBundle")
+        inputs.property("modVersion", modVersion)
+        inputs.property("hytaleVersion", hytaleServerVersion)
         from("bundle") {
             include("manifest-singlejar.json")
             rename("manifest-singlejar.json", "manifest.json")
@@ -66,7 +72,7 @@ tasks {
         into(layout.buildDirectory.dir("singlejar"))
         expand(
             "modVersion" to modVersion,
-            "hytaleVersion" to libs.versions.hytale.get()
+            "hytaleVersion" to hytaleServerVersion
         )
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
