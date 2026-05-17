@@ -128,6 +128,10 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Crashfixes", "TriggerVolumesPlugin"},
                     true,
                     List.of("MixinTriggerVolumesPlugin")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Crashfixes", "LegacySemverRange"},
+                    true,
+                    List.of("MixinPluginManager")),
 
             // Helpers: accessor / infrastructure mixins. Disabling them breaks other Mixins.
             new MixinToggle(new String[] {"Mixins", "Helpers", "ArchetypeChunk"}, true, List.of("MixinArchetypeChunk")),

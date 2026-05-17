@@ -51,6 +51,7 @@
         "MixinStatModifiersManager",
         "MixinStore",
         "MixinTelemetryModule",
+        "MixinTeleportToPlayerCommand",
         "MixinTickingSpawnMarkerSystem",
         "MixinTickingThread",
         "MixinTickingThreadAssert",
