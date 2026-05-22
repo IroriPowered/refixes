@@ -64,6 +64,7 @@
         "MixinUpdateDownloadCommand",
         "MixinUpdateModule",
         "MixinUUIDSystem",
+        "MixinVoiceModule",
         "MixinWorld",
         "MixinWorldConfig",
         "MixinWorldMapTracker",

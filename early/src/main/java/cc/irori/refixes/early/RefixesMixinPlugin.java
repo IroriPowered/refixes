@@ -128,6 +128,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Crashfixes", "TriggerVolumesPlugin"},
                     true,
                     List.of("MixinTriggerVolumesPlugin")),
+            new MixinToggle(new String[] {"Mixins", "Crashfixes", "VoiceModule"}, true, List.of("MixinVoiceModule")),
             new MixinToggle(
                     new String[] {"Mixins", "Crashfixes", "LegacySemverRange"}, true, List.of("MixinPluginManager")),
 

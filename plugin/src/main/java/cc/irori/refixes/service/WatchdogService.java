@@ -7,8 +7,11 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.ShutdownReason;
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.events.AddWorldEvent;
+import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,6 +34,8 @@ public class WatchdogService {
     private final Map<String, Long> worldResponseMap = new ConcurrentHashMap<>();
     private final Map<String, Integer> worldRestartFailures = new ConcurrentHashMap<>();
     private final Set<String> worldsGivenUp = ConcurrentHashMap.newKeySet();
+    private final Set<String> intentionallyRemoved = ConcurrentHashMap.newKeySet();
+    private final Set<String> selfInitiatedRemovals = ConcurrentHashMap.newKeySet();
 
     private Thread watchdogThread;
     private World lastDefaultWorld;
@@ -46,6 +51,30 @@ public class WatchdogService {
     public void registerService() {
         lastDefaultWorld = Universe.get().getDefaultWorld();
         start();
+    }
+
+    public void registerEvents(JavaPlugin plugin) {
+        plugin.getEventRegistry().registerGlobal(RemoveWorldEvent.class, this::onRemoveWorld);
+        plugin.getEventRegistry().registerGlobal(AddWorldEvent.class, this::onAddWorld);
+    }
+
+    private void onRemoveWorld(RemoveWorldEvent event) {
+        // EXCEPTIONAL = crash path; let the watchdog auto-restart those.
+        if (event.getRemovalReason() == RemoveWorldEvent.RemovalReason.EXCEPTIONAL) {
+            return;
+        }
+        String name = event.getWorld().getName();
+        if (selfInitiatedRemovals.remove(name)) {
+            // The watchdog itself initiated this removal as part of an auto-restart.
+            return;
+        }
+        worldResponseMap.remove(name);
+        intentionallyRemoved.add(name);
+        LOGGER.atInfo().log("World '%s' removed externally; watchdog will not auto-restart it", name);
+    }
+
+    private void onAddWorld(AddWorldEvent event) {
+        intentionallyRemoved.remove(event.getWorld().getName());
     }
 
     public void unregisterService() {
@@ -212,6 +241,9 @@ public class WatchdogService {
                 if (worldsGivenUp.contains(worldName)) {
                     continue;
                 }
+                if (intentionallyRemoved.contains(worldName)) {
+                    continue;
+                }
 
                 LOGGER.atSevere().log("========== AUTO WORLD RESTART ==========");
                 LOGGER.atSevere().log("World: %s", worldName);
@@ -219,10 +251,15 @@ public class WatchdogService {
 
                 LOGGER.atInfo().log("Attempting to unload world: " + worldName);
                 if (Universe.get().getWorld(worldName) != null) {
+                    selfInitiatedRemovals.add(worldName);
                     try {
                         Universe.get().removeWorld(worldName);
                     } catch (Exception e) {
                         LOGGER.atWarning().withCause(e).log("Exception on unloading world %s", worldName);
+                    } finally {
+                        // Defensive: cleared by the event listener on success; this covers the case
+                        // where the listener never ran (e.g. removeWorld threw before dispatching).
+                        selfInitiatedRemovals.remove(worldName);
                     }
                 }
 
@@ -233,15 +270,13 @@ public class WatchdogService {
                     worldRestartFailures.remove(worldName);
                 } catch (Exception e) {
                     int failures = worldRestartFailures.merge(worldName, 1, Integer::sum);
-                    LOGGER.atSevere()
-                            .withCause(e)
-                            .log("Failed to load world: %s (attempt %d/%d)", worldName, failures, MAX_RESTART_FAILURES);
+                    LOGGER.atSevere().withCause(e).log(
+                            "Failed to load world: %s (attempt %d/%d)", worldName, failures, MAX_RESTART_FAILURES);
                     if (failures >= MAX_RESTART_FAILURES) {
                         worldsGivenUp.add(worldName);
-                        LOGGER.atSevere()
-                                .log(
-                                        "Giving up on auto-restarting world '%s' after %d failures. Resolve the underlying issue and restart the server.",
-                                        worldName, failures);
+                        LOGGER.atSevere().log(
+                                "Giving up on auto-restarting world '%s' after %d failures. Resolve the underlying issue and restart the server.",
+                                worldName, failures);
                     }
                 }
             }

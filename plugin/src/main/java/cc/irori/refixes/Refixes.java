@@ -1,8 +1,6 @@
 package cc.irori.refixes;
 
 import cc.irori.refixes.command.ChunkLoaderCommand;
-import cc.irori.refixes.copychunks.CopyChunksCommand;
-import cc.irori.refixes.copychunks.PasteChunksCommand;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
@@ -18,6 +16,8 @@ import cc.irori.refixes.config.impl.SharedInstanceConfig;
 import cc.irori.refixes.config.impl.SystemConfig;
 import cc.irori.refixes.config.impl.TickSleepOptimizationConfig;
 import cc.irori.refixes.config.impl.WatchdogConfig;
+import cc.irori.refixes.copychunks.CopyChunksCommand;
+import cc.irori.refixes.copychunks.PasteChunksCommand;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
 import cc.irori.refixes.listener.ChunkLoaderWorldListener;
@@ -238,10 +238,10 @@ public class Refixes extends JavaPlugin {
                 "Per-player hot radius",
                 PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
-        applyFix(
-                "Server watchdog",
-                WatchdogConfig.get().getValue(WatchdogConfig.ENABLED),
-                () -> watchdogService = new WatchdogService());
+        applyFix("Server watchdog", WatchdogConfig.get().getValue(WatchdogConfig.ENABLED), () -> {
+            watchdogService = new WatchdogService();
+            watchdogService.registerEvents(this);
+        });
 
         applyFix(
                 "Idle player handler",
