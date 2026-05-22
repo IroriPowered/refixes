@@ -37,6 +37,7 @@
         "MixinMarkerAddRemoveSystem",
         "MixinNPCKillsEntitySystem",
         "MixinOptions",
+        "MixinPageManager",
         "MixinPlayerChunkTrackerSystems",
         "MixinPlayerViewRadius",
         "MixinPortalDeviceSummonPage",
