@@ -1,0 +1,20 @@
+{
+    "Group": "IroriPowered",
+    "Name": "Refixes",
+    "Version": "${modVersion}",
+    "Website": "https://www.irori.cc/",
+    "Description": "Patches and optimizations for Hytale server (single-jar build).",
+    "Main": "cc.irori.refixes.Refixes",
+    "Authors": [
+        {
+            "Name": "KabanFriends",
+            "Url": "https://github.com/KabanFriends"
+        }
+    ],
+    "ServerVersion": ">=${hytaleVersion}",
+    "Dependencies": {},
+    "OptionalDependencies": {},
+    "Mixins": [
+        "refixes.mixins.json"
+    ]
+}

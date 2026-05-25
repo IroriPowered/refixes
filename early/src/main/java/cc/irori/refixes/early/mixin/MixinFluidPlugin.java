@@ -1,6 +1,5 @@
 package cc.irori.refixes.early.mixin;
 
-import cc.irori.refixes.early.EarlyOptions;
 import com.hypixel.hytale.builtin.fluid.FluidPlugin;
 import com.hypixel.hytale.server.core.universe.world.events.ChunkPreLoadProcessEvent;
 import java.util.function.Consumer;
@@ -21,11 +20,6 @@ public class MixinFluidPlugin {
             index = 2)
     private Consumer<ChunkPreLoadProcessEvent> refixes$disableFluidChunkPreProcess(
             Consumer<ChunkPreLoadProcessEvent> consumer) {
-        return event -> {
-            if (EarlyOptions.isAvailable() && EarlyOptions.DISABLE_FLUID_PRE_PROCESS.get()) {
-                return;
-            }
-            consumer.accept(event);
-        };
+        return event -> {};
     }
 }

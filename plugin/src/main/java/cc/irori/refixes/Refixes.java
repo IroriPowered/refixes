@@ -1,5 +1,6 @@
 package cc.irori.refixes;
 
+import cc.irori.refixes.command.ChunkLoaderCommand;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
@@ -15,13 +16,17 @@ import cc.irori.refixes.config.impl.SharedInstanceConfig;
 import cc.irori.refixes.config.impl.SystemConfig;
 import cc.irori.refixes.config.impl.TickSleepOptimizationConfig;
 import cc.irori.refixes.config.impl.WatchdogConfig;
+import cc.irori.refixes.copychunks.CopyChunksCommand;
+import cc.irori.refixes.copychunks.PasteChunksCommand;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.TickSleepOptimization;
+import cc.irori.refixes.listener.ChunkLoaderWorldListener;
 import cc.irori.refixes.listener.InstancePositionTracker;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
 import cc.irori.refixes.listener.UnknownBlockCleaner;
 import cc.irori.refixes.service.ActiveChunkUnloader;
 import cc.irori.refixes.service.AiTickThrottlerService;
+import cc.irori.refixes.service.ChunkLoaderService;
 import cc.irori.refixes.service.IdlePlayerService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.WatchdogService;
@@ -29,7 +34,6 @@ import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.EntityDespawnTimerSystem;
 import cc.irori.refixes.system.InteractionManagerFixSystem;
-import cc.irori.refixes.system.ProcessingBenchFixSystem;
 import cc.irori.refixes.system.RespawnBlockFixSystem;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
@@ -64,11 +68,13 @@ public class Refixes extends JavaPlugin {
 
     private IdlePlayerService idlePlayerService;
     private AiTickThrottlerService aiTickThrottler;
+    private ChunkLoaderService chunkLoaderService;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
         instance = this;
         config = withConfig(RefixesConfig.get().getCodec());
+        chunkLoaderService = new ChunkLoaderService(init.getDataDirectory());
     }
 
     @Override
@@ -143,40 +149,35 @@ public class Refixes extends JavaPlugin {
 
         EarlyOptions.FORCE_SKIP_MOD_VALIDATION.setSupplier(
                 () -> config.getValue(EarlyConfig.FORCE_SKIP_MOD_VALIDATION));
-        EarlyOptions.DISABLE_FLUID_PRE_PROCESS.setSupplier(
-                () -> config.getValue(EarlyConfig.DISABLE_FLUID_PRE_PROCESS));
-        EarlyOptions.ASYNC_BLOCK_PRE_PROCESS.setSupplier(() -> config.getValue(EarlyConfig.ASYNC_BLOCK_PRE_PROCESS));
         EarlyOptions.MAX_CHUNKS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_SECOND));
         EarlyOptions.MAX_CHUNKS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_TICK));
+        EarlyOptions.CHUNK_UNLOAD_OFFSET.setSupplier(
+                () -> ChunkUnloaderConfig.get().getValue(ChunkUnloaderConfig.UNLOAD_DISTANCE_OFFSET));
+        EarlyOptions.VANILLA_KEEP_SPAWN_LOADED.setSupplier(
+                () -> config.getValue(EarlyConfig.VANILLA_KEEP_SPAWN_LOADED));
 
-        EarlyOptions.CYLINDER_VISIBILITY_ENABLED.setSupplier(
-                () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.ENABLED));
         EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.setSupplier(
                 () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.HEIGHT_MULTIPLIER));
 
-        EarlyOptions.KDTREE_OPTIMIZATION_OPTIMIZE_SORT.setSupplier(
-                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.OPTIMIZE_KDTREE_SORT));
         EarlyOptions.KDTREE_OPTIMIZATION_THRESHOLD.setSupplier(
                 () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_FAST_SORT_THRESHOLD));
 
-        EarlyOptions.SHARED_INSTANCES_ENABLED.setSupplier(
-                () -> sharedInstanceConfig.getValue(SharedInstanceConfig.ENABLED));
         EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.setSupplier(
                 () -> sharedInstanceConfig.getValue(SharedInstanceConfig.EXCLUDED_PREFIXES));
 
-        EarlyOptions.PARALLEL_ENTITY_TICKING.setSupplier(
-                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_ENTITY_TICKING));
+        EarlyOptions.PARALLEL_STEERING_THRESHOLD.setSupplier(
+                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_STEERING_THRESHOLD));
 
-        EarlyOptions.BLOCK_ENTITY_SLEEP_ENABLED.setSupplier(
-                () -> config.getValue(EarlyConfig.BLOCK_ENTITY_SLEEP_ENABLED));
         EarlyOptions.BLOCK_ENTITY_SLEEP_INTERVAL.setSupplier(
                 () -> config.getValue(EarlyConfig.BLOCK_ENTITY_SLEEP_INTERVAL));
-        EarlyOptions.STAT_RECALC_THROTTLE_ENABLED.setSupplier(
-                () -> config.getValue(EarlyConfig.STAT_RECALC_THROTTLE_ENABLED));
         EarlyOptions.STAT_RECALC_INTERVAL.setSupplier(() -> config.getValue(EarlyConfig.STAT_RECALC_INTERVAL));
-        EarlyOptions.SECTION_CACHE_ENABLED.setSupplier(() -> config.getValue(EarlyConfig.SECTION_CACHE_ENABLED));
-        EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.setSupplier(
-                () -> config.getValue(EarlyConfig.SKIP_EMPTY_LIGHT_SECTIONS));
+
+        EarlyOptions.PATHFINDING_MAX_PATH_LENGTH.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_MAX_PATH_LENGTH));
+        EarlyOptions.PATHFINDING_OPEN_NODES_LIMIT.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_OPEN_NODES_LIMIT));
+        EarlyOptions.PATHFINDING_TOTAL_NODES_LIMIT.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_TOTAL_NODES_LIMIT));
 
         EarlyOptions.setAvailable(true);
 
@@ -214,10 +215,6 @@ public class Refixes extends JavaPlugin {
                 SystemConfig.get().getValue(SystemConfig.RESPAWN_BLOCK),
                 () -> getChunkStoreRegistry().registerSystem(new RespawnBlockFixSystem()));
         applyFix(
-                "Processing bench fix",
-                SystemConfig.get().getValue(SystemConfig.PROCESSING_BENCH),
-                () -> getChunkStoreRegistry().registerSystem(new ProcessingBenchFixSystem()));
-        applyFix(
                 "Crafting manager fix",
                 SystemConfig.get().getValue(SystemConfig.CRAFTING_MANAGER)
                         && Early.isEnabledLogging("Crafting manager fix"),
@@ -241,10 +238,10 @@ public class Refixes extends JavaPlugin {
                 "Per-player hot radius",
                 PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
-        applyFix(
-                "Server watchdog",
-                WatchdogConfig.get().getValue(WatchdogConfig.ENABLED),
-                () -> watchdogService = new WatchdogService());
+        applyFix("Server watchdog", WatchdogConfig.get().getValue(WatchdogConfig.ENABLED), () -> {
+            watchdogService = new WatchdogService();
+            watchdogService.registerEvents(this);
+        });
 
         applyFix(
                 "Idle player handler",
@@ -254,6 +251,11 @@ public class Refixes extends JavaPlugin {
                 "AI tick throttler",
                 AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED),
                 () -> aiTickThrottler = new AiTickThrottlerService());
+
+        getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
+        getCommandRegistry().registerCommand(new CopyChunksCommand());
+        getCommandRegistry().registerCommand(new PasteChunksCommand());
+        new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
 
         applyFix(
                 "Shared instance worlds",

@@ -31,7 +31,7 @@ repositories {
 
 tasks {
     processResources {
-        val hytaleVersion = libs.findVersion("hytale").get().toString()
+        val hytaleVersion = rootProject.property("hytale_server_version") as String
 
         inputs.property("version", version)
         inputs.property("hytaleVersion", hytaleVersion)

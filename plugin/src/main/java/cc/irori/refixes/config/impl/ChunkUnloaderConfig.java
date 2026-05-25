@@ -18,6 +18,8 @@ public class ChunkUnloaderConfig extends Configuration<ChunkUnloaderConfig> {
             new ConfigurationKey<>("MinLoadedChunks", ConfigField.INTEGER, 0);
     public static final ConfigurationKey<ChunkUnloaderConfig, Integer> CHECK_INTERVAL_MS =
             new ConfigurationKey<>("CheckIntervalMs", ConfigField.INTEGER, 10000);
+    public static final ConfigurationKey<ChunkUnloaderConfig, Boolean> KEEP_SPAWN_LOADED =
+            new ConfigurationKey<>("KeepSpawnLoaded", ConfigField.BOOLEAN, true);
 
     private static final ChunkUnloaderConfig INSTANCE = new ChunkUnloaderConfig();
 
@@ -28,7 +30,8 @@ public class ChunkUnloaderConfig extends Configuration<ChunkUnloaderConfig> {
                 UNLOAD_DELAY_SECONDS,
                 MAX_UNLOADS_PER_RUN,
                 MIN_LOADED_CHUNKS,
-                CHECK_INTERVAL_MS);
+                CHECK_INTERVAL_MS,
+                KEEP_SPAWN_LOADED);
     }
 
     public static ChunkUnloaderConfig get() {

@@ -5,15 +5,20 @@ import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.ShutdownReason;
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.events.AddWorldEvent;
+import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -22,19 +27,22 @@ import javax.annotation.Nullable;
 public class WatchdogService {
 
     private static final long WORLD_RESPONSE_ERROR = -1L;
+    private static final int MAX_RESTART_FAILURES = 5;
     private static final HytaleLogger LOGGER = Logs.logger();
 
     private final AtomicLong defaultWorldResponse = new AtomicLong(System.currentTimeMillis());
     private final Map<String, Long> worldResponseMap = new ConcurrentHashMap<>();
+    private final Map<String, Integer> worldRestartFailures = new ConcurrentHashMap<>();
+    private final Set<String> worldsGivenUp = ConcurrentHashMap.newKeySet();
+    private final Set<String> intentionallyRemoved = ConcurrentHashMap.newKeySet();
+    private final Set<String> selfInitiatedRemovals = ConcurrentHashMap.newKeySet();
 
     private Thread watchdogThread;
     private World lastDefaultWorld;
 
     private volatile State state = State.ACTIVATING;
 
-    public WatchdogService() {
-        lastDefaultWorld = Universe.get().getDefaultWorld();
-    }
+    public WatchdogService() {}
 
     public State getState() {
         return state;
@@ -45,13 +53,40 @@ public class WatchdogService {
         start();
     }
 
+    public void registerEvents(JavaPlugin plugin) {
+        plugin.getEventRegistry().registerGlobal(RemoveWorldEvent.class, this::onRemoveWorld);
+        plugin.getEventRegistry().registerGlobal(AddWorldEvent.class, this::onAddWorld);
+    }
+
+    private void onRemoveWorld(RemoveWorldEvent event) {
+        // EXCEPTIONAL = crash path; let the watchdog auto-restart those.
+        if (event.getRemovalReason() == RemoveWorldEvent.RemovalReason.EXCEPTIONAL) {
+            return;
+        }
+        String name = event.getWorld().getName();
+        if (selfInitiatedRemovals.remove(name)) {
+            // The watchdog itself initiated this removal as part of an auto-restart.
+            return;
+        }
+        worldResponseMap.remove(name);
+        intentionallyRemoved.add(name);
+        LOGGER.atInfo().log("World '%s' removed externally; watchdog will not auto-restart it", name);
+    }
+
+    private void onAddWorld(AddWorldEvent event) {
+        intentionallyRemoved.remove(event.getWorld().getName());
+    }
+
     public void unregisterService() {
         LOGGER.atInfo().log("Stopping server watchdog");
-        watchdogThread.interrupt();
+        if (watchdogThread != null) {
+            watchdogThread.interrupt();
+        }
     }
 
     private void start() {
-        LOGGER.atInfo().log("Starting server watchdog (default world: %s)", lastDefaultWorld.getName());
+        String worldName = lastDefaultWorld != null ? lastDefaultWorld.getName() : "<not loaded>";
+        LOGGER.atInfo().log("Starting server watchdog (default world: %s)", worldName);
         watchdogThread = new Thread(this::runWatchdog, "Refixes-Watchdog");
         watchdogThread.setDaemon(true);
         watchdogThread.start();
@@ -193,7 +228,7 @@ public class WatchdogService {
             } else if (response != null) {
                 long elapsed = System.currentTimeMillis() - response;
                 if (elapsed > config.getValue(WatchdogConfig.THREAD_TIMEOUT_MS)) {
-                    LOGGER.atSevere().log("World %s did not respond for %.2f seconds.", worldName, elapsed / 1000);
+                    LOGGER.atSevere().log("World %s did not respond for %.2f seconds.", worldName, elapsed / 1000.0);
                     restart = true;
                 }
             }
@@ -203,24 +238,46 @@ public class WatchdogService {
                 if (!Universe.get().isWorldLoadable(worldName)) {
                     continue;
                 }
+                if (worldsGivenUp.contains(worldName)) {
+                    continue;
+                }
+                if (intentionallyRemoved.contains(worldName)) {
+                    continue;
+                }
 
                 LOGGER.atSevere().log("========== AUTO WORLD RESTART ==========");
                 LOGGER.atSevere().log("World: %s", worldName);
                 dumpThreads(worldName);
 
                 LOGGER.atInfo().log("Attempting to unload world: " + worldName);
-                try {
-                    Universe.get().removeWorld(worldName);
-                } catch (NullPointerException e) {
-                    LOGGER.atWarning().withCause(e).log("Exception on unloading world %s", worldName);
+                if (Universe.get().getWorld(worldName) != null) {
+                    selfInitiatedRemovals.add(worldName);
+                    try {
+                        Universe.get().removeWorld(worldName);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().withCause(e).log("Exception on unloading world %s", worldName);
+                    } finally {
+                        // Defensive: cleared by the event listener on success; this covers the case
+                        // where the listener never ran (e.g. removeWorld threw before dispatching).
+                        selfInitiatedRemovals.remove(worldName);
+                    }
                 }
 
                 LOGGER.atInfo().log("Restarting world: %s", worldName);
                 try {
                     Universe.get().loadWorld(worldName).join();
                     LOGGER.atInfo().log("World %s loaded", worldName);
+                    worldRestartFailures.remove(worldName);
                 } catch (Exception e) {
-                    LOGGER.atSevere().withCause(e).log("Failed to load world: %s", worldName);
+                    int failures = worldRestartFailures.merge(worldName, 1, Integer::sum);
+                    LOGGER.atSevere().withCause(e).log(
+                            "Failed to load world: %s (attempt %d/%d)", worldName, failures, MAX_RESTART_FAILURES);
+                    if (failures >= MAX_RESTART_FAILURES) {
+                        worldsGivenUp.add(worldName);
+                        LOGGER.atSevere().log(
+                                "Giving up on auto-restarting world '%s' after %d failures. Resolve the underlying issue and restart the server.",
+                                worldName, failures);
+                    }
                 }
             }
         }
@@ -294,7 +351,8 @@ public class WatchdogService {
         dumpThreads();
 
         Thread.sleep(5000);
-        HytaleServer.get().shutdownServer(ShutdownReason.CRASH.withMessage("Watchdog triggered a shutdown"));
+        HytaleServer.get()
+                .shutdownServer(ShutdownReason.CRASH.withMessage(Message.raw("Watchdog triggered a shutdown")));
         handleShutdownTimeout();
     }
 

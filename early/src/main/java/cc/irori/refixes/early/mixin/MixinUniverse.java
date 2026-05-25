@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.util.Logs;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -23,10 +24,16 @@ public abstract class MixinUniverse {
     @Shadow
     protected abstract void lambda$removePlayer$2(PlayerRef par1, Void par2, Throwable par3);
 
+    @Inject(method = "lambda$removePlayer$0", at = @At("HEAD"), cancellable = true)
+    private static void refixes$guardAsyncRemoval(Ref ref, CallbackInfo ci) {
+        if (!ref.isValid()) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "lambda$removePlayer$2", at = @At("HEAD"), cancellable = true)
     private void refixes$wrapRemovePlayerComplete(PlayerRef playerRef, Void result, Throwable error, CallbackInfo ci) {
         if (refixes$WRAPPING.get()) {
-            // Run the original method
             return;
         }
 

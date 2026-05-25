@@ -4,11 +4,18 @@ import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -20,6 +27,21 @@ public class MixinWorld {
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
+
+    @Shadow
+    @Final
+    private EntityStore entityStore;
+
+    // Pre-release init race: WorldMapManager.setGenerator() iterates world.getPlayers()
+    // during World.init(), but entityStore.getStore() is still null until init's
+    // entityStore.start(resourceStorage) call later in the same flow. Empty list keeps
+    // the loop a no-op without NPE.
+    @Inject(method = "getPlayers()Ljava/util/List;", at = @At("HEAD"), cancellable = true)
+    private void refixes$nullGuardGetPlayers(CallbackInfoReturnable<List<Player>> cir) {
+        if (this.entityStore == null || this.entityStore.getStore() == null) {
+            cir.setReturnValue(Collections.emptyList());
+        }
+    }
 
     @Redirect(
             method =
@@ -74,5 +96,26 @@ public class MixinWorld {
         } catch (InterruptedException ignored) {
         }
         return false;
+    }
+
+    // Redirects the config save .join() in onShutdown() to use a timeout
+    @Redirect(
+            method = "onShutdown",
+            at = @At(value = "INVOKE", target = "Ljava/util/concurrent/CompletableFuture;join()Ljava/lang/Object;"))
+    private Object refixes$configSaveJoinWithTimeout(CompletableFuture<?> future) {
+        boolean wasInterrupted = Thread.interrupted();
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            refixes$LOGGER.atWarning().log("World#onShutdown(): Config save timed out after 10s, continuing shutdown");
+            return null;
+        } catch (Exception e) {
+            refixes$LOGGER.atWarning().withCause(e).log("World#onShutdown(): Config save failed, continuing shutdown");
+            return null;
+        } finally {
+            if (wasInterrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }
