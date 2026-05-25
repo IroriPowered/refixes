@@ -209,6 +209,7 @@ public class AiTickThrottlerService {
             if (System.nanoTime() - cycleStartNanos > budgetNanos) {
                 return;
             }
+
             if (isExcluded(index, archetypeChunk, excludedNpcTypes, excludeMounts, excludeFlying)) {
                 return;
             }

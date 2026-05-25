@@ -78,6 +78,7 @@
         "MixinRepulsionTicker",
         "MixinSpatialSystem",
         "MixinSteeringSystem",
-        "MixinTurnOffTeleportersSystem"
+        "MixinTurnOffTeleportersSystem",
+        "MixinWorldSpawningSystem"
     ]
 }

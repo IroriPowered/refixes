@@ -75,10 +75,8 @@ public class CopyChunksCommand extends AbstractPlayerCommand {
             return;
         }
 
-        boolean aligned = ((min.x & 31) == 0)
-                && ((min.z & 31) == 0)
-                && (((max.x + 1) & 31) == 0)
-                && (((max.z + 1) & 31) == 0);
+        boolean aligned =
+                ((min.x & 31) == 0) && ((min.z & 31) == 0) && (((max.x + 1) & 31) == 0) && (((max.z + 1) & 31) == 0);
         if (!aligned) {
             context.sendMessage(Message.raw(String.format(
                     "copychunks: selection not chunk-aligned; snapping to enclosing chunks (min=(%d,%d,%d), max=(%d,%d,%d)).",

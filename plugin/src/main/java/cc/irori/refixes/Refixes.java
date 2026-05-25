@@ -255,6 +255,7 @@ public class Refixes extends JavaPlugin {
         getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
         getCommandRegistry().registerCommand(new CopyChunksCommand());
         getCommandRegistry().registerCommand(new PasteChunksCommand());
+
         new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
 
         applyFix(

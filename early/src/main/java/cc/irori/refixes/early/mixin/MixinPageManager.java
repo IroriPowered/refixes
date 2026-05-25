@@ -24,12 +24,8 @@ public abstract class MixinPageManager {
             at = @At(value = "NEW", target = "java/lang/IllegalArgumentException"),
             cancellable = true)
     private void refixes$swallowUnexpectedAck(
-            Ref<EntityStore> ref,
-            Store<EntityStore> store,
-            CustomPageEvent event,
-            CallbackInfo ci) {
-        refixes$LOGGER.atWarning().log(
-                "PageManager#handleEvent: ignoring unexpected client acknowledgement");
+            Ref<EntityStore> ref, Store<EntityStore> store, CustomPageEvent event, CallbackInfo ci) {
+        refixes$LOGGER.atWarning().log("PageManager#handleEvent: ignoring unexpected client acknowledgement");
         ci.cancel();
     }
 }
