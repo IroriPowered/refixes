@@ -50,6 +50,10 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Optimizations", "PlayerChunkTrackerSystems"},
                     true,
                     List.of("MixinPlayerChunkTrackerSystems")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Optimizations", "SpawnManagerRecalc"},
+                    true,
+                    List.of("MixinWorldSpawnManager")),
 
             // ParallelEntityTicking gates 3 Mixins; disabling restores Store's write-processing assertion.
             new MixinToggle(
