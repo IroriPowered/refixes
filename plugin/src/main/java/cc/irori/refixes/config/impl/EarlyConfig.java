@@ -15,10 +15,6 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
 
     public static final ConfigurationKey<EarlyConfig, Boolean> FORCE_SKIP_MOD_VALIDATION =
             new ConfigurationKey<>("ForceSkipModValidation", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<EarlyConfig, Boolean> DISABLE_FLUID_PRE_PROCESS =
-            new ConfigurationKey<>("DisableFluidPreProcess", ConfigField.BOOLEAN, true);
-    public static final ConfigurationKey<EarlyConfig, Boolean> ASYNC_BLOCK_PRE_PROCESS =
-            new ConfigurationKey<>("AsyncBlockPreProcess", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_SECOND =
             new ConfigurationKey<>("MaxChunksPerSecond", ConfigField.INTEGER, 36);
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_TICK =
@@ -26,18 +22,17 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     public static final ConfigurationKey<EarlyConfig, Boolean> VANILLA_KEEP_SPAWN_LOADED =
             new ConfigurationKey<>("VanillaKeepSpawnLoaded", ConfigField.BOOLEAN, true);
 
-    public static final ConfigurationKey<EarlyConfig, Boolean> BLOCK_ENTITY_SLEEP_ENABLED =
-            new ConfigurationKey<>("BlockEntitySleepEnabled", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<EarlyConfig, Integer> BLOCK_ENTITY_SLEEP_INTERVAL =
             new ConfigurationKey<>("BlockEntitySleepInterval", ConfigField.INTEGER, 4);
-    public static final ConfigurationKey<EarlyConfig, Boolean> STAT_RECALC_THROTTLE_ENABLED =
-            new ConfigurationKey<>("StatRecalcThrottleEnabled", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<EarlyConfig, Integer> STAT_RECALC_INTERVAL =
             new ConfigurationKey<>("StatRecalcInterval", ConfigField.INTEGER, 4);
-    public static final ConfigurationKey<EarlyConfig, Boolean> SECTION_CACHE_ENABLED =
-            new ConfigurationKey<>("SectionCacheEnabled", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<EarlyConfig, Boolean> SKIP_EMPTY_LIGHT_SECTIONS =
-            new ConfigurationKey<>("SkipEmptyLightSections", ConfigField.BOOLEAN, false);
+
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_MAX_PATH_LENGTH =
+            new ConfigurationKey<>("PathfindingMaxPathLength", ConfigField.INTEGER, 200);
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_OPEN_NODES_LIMIT =
+            new ConfigurationKey<>("PathfindingOpenNodesLimit", ConfigField.INTEGER, 80);
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_TOTAL_NODES_LIMIT =
+            new ConfigurationKey<>("PathfindingTotalNodesLimit", ConfigField.INTEGER, 400);
 
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
@@ -47,17 +42,14 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 CYLINDER_VISIBILITY_CONFIG,
                 KDTREE_OPTIMIZATION_CONFIG,
                 FORCE_SKIP_MOD_VALIDATION,
-                DISABLE_FLUID_PRE_PROCESS,
-                ASYNC_BLOCK_PRE_PROCESS,
                 MAX_CHUNKS_PER_SECOND,
                 MAX_CHUNKS_PER_TICK,
                 VANILLA_KEEP_SPAWN_LOADED,
-                BLOCK_ENTITY_SLEEP_ENABLED,
                 BLOCK_ENTITY_SLEEP_INTERVAL,
-                STAT_RECALC_THROTTLE_ENABLED,
                 STAT_RECALC_INTERVAL,
-                SECTION_CACHE_ENABLED,
-                SKIP_EMPTY_LIGHT_SECTIONS);
+                PATHFINDING_MAX_PATH_LENGTH,
+                PATHFINDING_OPEN_NODES_LIMIT,
+                PATHFINDING_TOTAL_NODES_LIMIT);
     }
 
     public static EarlyConfig get() {

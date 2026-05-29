@@ -8,7 +8,7 @@ import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -84,7 +84,7 @@ public class PerPlayerHotRadiusService {
         int minRadius = config.getValue(PerPlayerHotRadiusConfig.MIN_RADIUS);
         int maxRadius = config.getValue(PerPlayerHotRadiusConfig.MAX_RADIUS);
 
-        List<PlayerRef> players = Universe.get().getPlayers();
+        Collection<PlayerRef> players = Universe.get().getPlayers();
         if (players.isEmpty()) {
             return 0;
         }

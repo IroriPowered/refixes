@@ -31,10 +31,6 @@ public abstract class MixinInstancesPlugin {
     @Overwrite
     public CompletableFuture<World> spawnInstance(
             @Nonnull String name, @Nonnull World forWorld, @Nonnull Transform returnPoint) {
-        if (!EarlyOptions.isAvailable() || !EarlyOptions.SHARED_INSTANCES_ENABLED.get()) {
-            return spawnInstance(name, null, forWorld, returnPoint);
-        }
-
         String[] excludedPrefixes = EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.get();
         for (String prefix : excludedPrefixes) {
             if (name.startsWith(prefix)) {

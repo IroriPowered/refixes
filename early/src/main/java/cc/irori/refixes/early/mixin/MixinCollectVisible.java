@@ -7,13 +7,13 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.component.spatial.SpatialStructure;
-import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.tracker.EntityTrackerSystems;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import java.util.List;
 import javax.annotation.Nonnull;
+import org.joml.Vector3d;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
@@ -51,13 +51,9 @@ public abstract class MixinCollectVisible {
 
         List<Ref<EntityStore>> results = SpatialResource.getThreadLocalReferenceList();
 
-        if (EarlyOptions.isAvailable() && EarlyOptions.CYLINDER_VISIBILITY_ENABLED.get()) {
-            double radius = entityViewerComponent.viewRadiusBlocks;
-            double height = radius * EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.get();
-            spatialStructure.collectCylinder(position, radius, height, results);
-        } else {
-            spatialStructure.collect(position, entityViewerComponent.viewRadiusBlocks, results);
-        }
+        double radius = entityViewerComponent.viewRadiusBlocks;
+        double height = radius * EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.get();
+        spatialStructure.collectCylinder(position, radius, height, results);
 
         entityViewerComponent.visible.addAll(results);
     }

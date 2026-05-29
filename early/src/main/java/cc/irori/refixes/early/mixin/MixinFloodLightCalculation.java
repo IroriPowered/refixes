@@ -1,6 +1,5 @@
 package cc.irori.refixes.early.mixin;
 
-import cc.irori.refixes.early.EarlyOptions;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightDataBuilder;
@@ -26,9 +25,6 @@ public class MixinFloodLightCalculation {
             IntBinaryOperator fromIndex,
             IntBinaryOperator toIndex,
             CallbackInfo ci) {
-        if (!EarlyOptions.isAvailable() || !EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.get()) {
-            return;
-        }
         if (fromSection != null && fromSection.isSolidAir() && fromSection.getLocalLight() == ChunkLightData.EMPTY) {
             ci.cancel();
         }
@@ -43,9 +39,6 @@ public class MixinFloodLightCalculation {
             Int2IntFunction fromIndex,
             Int2IntFunction toIndex,
             CallbackInfo ci) {
-        if (!EarlyOptions.isAvailable() || !EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.get()) {
-            return;
-        }
         if (fromSection != null && fromSection.isSolidAir() && fromSection.getLocalLight() == ChunkLightData.EMPTY) {
             ci.cancel();
         }
@@ -60,9 +53,6 @@ public class MixinFloodLightCalculation {
             int fromBlockIndex,
             int toBlockIndex,
             CallbackInfo ci) {
-        if (!EarlyOptions.isAvailable() || !EarlyOptions.SKIP_EMPTY_LIGHT_SECTIONS.get()) {
-            return;
-        }
         if (fromSection != null && fromSection.isSolidAir() && fromSection.getLocalLight() == ChunkLightData.EMPTY) {
             ci.cancel();
         }

@@ -39,4 +39,16 @@ public abstract class MixinWorldMapTracker {
             refixes$WRAPPING.set(false);
         }
     }
+
+    // Hytale's CommandManager dispatches commands on a ForkJoinPool. /op add fires
+    // PermissionsModule events synchronously, which call WorldMapTracker.resendWorldMapSettings
+    // for every player. That method calls PlayerRef.getComponent(Player), which asserts
+    // it's on the world tick thread and logs SkipSentryException per player otherwise.
+    // Skip the off-thread call; the next regular tick refresh covers the update.
+    @Inject(method = "resendWorldMapSettings", at = @At("HEAD"), cancellable = true)
+    private void refixes$skipResendOffThread(CallbackInfo ci) {
+        if (Thread.currentThread() instanceof java.util.concurrent.ForkJoinWorkerThread) {
+            ci.cancel();
+        }
+    }
 }

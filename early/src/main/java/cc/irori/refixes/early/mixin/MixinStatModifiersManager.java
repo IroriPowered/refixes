@@ -17,9 +17,6 @@ public class MixinStatModifiersManager {
 
     @Inject(method = "recalculateEntityStatModifiers", at = @At("HEAD"), cancellable = true)
     private void refixes$throttleRecalc(CallbackInfo ci) {
-        if (!EarlyOptions.isAvailable() || !EarlyOptions.STAT_RECALC_THROTTLE_ENABLED.get()) {
-            return;
-        }
         refixes$recalcTickCounter++;
         if (refixes$recalcTickCounter < EarlyOptions.STAT_RECALC_INTERVAL.get()) {
             ci.cancel();

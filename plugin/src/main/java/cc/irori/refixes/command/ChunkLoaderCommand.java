@@ -77,9 +77,9 @@ public class ChunkLoaderCommand extends CommandBase {
                     return;
                 }
                 chunkX = ChunkUtil.chunkCoordinate(
-                        (int) transformComponent.getTransform().getPosition().getX());
+                        (int) transformComponent.getTransform().getPosition().x());
                 chunkZ = ChunkUtil.chunkCoordinate(
-                        (int) transformComponent.getTransform().getPosition().getZ());
+                        (int) transformComponent.getTransform().getPosition().z());
             }
 
             String label = labelArg.provided(context) ? labelArg.getProcessed(context) : null;
@@ -153,9 +153,9 @@ public class ChunkLoaderCommand extends CommandBase {
                     return;
                 }
                 chunkX = ChunkUtil.chunkCoordinate(
-                        (int) transformComponent.getTransform().getPosition().getX());
+                        (int) transformComponent.getTransform().getPosition().x());
                 chunkZ = ChunkUtil.chunkCoordinate(
-                        (int) transformComponent.getTransform().getPosition().getZ());
+                        (int) transformComponent.getTransform().getPosition().z());
             }
 
             service.removeChunk(world, chunkX, chunkZ);

@@ -14,6 +14,7 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.entities.ProjectileComponent;
 import com.hypixel.hytale.server.core.modules.entity.DespawnComponent;
 import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
+import com.hypixel.hytale.server.core.modules.entity.item.PreventPickup;
 import com.hypixel.hytale.server.core.modules.projectile.component.Projectile;
 import com.hypixel.hytale.server.core.modules.time.TimeResource;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -39,6 +40,10 @@ public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
             @NonNullDecl CommandBuffer<EntityStore> commandBuffer) {
 
         if (store.getComponent(ref, Player.getComponentType()) != null) {
+            return;
+        }
+
+        if (store.getComponent(ref, PreventPickup.getComponentType()) != null) {
             return;
         }
 

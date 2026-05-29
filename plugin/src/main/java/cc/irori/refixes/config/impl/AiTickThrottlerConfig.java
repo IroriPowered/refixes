@@ -10,6 +10,9 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
             new ConfigurationKey<>("Enabled", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> UPDATE_INTERVAL_MS =
             new ConfigurationKey<>("UpdateIntervalMs", ConfigField.INTEGER, 150);
+    // 0 disables the budget.
+    public static final ConfigurationKey<AiTickThrottlerConfig, Integer> MAX_CYCLE_MS =
+            new ConfigurationKey<>("MaxCycleMs", ConfigField.INTEGER, 30);
 
     // NPCs within this chunk distance get full tick rate (~64 blocks)
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> NEAR_CHUNKS =
@@ -60,6 +63,7 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
         register(
                 ENABLED,
                 UPDATE_INTERVAL_MS,
+                MAX_CYCLE_MS,
                 NEAR_CHUNKS,
                 MID_CHUNKS,
                 FAR_CHUNKS,

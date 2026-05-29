@@ -130,7 +130,18 @@ public class AiTickThrottlerService {
         worldStates.keySet().removeIf(name -> !worlds.containsKey(name));
 
         for (World world : worlds.values()) {
-            world.execute(() -> processWorld(world, cfg));
+            WorldState state = worldStates.computeIfAbsent(world.getName(), _k -> new WorldState());
+            // Skip if prior cycle's world.execute is still queued (pile-up guard).
+            if (!state.inProgress.compareAndSet(false, true)) {
+                continue;
+            }
+            world.execute(() -> {
+                try {
+                    processWorld(world, cfg);
+                } finally {
+                    state.inProgress.set(false);
+                }
+            });
         }
     }
 
@@ -189,7 +200,16 @@ public class AiTickThrottlerService {
         // Reuse seen set to avoid allocating a new ConcurrentHashMap each cycle
         state.seen.clear();
 
+        // Bail out per-entity if the cycle exceeds the wall-clock budget; remaining are picked up next cycle.
+        int maxCycleMs = Math.max(0, cfg.getValue(AiTickThrottlerConfig.MAX_CYCLE_MS));
+        long budgetNanos = maxCycleMs == 0 ? Long.MAX_VALUE : TimeUnit.MILLISECONDS.toNanos(maxCycleMs);
+        long cycleStartNanos = System.nanoTime();
+
         store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
+            if (System.nanoTime() - cycleStartNanos > budgetNanos) {
+                return;
+            }
+
             if (isExcluded(index, archetypeChunk, excludedNpcTypes, excludeMounts, excludeFlying)) {
                 return;
             }
@@ -201,8 +221,8 @@ public class AiTickThrottlerService {
             }
 
             // Compute chunk distance to nearest player
-            int entityChunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
-            int entityChunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
+            int entityChunkX = ChunkUtil.chunkCoordinate(transform.getPosition().x());
+            int entityChunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().z());
             int chunkDist = closestPlayerChunkDistance(entityChunkX, entityChunkZ, playerChunks);
             UUID entityId = uuid.getUuid();
             state.seen.add(entityId);
@@ -344,8 +364,8 @@ public class AiTickThrottlerService {
             if (player == null) continue;
             Transform transform = player.getTransform();
             if (transform == null) continue;
-            int chunkX = ChunkUtil.chunkCoordinate(transform.getPosition().getX());
-            int chunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().getZ());
+            int chunkX = ChunkUtil.chunkCoordinate(transform.getPosition().x());
+            int chunkZ = ChunkUtil.chunkCoordinate(transform.getPosition().z());
             positions.add(new int[] {chunkX, chunkZ});
         }
         return positions;
@@ -404,6 +424,9 @@ public class AiTickThrottlerService {
     }
 
     private static final class WorldState {
+        final java.util.concurrent.atomic.AtomicBoolean inProgress =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
         final Map<UUID, AiLodEntry> entries = new ConcurrentHashMap<>();
         final Set<UUID> seen = ConcurrentHashMap.newKeySet();
         boolean frozenWithoutPlayers;

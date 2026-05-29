@@ -11,7 +11,8 @@
             "Url": "https://github.com/KabanFriends"
         }
     ],
-    "ServerVersion": "${hytaleVersion}",
+    "ServerVersion": ">=${hytaleVersion}",
     "Dependencies": {},
-    "OptionalDependencies": {}
+    "OptionalDependencies": {},
+    "IncludesAssetPack": true
 }

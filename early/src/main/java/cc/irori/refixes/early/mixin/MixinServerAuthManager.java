@@ -89,8 +89,12 @@ public abstract class MixinServerAuthManager {
             refixes$LOGGER.atInfo().log("Loading fresh tokens from environment variables");
             Instant seededExpiry = refixes$seedOAuthTokensImpl();
             if (seededExpiry != null) {
-                setExpiryAndScheduleRefresh(seededExpiry);
-                refixes$LOGGER.atInfo().log("Token refresh scheduler started (expires: %s)", seededExpiry);
+                try {
+                    setExpiryAndScheduleRefresh(seededExpiry);
+                    refixes$LOGGER.atInfo().log("Token refresh scheduler started (expires: %s)", seededExpiry);
+                } catch (Exception e) {
+                    refixes$LOGGER.atWarning().log("Failed to schedule token refresh: %s", e.getMessage());
+                }
             }
         } else {
             IAuthCredentialStore.OAuthTokens existingTokens = store != null ? store.getTokens() : null;
@@ -103,12 +107,20 @@ public abstract class MixinServerAuthManager {
                 if (accessValid) {
                     refixes$LOGGER.atInfo().log(
                             "Using persisted tokens from credential store (expires: %s)", expiresAt);
-                    setExpiryAndScheduleRefresh(expiresAt);
+                    try {
+                        setExpiryAndScheduleRefresh(expiresAt);
+                    } catch (Exception e) {
+                        refixes$LOGGER.atWarning().log("Failed to schedule token refresh: %s", e.getMessage());
+                    }
                 } else if (existingTokens.refreshToken() != null) {
                     refixes$LOGGER.atInfo().log(
                             "Access token expired, but refresh token available. Attempting refresh");
                     if (expiresAt != null) {
-                        setExpiryAndScheduleRefresh(expiresAt);
+                        try {
+                            setExpiryAndScheduleRefresh(expiresAt);
+                        } catch (Exception e) {
+                            refixes$LOGGER.atWarning().log("Failed to schedule token refresh: %s", e.getMessage());
+                        }
                     }
                 } else {
                     refixes$LOGGER.atWarning().log("Stored tokens expired and no refresh token available");
@@ -217,8 +229,8 @@ public abstract class MixinServerAuthManager {
         }
     }
 
-    @Inject(method = "refreshOAuthTokens", at = @At("RETURN"))
-    private void refixes$syncTokensAfterRefresh(CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "refreshOAuthTokens(Z)Z", at = @At("RETURN"))
+    private void refixes$syncTokensAfterRefresh(boolean force, CallbackInfoReturnable<Boolean> cir) {
         if (getAuthMode() == ServerAuthManager.AuthMode.EXTERNAL_SESSION && cir.getReturnValue() == Boolean.TRUE) {
             refixes$syncTokensToEntrypoint();
         }

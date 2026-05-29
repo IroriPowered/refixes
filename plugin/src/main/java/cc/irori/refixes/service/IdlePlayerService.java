@@ -5,7 +5,6 @@ import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
@@ -18,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import org.joml.Vector3d;
 
 /**
  * Detects AFK players and reduces their view/hot/minLoaded
@@ -235,8 +235,8 @@ public class IdlePlayerService {
     }
 
     private static boolean hasPlayerMoved(Vector3d prev, Vector3d curr, double threshold) {
-        double dx = prev.getX() - curr.getX();
-        double dz = prev.getZ() - curr.getZ();
+        double dx = prev.x() - curr.x();
+        double dz = prev.z() - curr.z();
         // Only check XZ movement; ignore Y to avoid false positives from falling
         return dx * dx + dz * dz > threshold * threshold;
     }
