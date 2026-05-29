@@ -13,5 +13,6 @@
     ],
     "ServerVersion": ">=${hytaleVersion}",
     "Dependencies": {},
-    "OptionalDependencies": {}
+    "OptionalDependencies": {},
+    "IncludesAssetPack": true
 }
