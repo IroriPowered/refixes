@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,6 +75,75 @@ public class ChunkLoaderService {
                 }
             }
         });
+    }
+
+    public int addChunks(World world, Collection<Long> chunkIndexes) {
+        if (chunkIndexes.isEmpty()) {
+            return 0;
+        }
+        String worldName = world.getName();
+        Map<Long, String> chunks = keptChunksByWorld.computeIfAbsent(worldName, k -> new ConcurrentHashMap<>());
+        List<Long> added = new ArrayList<>();
+        for (long chunkIndex : chunkIndexes) {
+            if (chunks.putIfAbsent(chunkIndex, "") == null) {
+                added.add(chunkIndex);
+            }
+        }
+        if (added.isEmpty()) {
+            return 0;
+        }
+        save(worldName);
+
+        world.execute(() -> {
+            for (long chunkIndex : added) {
+                Ref<ChunkStore> chunkRef = world.getChunkStore().getChunkReference(chunkIndex);
+                if (chunkRef != null && chunkRef.isValid()) {
+                    WorldChunk chunk =
+                            world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
+                    if (chunk != null) {
+                        chunk.addKeepLoaded();
+                    }
+                }
+            }
+            LOGGER.atInfo().log("Added %d chunk loaders in world %s", added.size(), worldName);
+        });
+        return added.size();
+    }
+
+    public int removeChunks(World world, Collection<Long> chunkIndexes) {
+        if (chunkIndexes.isEmpty()) {
+            return 0;
+        }
+        String worldName = world.getName();
+        Map<Long, String> chunks = keptChunksByWorld.get(worldName);
+        if (chunks == null) {
+            return 0;
+        }
+        List<Long> removed = new ArrayList<>();
+        for (long chunkIndex : chunkIndexes) {
+            if (chunks.remove(chunkIndex) != null) {
+                removed.add(chunkIndex);
+            }
+        }
+        if (removed.isEmpty()) {
+            return 0;
+        }
+        save(worldName);
+
+        world.execute(() -> {
+            for (long chunkIndex : removed) {
+                Ref<ChunkStore> chunkRef = world.getChunkStore().getChunkReference(chunkIndex);
+                if (chunkRef != null && chunkRef.isValid()) {
+                    WorldChunk chunk =
+                            world.getChunkStore().getStore().getComponent(chunkRef, WorldChunk.getComponentType());
+                    if (chunk != null) {
+                        chunk.removeKeepLoaded();
+                    }
+                }
+            }
+            LOGGER.atInfo().log("Removed %d chunk loaders in world %s", removed.size(), worldName);
+        });
+        return removed.size();
     }
 
     public Map<Long, String> getKeptChunks(String worldName) {

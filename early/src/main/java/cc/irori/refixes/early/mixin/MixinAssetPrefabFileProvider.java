@@ -27,16 +27,10 @@ import org.spongepowered.asm.mixin.Unique;
 public abstract class MixinAssetPrefabFileProvider {
 
     @Unique
-    private static final String K_SERVER = "__server";
-
-    @Unique
     private static final String K_WORLDGEN = "__worldgen";
 
     @Unique
-    private static final String K_ASSETROOT = "__assets";
-
-    @Unique
-    private static final String[] EXTRA_KEYS = {K_SERVER, K_WORLDGEN, K_ASSETROOT};
+    private static final String[] EXTRA_KEYS = {K_WORLDGEN};
 
     @Unique
     private static final int MAX_SEARCH_RESULTS = 50;
@@ -49,9 +43,7 @@ public abstract class MixinAssetPrefabFileProvider {
     private static Path refixes$baseFor(String key) {
         PrefabStore s = PrefabStore.get();
         return switch (key) {
-            case K_SERVER -> s.getServerPrefabsPath();
             case K_WORLDGEN -> s.getWorldGenPrefabsPath();
-            case K_ASSETROOT -> s.getAssetRootPath();
             default -> null;
         };
     }
@@ -59,9 +51,7 @@ public abstract class MixinAssetPrefabFileProvider {
     @Unique
     private static String refixes$displayFor(String key) {
         return switch (key) {
-            case K_SERVER -> "Server";
             case K_WORLDGEN -> "WorldGen";
-            case K_ASSETROOT -> "AssetRoot";
             default -> key;
         };
     }

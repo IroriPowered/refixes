@@ -1,7 +1,7 @@
 package cc.irori.refixes.copychunks;
 
+import cc.irori.refixes.util.ChunkSelection;
 import cc.irori.refixes.util.Logs;
-import com.hypixel.hytale.builtin.buildertools.BuilderToolsPlugin;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -12,7 +12,6 @@ import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.permissions.HytalePermissions;
-import com.hypixel.hytale.server.core.prefab.selection.standard.BlockSelection;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.BufferChunkLoader;
@@ -62,18 +61,13 @@ public class CopyChunksCommand extends AbstractPlayerCommand {
             context.sendMessage(Message.raw("copychunks: player component missing."));
             return;
         }
-        BuilderToolsPlugin.BuilderState state = BuilderToolsPlugin.getState(playerComponent, playerRef);
-        BlockSelection selection = state.getSelection();
-        if (selection == null) {
+        ChunkSelection.Region region = ChunkSelection.of(playerComponent, playerRef);
+        if (region == null) {
             context.sendMessage(Message.raw("copychunks: no selection. Use /pos1 and /pos2 first."));
             return;
         }
-        Vector3i min = selection.getSelectionMin();
-        Vector3i max = selection.getSelectionMax();
-        if (min == null || max == null) {
-            context.sendMessage(Message.raw("copychunks: selection has no bounds."));
-            return;
-        }
+        Vector3i min = region.min;
+        Vector3i max = region.max;
 
         boolean aligned =
                 ((min.x & 31) == 0) && ((min.z & 31) == 0) && (((max.x + 1) & 31) == 0) && (((max.z + 1) & 31) == 0);
@@ -83,10 +77,10 @@ public class CopyChunksCommand extends AbstractPlayerCommand {
                     min.x, min.y, min.z, max.x, max.y, max.z)));
         }
 
-        final int minCx = min.x >> 5;
-        final int minCz = min.z >> 5;
-        final int maxCx = max.x >> 5;
-        final int maxCz = max.z >> 5;
+        final int minCx = region.minChunkX;
+        final int minCz = region.minChunkZ;
+        final int maxCx = region.maxChunkX;
+        final int maxCz = region.maxChunkZ;
 
         ChunkStore chunkStore = world.getChunkStore();
         IChunkLoader rawLoader = chunkStore.getLoader();
