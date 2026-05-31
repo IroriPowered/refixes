@@ -109,6 +109,7 @@ public class ActiveChunkUnloader {
         int skippedWaitingDelay = 0;
         int skippedTickingStripped = 0;
         int skippedEventCancelled = 0;
+        int skippedNeedsSaving = 0;
         int maxUnloads = Math.max(config.getValue(ChunkUnloaderConfig.MAX_UNLOADS_PER_RUN), 1);
         LongSet chunkIndexes = chunkStore.getChunkIndexes();
         LongIterator iterator = chunkIndexes.iterator();
@@ -125,6 +126,12 @@ public class ActiveChunkUnloader {
             WorldChunk worldChunk = chunkStore.getStore().getComponent(chunkRef, WorldChunk.getComponentType());
             if (worldChunk == null) {
                 outOfRangeSince.remove(chunkIndex);
+                continue;
+            }
+
+            if (worldChunk.getNeedsSaving()) {
+                outOfRangeSince.remove(chunkIndex);
+                skippedNeedsSaving++;
                 continue;
             }
 
@@ -195,7 +202,7 @@ public class ActiveChunkUnloader {
 
         if (unloaded > 0) {
             LOGGER.atInfo().log(
-                    "[%s] ChunkUnloader: total=%d, unloaded=%d, inRange=%d, keepLoaded=%d, keepLoadedRegion=%d, waitingDelay=%d, tickingStripped=%d, eventCancelled=%d, players=%d",
+                    "[%s] ChunkUnloader: total=%d, unloaded=%d, inRange=%d, keepLoaded=%d, keepLoadedRegion=%d, waitingDelay=%d, tickingStripped=%d, eventCancelled=%d, needsSaving=%d, players=%d",
                     world.getName(),
                     totalChunks,
                     unloaded,
@@ -205,6 +212,7 @@ public class ActiveChunkUnloader {
                     skippedWaitingDelay,
                     skippedTickingStripped,
                     skippedEventCancelled,
+                    skippedNeedsSaving,
                     playerCount);
         }
     }

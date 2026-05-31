@@ -8,6 +8,7 @@ import cc.irori.refixes.config.impl.CylinderVisibilityConfig;
 import cc.irori.refixes.config.impl.EarlyConfig;
 import cc.irori.refixes.config.impl.ExperimentalConfig;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
+import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
 import cc.irori.refixes.config.impl.KDTreeOptimizationConfig;
 import cc.irori.refixes.config.impl.ListenerConfig;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
@@ -28,6 +29,7 @@ import cc.irori.refixes.service.ActiveChunkUnloader;
 import cc.irori.refixes.service.AiTickThrottlerService;
 import cc.irori.refixes.service.ChunkLoaderService;
 import cc.irori.refixes.service.IdlePlayerService;
+import cc.irori.refixes.service.IdleWorldPauseService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.WatchdogService;
 import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
@@ -68,6 +70,7 @@ public class Refixes extends JavaPlugin {
 
     private IdlePlayerService idlePlayerService;
     private AiTickThrottlerService aiTickThrottler;
+    private IdleWorldPauseService idleWorldPauseService;
     private ChunkLoaderService chunkLoaderService;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
@@ -110,6 +113,9 @@ public class Refixes extends JavaPlugin {
         if (aiTickThrottler != null) {
             aiTickThrottler.registerService();
         }
+        if (idleWorldPauseService != null) {
+            idleWorldPauseService.registerService();
+        }
         if (watchdogService != null) {
             watchdogService.registerService();
         }
@@ -129,6 +135,9 @@ public class Refixes extends JavaPlugin {
         }
         if (aiTickThrottler != null) {
             aiTickThrottler.unregisterService();
+        }
+        if (idleWorldPauseService != null) {
+            idleWorldPauseService.unregisterService();
         }
         if (watchdogService != null) {
             watchdogService.unregisterService();
@@ -168,8 +177,6 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.PARALLEL_STEERING_THRESHOLD.setSupplier(
                 () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_STEERING_THRESHOLD));
 
-        EarlyOptions.BLOCK_ENTITY_SLEEP_INTERVAL.setSupplier(
-                () -> config.getValue(EarlyConfig.BLOCK_ENTITY_SLEEP_INTERVAL));
         EarlyOptions.STAT_RECALC_INTERVAL.setSupplier(() -> config.getValue(EarlyConfig.STAT_RECALC_INTERVAL));
 
         EarlyOptions.PATHFINDING_MAX_PATH_LENGTH.setSupplier(
@@ -251,6 +258,10 @@ public class Refixes extends JavaPlugin {
                 "AI tick throttler",
                 AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED),
                 () -> aiTickThrottler = new AiTickThrottlerService());
+        applyFix(
+                "Idle world pause",
+                IdleWorldPauseConfig.get().getValue(IdleWorldPauseConfig.ENABLED),
+                () -> idleWorldPauseService = new IdleWorldPauseService());
 
         getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
         getCommandRegistry().registerCommand(new CopyChunksCommand());

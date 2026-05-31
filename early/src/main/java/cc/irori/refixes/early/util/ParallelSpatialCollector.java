@@ -20,13 +20,11 @@ public final class ParallelSpatialCollector {
 
     // A collected spatial entry: position + entity reference.
     public static final class Entry<ECS_TYPE> {
-        public final double x, y, z;
+        public final Vector3d position;
         public final Ref<ECS_TYPE> ref;
 
-        public Entry(double x, double y, double z, Ref<ECS_TYPE> ref) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
+        public Entry(Vector3d position, Ref<ECS_TYPE> ref) {
+            this.position = position;
             this.ref = ref;
         }
     }
@@ -75,7 +73,7 @@ public final class ParallelSpatialCollector {
             }
             spatialData.addCapacity(entries.size());
             for (Entry<ECS_TYPE> entry : entries) {
-                spatialData.append(new Vector3d(entry.x, entry.y, entry.z), entry.ref);
+                spatialData.append(entry.position, entry.ref);
             }
         }
     }
@@ -89,7 +87,7 @@ public final class ParallelSpatialCollector {
                 continue;
             }
             Ref<ECS_TYPE> ref = work.chunk.getReferenceTo(i);
-            entries.add(new Entry<>(position.x, position.y, position.z, ref));
+            entries.add(new Entry<>(position, ref));
         }
         return entries;
     }

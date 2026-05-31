@@ -1,5 +1,6 @@
 package cc.irori.refixes.system;
 
+import cc.irori.refixes.config.impl.SharedInstanceConfig;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.Store;
@@ -22,10 +23,11 @@ public class SharedInstancePersistenceSystem extends TickingSystem<ChunkStore> {
         }
 
         WorldConfig config = world.getWorldConfig();
+        boolean resetOnEmpty = SharedInstanceConfig.get().getValue(SharedInstanceConfig.RESET_ON_EMPTY);
 
         boolean changed = false;
-        if (config.isDeleteOnRemove()) {
-            config.setDeleteOnRemove(false);
+        if (config.isDeleteOnRemove() != resetOnEmpty) {
+            config.setDeleteOnRemove(resetOnEmpty);
             changed = true;
         }
         if (config.isDeleteOnUniverseStart()) {
@@ -35,7 +37,9 @@ public class SharedInstancePersistenceSystem extends TickingSystem<ChunkStore> {
 
         if (changed) {
             config.markChanged();
-            LOGGER.atInfo().log("Set persistence flags for shared instance world '%s'", world.getName());
+            LOGGER.atInfo().log(
+                    "Set persistence flags for shared instance world '%s' (resetOnEmpty=%s)",
+                    world.getName(), resetOnEmpty);
         }
     }
 }

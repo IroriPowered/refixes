@@ -22,8 +22,6 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     public static final ConfigurationKey<EarlyConfig, Boolean> VANILLA_KEEP_SPAWN_LOADED =
             new ConfigurationKey<>("VanillaKeepSpawnLoaded", ConfigField.BOOLEAN, true);
 
-    public static final ConfigurationKey<EarlyConfig, Integer> BLOCK_ENTITY_SLEEP_INTERVAL =
-            new ConfigurationKey<>("BlockEntitySleepInterval", ConfigField.INTEGER, 4);
     public static final ConfigurationKey<EarlyConfig, Integer> STAT_RECALC_INTERVAL =
             new ConfigurationKey<>("StatRecalcInterval", ConfigField.INTEGER, 4);
 
@@ -45,7 +43,6 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 MAX_CHUNKS_PER_SECOND,
                 MAX_CHUNKS_PER_TICK,
                 VANILLA_KEEP_SPAWN_LOADED,
-                BLOCK_ENTITY_SLEEP_INTERVAL,
                 STAT_RECALC_INTERVAL,
                 PATHFINDING_MAX_PATH_LENGTH,
                 PATHFINDING_OPEN_NODES_LIMIT,

@@ -8,7 +8,10 @@ import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.World;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -83,22 +86,29 @@ public class PerPlayerHotRadiusService {
         PerPlayerHotRadiusConfig config = PerPlayerHotRadiusConfig.get();
         int minRadius = config.getValue(PerPlayerHotRadiusConfig.MIN_RADIUS);
         int maxRadius = config.getValue(PerPlayerHotRadiusConfig.MAX_RADIUS);
-
-        Collection<PlayerRef> players = Universe.get().getPlayers();
-        if (players.isEmpty()) {
-            return 0;
-        }
-
-        int applied = 0;
         int clamped = Math.clamp(targetRadius, minRadius, maxRadius);
 
-        for (PlayerRef playerRef : players) {
-            if (playerRef != null && updateHotRadius(playerRef, clamped)) {
-                applied++;
+        int dispatched = 0;
+        for (World world : Universe.get().getWorlds().values()) {
+            Collection<PlayerRef> players = world.getPlayerRefs();
+            if (players.isEmpty()) {
+                continue;
+            }
+            List<PlayerRef> snapshot = new ArrayList<>(players);
+            try {
+                world.execute(() -> {
+                    for (PlayerRef playerRef : snapshot) {
+                        if (playerRef != null) {
+                            updateHotRadius(playerRef, clamped);
+                        }
+                    }
+                });
+                dispatched += snapshot.size();
+            } catch (Exception ignored) {
             }
         }
 
-        return applied;
+        return dispatched;
     }
 
     private static boolean updateHotRadius(PlayerRef playerRef, int radius) {

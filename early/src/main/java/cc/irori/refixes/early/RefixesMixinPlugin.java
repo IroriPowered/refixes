@@ -34,6 +34,17 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             new MixinToggle(new String[] {"Mixins", "Optimizations", "BlockModule"}, true, List.of("MixinBlockModule")),
             new MixinToggle(
                     new String[] {"Mixins", "Optimizations", "CollectVisible"}, true, List.of("MixinCollectVisible")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Optimizations", "CollisionConfig"}, true, List.of("MixinCollisionConfig")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Optimizations", "CollisionAirFastPath"},
+                    true,
+                    List.of("MixinCollisionAirFastPath")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Optimizations", "SkipSystemMetrics"},
+                    true,
+                    false,
+                    List.of("MixinStoreSystemMetrics")),
             new MixinToggle(new String[] {"Mixins", "Optimizations", "KDTree"}, true, List.of("MixinKDTree")),
             new MixinToggle(
                     new String[] {"Mixins", "Optimizations", "ChunkSavingSystems"},
@@ -66,11 +77,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     true,
                     false,
                     List.of("MixinSpatialSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "BlockEntitySleep"},
-                    true,
-                    false,
-                    List.of("MixinBlockSection")),
             new MixinToggle(
                     new String[] {"Mixins", "Experimental", "BlockSectionCache"},
                     true,
@@ -124,6 +130,8 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             new MixinToggle(new String[] {"Mixins", "Crashfixes", "UpdateModule"}, true, List.of("MixinUpdateModule")),
             new MixinToggle(
                     new String[] {"Mixins", "Crashfixes", "FillerBlockUtil"}, true, List.of("MixinFillerBlockUtil")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Crashfixes", "CollisionModule"}, true, List.of("MixinCollisionModule")),
             new MixinToggle(
                     new String[] {"Mixins", "Crashfixes", "HideEntitySystems"},
                     true,
@@ -222,6 +230,8 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Helpers", "UpdateDownloadCommand"},
                     true,
                     List.of("MixinUpdateDownloadCommand")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Helpers", "WorldPauseCommand"}, true, List.of("MixinWorldPauseCommand")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "World"}, true, List.of("MixinWorld")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "WorldConfig"}, true, List.of("MixinWorldConfig")),
             new MixinToggle(

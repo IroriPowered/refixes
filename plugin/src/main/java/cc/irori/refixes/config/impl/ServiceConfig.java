@@ -13,11 +13,18 @@ public class ServiceConfig extends Configuration<ServiceConfig> {
             ConfigurationKey.subConfig("IdlePlayerHandler", IdlePlayerHandlerConfig.get());
     private static final ConfigurationKey<ServiceConfig, AiTickThrottlerConfig> AI_TICK_THROTTLER_CONFIG =
             ConfigurationKey.subConfig("AiTickThrottler", AiTickThrottlerConfig.get());
+    private static final ConfigurationKey<ServiceConfig, IdleWorldPauseConfig> IDLE_WORLD_PAUSE_CONFIG =
+            ConfigurationKey.subConfig("IdleWorldPause", IdleWorldPauseConfig.get());
 
     private static final ServiceConfig INSTANCE = new ServiceConfig();
 
     public ServiceConfig() {
-        register(CHUNK_UNLOADER_CONFIG, PER_PLAYER_RADIUS_CONFIG, IDLE_PLAYER_HANDLER_CONFIG, AI_TICK_THROTTLER_CONFIG);
+        register(
+                CHUNK_UNLOADER_CONFIG,
+                PER_PLAYER_RADIUS_CONFIG,
+                IDLE_PLAYER_HANDLER_CONFIG,
+                AI_TICK_THROTTLER_CONFIG,
+                IDLE_WORLD_PAUSE_CONFIG);
     }
 
     public static ServiceConfig get() {

@@ -12,6 +12,7 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.events.AddWorldEvent;
 import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
+import com.hypixel.hytale.server.core.universe.world.storage.component.ChunkSavingSystems;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -249,6 +252,17 @@ public class WatchdogService {
                 LOGGER.atSevere().log("World: %s", worldName);
                 dumpThreads(worldName);
 
+                World worldToRestart = Universe.get().getWorld(worldName);
+                if (worldToRestart != null && worldToRestart.getWorldConfig().canSaveChunks()) {
+                    int saveTimeout = config.getValue(WatchdogConfig.RESTART_SAVE_TIMEOUT_MS);
+                    if (!trySaveWorldWithTimeout(worldToRestart, saveTimeout)) {
+                        LOGGER.atSevere().log(
+                                "Aborting auto-restart of '%s': save timed out (%dms)", worldName, saveTimeout);
+                        worldsGivenUp.add(worldName);
+                        continue;
+                    }
+                }
+
                 LOGGER.atInfo().log("Attempting to unload world: " + worldName);
                 if (Universe.get().getWorld(worldName) != null) {
                     selfInitiatedRemovals.add(worldName);
@@ -280,6 +294,22 @@ public class WatchdogService {
                     }
                 }
             }
+        }
+    }
+
+    private boolean trySaveWorldWithTimeout(World world, int timeoutMs) {
+        try {
+            ChunkSavingSystems.saveChunksInWorld(world.getChunkStore().getStore())
+                    .get(timeoutMs, TimeUnit.MILLISECONDS);
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            LOGGER.atSevere().withCause(e).log("Error saving world '%s' before auto-restart", world.getName());
+            return false;
         }
     }
 

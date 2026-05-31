@@ -11,7 +11,7 @@ public class WatchdogConfig extends Configuration<WatchdogConfig> {
     public static final ConfigurationKey<WatchdogConfig, Boolean> SHUTDOWN_ON_DEFAULT_WORLD_CRASH =
             new ConfigurationKey<>("ShutdownOnDefaultWorldCrash", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<WatchdogConfig, Boolean> AUTO_RESTART_WORLDS =
-            new ConfigurationKey<>("AutoRestartWorlds", ConfigField.BOOLEAN, true);
+            new ConfigurationKey<>("AutoRestartWorlds", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<WatchdogConfig, Boolean> DUMP_ALL_THREADS =
             new ConfigurationKey<>("DumpAllThreads", ConfigField.BOOLEAN, false);
     public static final ConfigurationKey<WatchdogConfig, Integer> ACTIVATION_DELAY_MS =
@@ -20,6 +20,8 @@ public class WatchdogConfig extends Configuration<WatchdogConfig> {
             new ConfigurationKey<>("ThreadTimeoutMs", ConfigField.INTEGER, 30_000);
     public static final ConfigurationKey<WatchdogConfig, Integer> SHUTDOWN_TIMEOUT_MS =
             new ConfigurationKey<>("ShutdownTimeoutMs", ConfigField.INTEGER, 60_000);
+    public static final ConfigurationKey<WatchdogConfig, Integer> RESTART_SAVE_TIMEOUT_MS =
+            new ConfigurationKey<>("RestartSaveTimeoutMs", ConfigField.INTEGER, 15_000);
     public static final ConfigurationKey<WatchdogConfig, String[]> AUTO_RESTARTING_WORLD_FILTER =
             new ConfigurationKey<>("AutoRestartingWorldFilter", ConfigField.STRING_ARRAY, new String[0]);
 
@@ -34,6 +36,7 @@ public class WatchdogConfig extends Configuration<WatchdogConfig> {
                 ACTIVATION_DELAY_MS,
                 THREAD_TIMEOUT_MS,
                 SHUTDOWN_TIMEOUT_MS,
+                RESTART_SAVE_TIMEOUT_MS,
                 AUTO_RESTARTING_WORLD_FILTER);
     }
 

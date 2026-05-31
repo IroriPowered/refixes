@@ -24,9 +24,6 @@ public final class EarlyOptions {
     /* Shared Instances */
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>(new String[0]);
 
-    /* Block Entity Sleep */
-    public static final Value<Integer> BLOCK_ENTITY_SLEEP_INTERVAL = new Value<>(4);
-
     /* Stat Recalculation Throttle */
     public static final Value<Integer> STAT_RECALC_INTERVAL = new Value<>(4);
 
