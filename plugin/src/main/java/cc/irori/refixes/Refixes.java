@@ -264,15 +264,11 @@ public class Refixes extends JavaPlugin {
 
         new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
 
-        applyFix(
-                "Shared instance worlds",
-                SharedInstanceConfig.get().getValue(SharedInstanceConfig.ENABLED)
-                        && Early.isEnabledLogging("Shared instance worlds"),
-                () -> {
-                    getChunkStoreRegistry().registerSystem(new SharedInstancePersistenceSystem());
-                    sharedInstanceBootUnloader = new SharedInstanceBootUnloader();
-                    sharedInstanceBootUnloader.registerEvents(this);
-                });
+        if (Early.isEnabled()) {
+            getChunkStoreRegistry().registerSystem(new SharedInstancePersistenceSystem());
+            sharedInstanceBootUnloader = new SharedInstanceBootUnloader();
+            sharedInstanceBootUnloader.registerEvents(this);
+        }
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {

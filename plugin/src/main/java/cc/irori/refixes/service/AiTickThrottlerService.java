@@ -100,7 +100,10 @@ public class AiTickThrottlerService {
             World world = worlds.get(ws.getKey());
             if (world != null) {
                 WorldState state = ws.getValue();
-                world.execute(() -> unfreezeAll(world, state));
+                try {
+                    world.execute(() -> unfreezeAll(world, state));
+                } catch (RuntimeException ignored) {
+                }
             }
         }
     }
@@ -135,13 +138,17 @@ public class AiTickThrottlerService {
             if (!state.inProgress.compareAndSet(false, true)) {
                 continue;
             }
-            world.execute(() -> {
-                try {
-                    processWorld(world, cfg);
-                } finally {
-                    state.inProgress.set(false);
-                }
-            });
+            try {
+                world.execute(() -> {
+                    try {
+                        processWorld(world, cfg);
+                    } finally {
+                        state.inProgress.set(false);
+                    }
+                });
+            } catch (RuntimeException e) {
+                state.inProgress.set(false);
+            }
         }
     }
 
