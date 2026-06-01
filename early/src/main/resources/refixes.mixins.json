@@ -25,7 +25,6 @@
         "MixinCraftingManagerAccessor",
         "MixinEntityTickingSystem",
         "MixinEntityViewer",
-        "MixinFillerBlockUtil",
         "MixinFloodLightCalculation",
         "MixinFluidPlugin",
         "MixinFluidReplicateChanges",

@@ -35,7 +35,6 @@ import cc.irori.refixes.service.WatchdogService;
 import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.EntityDespawnTimerSystem;
-import cc.irori.refixes.system.InteractionManagerFixSystem;
 import cc.irori.refixes.system.RespawnBlockFixSystem;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
@@ -226,10 +225,6 @@ public class Refixes extends JavaPlugin {
                 SystemConfig.get().getValue(SystemConfig.CRAFTING_MANAGER)
                         && Early.isEnabledLogging("Crafting manager fix"),
                 () -> getEntityStoreRegistry().registerSystem(new CraftingManagerFixSystem()));
-        applyFix(
-                "Interaction manager fix",
-                SystemConfig.get().getValue(SystemConfig.INTERACTION_MANAGER),
-                () -> getEntityStoreRegistry().registerSystem(new InteractionManagerFixSystem()));
         applyFix(
                 "Entity despawn timer",
                 SystemConfig.get().getValue(SystemConfig.ENTITY_DESPAWN_TIMER),

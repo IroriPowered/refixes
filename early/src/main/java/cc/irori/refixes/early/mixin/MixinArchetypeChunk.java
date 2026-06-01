@@ -27,7 +27,7 @@ public class MixinArchetypeChunk {
     }
 
     @Inject(
-            method = "getComponent",
+            method = "__internal_getComponent",
             at = @At(value = "NEW", target = "(I)Ljava/lang/IndexOutOfBoundsException;"),
             cancellable = true)
     private void refixes$ignoreGetComponentOutOfBounds(
