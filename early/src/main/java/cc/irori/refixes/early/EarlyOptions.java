@@ -31,6 +31,7 @@ public final class EarlyOptions {
     public static final Value<Integer> PATHFINDING_MAX_PATH_LENGTH = new Value<>(200);
     public static final Value<Integer> PATHFINDING_OPEN_NODES_LIMIT = new Value<>(80);
     public static final Value<Integer> PATHFINDING_TOTAL_NODES_LIMIT = new Value<>(400);
+    public static final Value<Integer> PATHFINDING_MAX_NEW_SEARCHES_PER_TICK = new Value<>(8);
 
     /* Parallel Steering Threshold */
     public static final Value<Integer> PARALLEL_STEERING_THRESHOLD = new Value<>(64);

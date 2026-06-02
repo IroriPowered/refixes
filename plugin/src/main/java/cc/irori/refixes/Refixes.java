@@ -184,6 +184,8 @@ public class Refixes extends JavaPlugin {
                 () -> config.getValue(EarlyConfig.PATHFINDING_OPEN_NODES_LIMIT));
         EarlyOptions.PATHFINDING_TOTAL_NODES_LIMIT.setSupplier(
                 () -> config.getValue(EarlyConfig.PATHFINDING_TOTAL_NODES_LIMIT));
+        EarlyOptions.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK));
 
         EarlyOptions.setAvailable(true);
 

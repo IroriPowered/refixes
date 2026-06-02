@@ -78,6 +78,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     false,
                     List.of("MixinSpatialSystem")),
             new MixinToggle(
+                    new String[] {"Mixins", "Experimental", "PathfindingBudget"},
+                    true,
+                    false,
+                    List.of("MixinBodyMotionFindBase")),
+            new MixinToggle(
                     new String[] {"Mixins", "Experimental", "BlockSectionCache"},
                     true,
                     false,
@@ -240,12 +245,8 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Helpers", "WorldSpawningSystem"},
                     true,
                     List.of("MixinWorldSpawningSystem")),
-
-            // Inverted: `Telemetry.Enabled = true` -> telemetry runs (Mixin doesn't apply).
             new MixinToggle(
-                    new String[] {"HypixelServices", "Telemetry"}, false, true, List.of("MixinTelemetryModule")),
-            new MixinToggle(
-                    new String[] {"HypixelServices", "LiveConfig"}, false, true, List.of("MixinLiveConfigModule")));
+                    new String[] {"HypixelServices", "LiveConfig"}, true, false, List.of("MixinLiveConfigModule")));
 
     private String mixinPackage;
     private Set<String> disabledMixins = Collections.emptySet();

@@ -31,6 +31,8 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
             new ConfigurationKey<>("PathfindingOpenNodesLimit", ConfigField.INTEGER, 80);
     public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_TOTAL_NODES_LIMIT =
             new ConfigurationKey<>("PathfindingTotalNodesLimit", ConfigField.INTEGER, 400);
+    public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_MAX_NEW_SEARCHES_PER_TICK =
+            new ConfigurationKey<>("PathfindingMaxNewSearchesPerTick", ConfigField.INTEGER, 8);
 
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
@@ -46,7 +48,8 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 STAT_RECALC_INTERVAL,
                 PATHFINDING_MAX_PATH_LENGTH,
                 PATHFINDING_OPEN_NODES_LIMIT,
-                PATHFINDING_TOTAL_NODES_LIMIT);
+                PATHFINDING_TOTAL_NODES_LIMIT,
+                PATHFINDING_MAX_NEW_SEARCHES_PER_TICK);
     }
 
     public static EarlyConfig get() {
