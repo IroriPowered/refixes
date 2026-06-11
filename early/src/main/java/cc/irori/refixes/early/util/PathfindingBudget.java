@@ -1,21 +1,59 @@
 package cc.irori.refixes.early.util;
 
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.ComponentAccessor;
+import com.hypixel.hytale.component.Store;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 public final class PathfindingBudget {
 
-    private static final ThreadLocal<int[]> REMAINING = ThreadLocal.withInitial(() -> new int[] {0});
+    private static final class Cell {
+        final AtomicInteger searches = new AtomicInteger();
+        final AtomicInteger nodes = new AtomicInteger();
+    }
+
+    private static final Map<Store<?>, Cell> CELLS = new ConcurrentHashMap<>();
 
     private PathfindingBudget() {}
 
-    public static void reset(int max) {
-        REMAINING.get()[0] = max;
+    public static void reset(Store<?> store, int maxSearches, int maxNodes) {
+        if (store == null) {
+            return;
+        }
+        Cell cell = CELLS.computeIfAbsent(store, k -> new Cell());
+        cell.searches.set(maxSearches);
+        cell.nodes.set(maxNodes <= 0 ? Integer.MAX_VALUE : maxNodes);
     }
 
-    public static boolean tryConsume() {
-        int[] cell = REMAINING.get();
-        if (cell[0] <= 0) {
-            return false;
+    public static void remove(Store<?> store) {
+        if (store != null) {
+            CELLS.remove(store);
         }
-        cell[0]--;
-        return true;
+    }
+
+    public static boolean tryConsume(ComponentAccessor<?> accessor) {
+        Cell cell = cellOf(accessor);
+        if (cell == null) {
+            return true;
+        }
+        return cell.searches.getAndDecrement() > 0;
+    }
+
+    public static boolean tryConsumeNodes(ComponentAccessor<?> accessor, int cost) {
+        Cell cell = cellOf(accessor);
+        if (cell == null) {
+            return true;
+        }
+        return cell.nodes.getAndAdd(-cost) > 0;
+    }
+
+    private static Cell cellOf(ComponentAccessor<?> accessor) {
+        if (!(accessor instanceof CommandBuffer)) {
+            return null;
+        }
+        Store<?> store = ((CommandBuffer<?>) accessor).getStore();
+        return store == null ? null : CELLS.get(store);
     }
 }

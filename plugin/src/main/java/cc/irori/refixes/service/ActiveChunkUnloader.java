@@ -1,5 +1,6 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.Ref;
@@ -102,6 +103,7 @@ public class ActiveChunkUnloader {
         });
 
         long now = System.nanoTime();
+        long runStartNanos = now;
         int unloaded = 0;
         int skippedKeepLoaded = 0;
         int skippedKeepLoadedRegion = 0;
@@ -214,6 +216,21 @@ public class ActiveChunkUnloader {
                     skippedEventCancelled,
                     skippedNeedsSaving,
                     playerCount);
+            BlackboxBridge.count("ChunkUnloader unloaded", unloaded);
+        }
+        if (skippedTickingStripped > 0) {
+            BlackboxBridge.count("ChunkUnloader ticking stripped", skippedTickingStripped);
+        }
+        if (skippedEventCancelled > 0) {
+            BlackboxBridge.count("ChunkUnloader unload cancelled", skippedEventCancelled);
+        }
+        if (skippedNeedsSaving > 0) {
+            BlackboxBridge.count("ChunkUnloader skipped needs saving", skippedNeedsSaving);
+        }
+        BlackboxBridge.gauge("ChunkUnloader run ms", (System.nanoTime() - runStartNanos) / 1_000_000.0);
+        if (unloaded >= maxUnloads) {
+            BlackboxBridge.event(
+                    "ChunkUnloader", "[" + world.getName() + "] hit MaxUnloadsPerRun (" + maxUnloads + ")");
         }
     }
 

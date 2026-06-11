@@ -4,6 +4,7 @@ import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.PathfindingBudget;
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.server.core.entity.entities.Player;
@@ -35,10 +36,6 @@ public class MixinWorld {
     @Final
     private EntityStore entityStore;
 
-    // Pre-release init race: WorldMapManager.setGenerator() iterates world.getPlayers()
-    // during World.init(), but entityStore.getStore() is still null until init's
-    // entityStore.start(resourceStorage) call later in the same flow. Empty list keeps
-    // the loop a no-op without NPE.
     @Inject(method = "getPlayers()Ljava/util/List;", at = @At("HEAD"), cancellable = true)
     private void refixes$nullGuardGetPlayers(CallbackInfoReturnable<List<Player>> cir) {
         if (this.entityStore == null || this.entityStore.getStore() == null) {
@@ -101,7 +98,6 @@ public class MixinWorld {
         return false;
     }
 
-    // Redirects the config save .join() in onShutdown() to use a timeout
     @Redirect(
             method = "onShutdown",
             at = @At(value = "INVOKE", target = "Ljava/util/concurrent/CompletableFuture;join()Ljava/lang/Object;"))
@@ -124,6 +120,22 @@ public class MixinWorld {
 
     @Inject(method = "tick(F)V", at = @At("HEAD"))
     private void refixes$resetPathfindingBudget(float dt, CallbackInfo ci) {
-        PathfindingBudget.reset(EarlyOptions.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK.get());
+        if (this.entityStore == null) {
+            return;
+        }
+        Store<EntityStore> store = this.entityStore.getStore();
+        if (store != null) {
+            PathfindingBudget.reset(
+                    store,
+                    EarlyOptions.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK.get(),
+                    EarlyOptions.PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK.get());
+        }
+    }
+
+    @Inject(method = "onShutdown", at = @At("HEAD"))
+    private void refixes$dropPathfindingBudget(CallbackInfo ci) {
+        if (this.entityStore != null) {
+            PathfindingBudget.remove(this.entityStore.getStore());
+        }
     }
 }

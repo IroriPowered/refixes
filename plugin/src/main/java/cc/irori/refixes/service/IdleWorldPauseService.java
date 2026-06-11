@@ -1,5 +1,6 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -45,7 +46,11 @@ public class IdleWorldPauseService {
         Set<String> excluded =
                 new HashSet<>(Arrays.asList(IdleWorldPauseConfig.get().getValue(IdleWorldPauseConfig.EXCLUDED_WORLDS)));
         Map<String, World> worldsByName = Universe.get().getWorlds();
+        int paused = 0;
         for (World world : worldsByName.values()) {
+            if (world.isPaused()) {
+                paused++;
+            }
             if (excluded.contains(world.getName())) {
                 continue;
             }
@@ -53,9 +58,11 @@ public class IdleWorldPauseService {
                 world.execute(() -> {
                     if (world.getPlayerCount() == 0 && !world.isPaused()) {
                         world.setPaused(true);
+                        BlackboxBridge.event("IdleWorldPause", "paused world '" + world.getName() + "'");
                     }
                 });
             }
         }
+        BlackboxBridge.gauge("IdleWorldPause paused worlds", paused);
     }
 }

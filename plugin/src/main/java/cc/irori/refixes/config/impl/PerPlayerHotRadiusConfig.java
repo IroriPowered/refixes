@@ -15,9 +15,9 @@ public class PerPlayerHotRadiusConfig extends Configuration<PerPlayerHotRadiusCo
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Integer> MAX_RADIUS =
             new ConfigurationKey<>("MaxRadius", ConfigField.INTEGER, 6);
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Float> TPS_LOW =
-            new ConfigurationKey<>("TPSLow", ConfigField.FLOAT, 15.0f);
+            new ConfigurationKey<>("TPSLow", ConfigField.FLOAT, 22.5f);
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Float> TPS_HIGH =
-            new ConfigurationKey<>("TPSHigh", ConfigField.FLOAT, 18.0f);
+            new ConfigurationKey<>("TPSHigh", ConfigField.FLOAT, 27.0f);
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Integer> ADJUSTMENT_STEP =
             new ConfigurationKey<>("AdjustmentStep", ConfigField.INTEGER, 1);
 

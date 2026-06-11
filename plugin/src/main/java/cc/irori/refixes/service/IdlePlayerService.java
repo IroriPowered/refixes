@@ -1,5 +1,6 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.Ref;
@@ -97,6 +98,19 @@ public class IdlePlayerService {
             }
             return true;
         });
+
+        BlackboxBridge.gauge("IdlePlayer idle", getIdleCount());
+    }
+
+    /** Players currently treated as idle (for reporting). */
+    public int getIdleCount() {
+        int idle = 0;
+        for (PlayerIdleState state : playerStates.values()) {
+            if (state.wasIdle) {
+                idle++;
+            }
+        }
+        return idle;
     }
 
     private void applyIdleSettings(PlayerRef playerRef, PlayerIdleState state, IdlePlayerHandlerConfig cfg) {
@@ -156,6 +170,7 @@ public class IdlePlayerService {
 
                         state.wasIdle = true;
                         LOGGER.atInfo().log("Applied idle settings for player %s", playerRef.getUuid());
+                        BlackboxBridge.count("IdlePlayer applied", 1);
                     } catch (Throwable t) {
                         LOGGER.atWarning().withCause(t).log(
                                 "Failed to apply idle settings for player %s", playerRef.getUuid());
@@ -211,6 +226,7 @@ public class IdlePlayerService {
 
                         state.wasIdle = false;
                         LOGGER.atInfo().log("Restored settings for player %s", playerRef.getUuid());
+                        BlackboxBridge.count("IdlePlayer restored", 1);
                     } catch (Throwable t) {
                         LOGGER.atWarning().withCause(t).log(
                                 "Failed to restore settings for player %s", playerRef.getUuid());

@@ -1,5 +1,6 @@
 package cc.irori.refixes.listener;
 
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.config.impl.ListenerConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -110,6 +111,7 @@ public final class UnknownBlockCleaner {
                     chunk.getZ(),
                     chunk.getWorld().getName(),
                     removedCounts);
+            BlackboxBridge.count("UnknownBlockCleaner removed", total);
         }
     }
 

@@ -65,13 +65,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Optimizations", "SpawnManagerRecalc"},
                     true,
                     List.of("MixinWorldSpawnManager")),
-
-            // ParallelEntityTicking gates 3 Mixins; disabling restores Store's write-processing assertion.
             new MixinToggle(
                     new String[] {"Mixins", "Experimental", "ParallelEntityTicking"},
                     true,
                     false,
-                    List.of("MixinEntityTickingSystem", "MixinSteeringSystem", "MixinStore")),
+                    List.of("MixinEntityTickingSystem", "MixinSteeringSystem", "MixinStore", "MixinWorldChunk")),
             new MixinToggle(
                     new String[] {"Mixins", "Experimental", "ParallelSpatialCollection"},
                     true,
@@ -134,8 +132,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Crashfixes", "RepulsionTicker"}, true, List.of("MixinRepulsionTicker")),
             new MixinToggle(new String[] {"Mixins", "Crashfixes", "UpdateModule"}, true, List.of("MixinUpdateModule")),
             new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "FillerBlockUtil"}, true, List.of("MixinFillerBlockUtil")),
-            new MixinToggle(
                     new String[] {"Mixins", "Crashfixes", "CollisionModule"}, true, List.of("MixinCollisionModule")),
             new MixinToggle(
                     new String[] {"Mixins", "Crashfixes", "HideEntitySystems"},
@@ -147,9 +143,18 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     List.of("MixinTriggerVolumesPlugin")),
             new MixinToggle(new String[] {"Mixins", "Crashfixes", "VoiceModule"}, true, List.of("MixinVoiceModule")),
             new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "LegacySemverRange"}, true, List.of("MixinPluginManager")),
-
-            // Helpers: accessor / infrastructure mixins. Disabling them breaks other Mixins.
+                    new String[] {"Mixins", "Crashfixes", "ChunkLightDataSerializeSafety"},
+                    true,
+                    List.of("MixinChunkLightDataSerializeSafety")),
+            new MixinToggle(new String[] {"Mixins", "Crashfixes", "PageManager"}, true, List.of("MixinPageManager")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Crashfixes", "TeleportToPlayerCommand"},
+                    true,
+                    List.of("MixinTeleportToPlayerCommand")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Crashfixes", "DeployableOwnerComponent"},
+                    true,
+                    List.of("MixinDeployableOwnerComponent")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "ArchetypeChunk"}, true, List.of("MixinArchetypeChunk")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "BeaconAddRemoveSystem"},

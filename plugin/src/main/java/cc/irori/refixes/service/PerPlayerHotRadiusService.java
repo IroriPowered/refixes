@@ -1,5 +1,6 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
 import cc.irori.refixes.util.Logs;
 import cc.irori.refixes.util.TpsUtil;
@@ -59,9 +60,24 @@ public class PerPlayerHotRadiusService {
                 LOGGER.atInfo().log(
                         "Adjusted per-player hot radius: %d -> %d (TPS: %.1f, players: %d)",
                         currentTargetRadius, targetRadius, currentTps, applied);
+                BlackboxBridge.event(
+                        "PerPlayerHotRadius",
+                        String.format(
+                                java.util.Locale.ROOT,
+                                "radius %d to %d (TPS %.1f, players %d)",
+                                currentTargetRadius,
+                                targetRadius,
+                                currentTps,
+                                applied));
             }
             currentTargetRadius = targetRadius;
+            BlackboxBridge.gauge("PerPlayerHotRadius radius", targetRadius);
         }
+    }
+
+    /** Current global target hot radius (for reporting). */
+    public int getCurrentTargetRadius() {
+        return currentTargetRadius;
     }
 
     private static int calculateTargetRadius(float tps) {

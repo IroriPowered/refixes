@@ -2,8 +2,12 @@ package cc.irori.refixes.config.impl;
 
 import cc.irori.refixes.config.Configuration;
 import cc.irori.refixes.config.ConfigurationKey;
+import cc.irori.refixes.config.field.ConfigField;
 
 public class RefixesConfig extends Configuration<RefixesConfig> {
+
+    public static final ConfigurationKey<RefixesConfig, Boolean> BLACKBOX_INTEGRATION =
+            new ConfigurationKey<>("BlackboxIntegration", ConfigField.BOOLEAN, true);
 
     private static final ConfigurationKey<RefixesConfig, EarlyConfig> EARLY_CONFIG =
             ConfigurationKey.subConfig("Early", EarlyConfig.get());
@@ -24,6 +28,7 @@ public class RefixesConfig extends Configuration<RefixesConfig> {
 
     public RefixesConfig() {
         register(
+                BLACKBOX_INTEGRATION,
                 EARLY_CONFIG,
                 LISTENER_CONFIG,
                 SYSTEM_CONFIG,

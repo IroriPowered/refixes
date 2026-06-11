@@ -1,5 +1,6 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.util.Logs;
@@ -66,6 +67,7 @@ public class AiTickThrottlerService {
 
     private final Map<String, WorldState> worldStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
+    private long lastGaugeNanos;
 
     public void registerService() {
         int intervalMs = Math.max(20, AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.UPDATE_INTERVAL_MS));
@@ -150,6 +152,21 @@ public class AiTickThrottlerService {
                 state.inProgress.set(false);
             }
         }
+
+        long now = System.nanoTime();
+        if (now - lastGaugeNanos >= 1_000_000_000L) {
+            lastGaugeNanos = now;
+            BlackboxBridge.gauge("AiTickThrottler throttled", getThrottledCount());
+        }
+    }
+
+    /** Currently throttled entity count across all worlds (slightly stale; for reporting). */
+    public int getThrottledCount() {
+        int total = 0;
+        for (WorldState state : worldStates.values()) {
+            total += state.entries.size();
+        }
+        return total;
     }
 
     private void processWorld(World world, AiTickThrottlerConfig cfg) {
@@ -172,6 +189,7 @@ public class AiTickThrottlerService {
                 boolean excludeFlyingOnEmpty = cfg.getValue(AiTickThrottlerConfig.THROTTLE_EXCLUDE_FLYING);
                 freezeAllNpcs(store, excludedNpcTypes, excludeMountsOnEmpty, excludeFlyingOnEmpty);
                 state.frozenWithoutPlayers = true;
+                BlackboxBridge.event("AiTickThrottler", "froze all NPCs in '" + world.getName() + "' (no players)");
             }
             return;
         }
@@ -297,6 +315,20 @@ public class AiTickThrottlerService {
 
         // Prune entries for entities no longer in the world
         state.entries.keySet().retainAll(state.seen);
+
+        int froze = Math.min(freezeCount.get(), maxFreezes);
+        if (froze > 0) {
+            BlackboxBridge.count("AiTickThrottler froze", froze);
+        }
+        int unfroze = Math.min(unfreezeCount.get(), maxUnfreezes);
+        if (unfroze > 0) {
+            BlackboxBridge.count("AiTickThrottler unfroze", unfroze);
+        }
+        long cycleNanos = System.nanoTime() - cycleStartNanos;
+        BlackboxBridge.gauge("AiTickThrottler cycle ms", cycleNanos / 1_000_000.0);
+        if (cycleNanos > budgetNanos) {
+            BlackboxBridge.count("AiTickThrottler budget exceeded", 1);
+        }
     }
 
     private void freezeAllNpcs(

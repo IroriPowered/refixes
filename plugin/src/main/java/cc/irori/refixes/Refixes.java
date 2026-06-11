@@ -1,6 +1,7 @@
 package cc.irori.refixes;
 
 import cc.irori.refixes.command.ChunkLoaderCommand;
+import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkUnloaderConfig;
@@ -46,7 +47,9 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 public class Refixes extends JavaPlugin {
@@ -186,6 +189,8 @@ public class Refixes extends JavaPlugin {
                 () -> config.getValue(EarlyConfig.PATHFINDING_TOTAL_NODES_LIMIT));
         EarlyOptions.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK.setSupplier(
                 () -> config.getValue(EarlyConfig.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK));
+        EarlyOptions.PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK.setSupplier(
+                () -> config.getValue(EarlyConfig.PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK));
 
         EarlyOptions.setAvailable(true);
 
@@ -276,6 +281,29 @@ public class Refixes extends JavaPlugin {
         for (String summary : fixSummary) {
             LOGGER.atInfo().log(summary);
         }
+
+        BlackboxBridge.registerDiagnostics("Refixes systems", this::diagnosticsSnapshot);
+    }
+
+    private Map<String, String> diagnosticsSnapshot() {
+        Map<String, String> out = new LinkedHashMap<>();
+        out.put("Chunk unloader", activeChunkUnloader != null ? "enabled" : "disabled");
+        out.put(
+                "AI tick throttler",
+                aiTickThrottler != null
+                        ? "enabled, " + aiTickThrottler.getThrottledCount() + " throttled"
+                        : "disabled");
+        out.put(
+                "Per-player hot radius",
+                perPlayerHotRadiusService != null
+                        ? "enabled, radius " + perPlayerHotRadiusService.getCurrentTargetRadius()
+                        : "disabled");
+        out.put(
+                "Idle player handler",
+                idlePlayerService != null ? "enabled, " + idlePlayerService.getIdleCount() + " idle" : "disabled");
+        out.put("Idle world pause", idleWorldPauseService != null ? "enabled" : "disabled");
+        out.put("Watchdog", watchdogService != null ? "enabled, " + watchdogService.getState() : "disabled");
+        return out;
     }
 
     private void applyFix(String name, boolean apply, Runnable fix) {

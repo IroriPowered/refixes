@@ -5,6 +5,9 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
+import java.util.Map;
+import java.util.UUID;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -22,7 +25,18 @@ public abstract class MixinUniverse {
     private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
 
     @Shadow
+    @Final
+    private Map<UUID, PlayerRef> playersByUuid;
+
+    @Shadow
     protected abstract void lambda$removePlayer$2(PlayerRef par1, Void par2, Throwable par3);
+
+    @Inject(method = "removePlayer", at = @At("HEAD"), cancellable = true)
+    private void refixes$skipStaleRemoval(PlayerRef playerRef, CallbackInfo ci) {
+        if (playersByUuid.get(playerRef.getUuid()) != playerRef) {
+            ci.cancel();
+        }
+    }
 
     @Inject(method = "lambda$removePlayer$0", at = @At("HEAD"), cancellable = true)
     private static void refixes$guardAsyncRemoval(Ref ref, CallbackInfo ci) {
