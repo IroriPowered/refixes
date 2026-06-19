@@ -69,7 +69,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Experimental", "ParallelEntityTicking"},
                     true,
                     false,
-                    List.of("MixinEntityTickingSystem", "MixinSteeringSystem", "MixinStore", "MixinWorldChunk")),
+                    List.of("MixinEntityTickingSystem", "MixinSteeringSystem", "MixinStore")),
             new MixinToggle(
                     new String[] {"Mixins", "Experimental", "ParallelSpatialCollection"},
                     true,
@@ -211,7 +211,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Helpers", "PrefabListExtraRoots"},
                     true,
                     List.of("MixinAssetPrefabFileProvider", "MixinPrefabPage")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "PrefabLoader"}, true, List.of("MixinPrefabLoader")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "RemovalSystem"}, true, List.of("MixinRemovalSystem")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "ServerAuthManager"}, true, List.of("MixinServerAuthManager")),
@@ -242,7 +241,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     true,
                     List.of("MixinTrackedPlacementOnAddRemove")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "UUIDSystem"}, true, List.of("MixinUUIDSystem")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "Universe"}, true, List.of("MixinUniverse")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "UpdateCheckCommand"}, true, List.of("MixinUpdateCheckCommand")),
             new MixinToggle(
