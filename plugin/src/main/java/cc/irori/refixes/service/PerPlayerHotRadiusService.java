@@ -21,7 +21,8 @@ public class PerPlayerHotRadiusService {
     private static final HytaleLogger LOGGER = Logs.logger();
 
     private ScheduledFuture<?> task;
-    private int currentTargetRadius;
+    private volatile int currentTargetRadius;
+    private AutoCloseable radiusGauge;
 
     public PerPlayerHotRadiusService() {
         currentTargetRadius = PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.MAX_RADIUS);
@@ -41,12 +42,20 @@ public class PerPlayerHotRadiusService {
                 5000,
                 interval,
                 TimeUnit.MILLISECONDS);
+        radiusGauge = BlackboxBridge.registerGauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
     }
 
     public void unregisterService() {
         if (task != null) {
             task.cancel(false);
             task = null;
+        }
+        if (radiusGauge != null) {
+            try {
+                radiusGauge.close();
+            } catch (Exception ignored) {
+            }
+            radiusGauge = null;
         }
     }
 
@@ -71,11 +80,9 @@ public class PerPlayerHotRadiusService {
                                 applied));
             }
             currentTargetRadius = targetRadius;
-            BlackboxBridge.gauge("PerPlayerHotRadius radius", targetRadius);
         }
     }
 
-    /** Current global target hot radius (for reporting). */
     public int getCurrentTargetRadius() {
         return currentTargetRadius;
     }

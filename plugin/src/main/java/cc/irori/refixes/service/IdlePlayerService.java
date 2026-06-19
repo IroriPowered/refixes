@@ -30,6 +30,7 @@ public class IdlePlayerService {
 
     private final Map<UUID, PlayerIdleState> playerStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
+    private AutoCloseable idleGauge;
 
     public void registerService() {
         int intervalSec =
@@ -45,12 +46,20 @@ public class IdlePlayerService {
                 5000,
                 intervalSec * 1000L,
                 TimeUnit.MILLISECONDS);
+        idleGauge = BlackboxBridge.registerGauge("IdlePlayer idle", () -> getIdleCount());
     }
 
     public void unregisterService() {
         if (task != null) {
             task.cancel(false);
             task = null;
+        }
+        if (idleGauge != null) {
+            try {
+                idleGauge.close();
+            } catch (Exception ignored) {
+            }
+            idleGauge = null;
         }
         playerStates.clear();
     }
@@ -98,11 +107,8 @@ public class IdlePlayerService {
             }
             return true;
         });
-
-        BlackboxBridge.gauge("IdlePlayer idle", getIdleCount());
     }
 
-    /** Players currently treated as idle (for reporting). */
     public int getIdleCount() {
         int idle = 0;
         for (PlayerIdleState state : playerStates.values()) {

@@ -37,6 +37,12 @@ public final class EarlyOptions {
     /* Parallel Steering Threshold */
     public static final Value<Integer> PARALLEL_STEERING_THRESHOLD = new Value<>(64);
 
+    public static final Value<Integer> SHUTDOWN_SAVE_TIMEOUT_SECONDS = new Value<>(10);
+
+    /* Connection Backpressure */
+    public static final Value<Integer> BACKPRESSURE_MAX_OUTBOUND_BYTES = new Value<>(16777216);
+    public static final Value<Integer> BACKPRESSURE_GRACE_MS = new Value<>(10000);
+
     private EarlyOptions() {}
 
     public static void setAvailable(boolean available) {

@@ -148,8 +148,8 @@ public class WatchdogService {
             boolean shutdownOnDefaultCrash = config.getValue(WatchdogConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH);
 
             // No custom filter set, check status for all loaded worlds
-            for (String worldName : Universe.get().getWorlds().keySet()) {
-                // Shutdown on default crash will be handled in a different method
+            for (World world : Universe.get().getWorlds().values()) {
+                String worldName = world.getName();
                 if (shutdownOnDefaultCrash && worldName.equals(defaultWorldName)) {
                     continue;
                 }

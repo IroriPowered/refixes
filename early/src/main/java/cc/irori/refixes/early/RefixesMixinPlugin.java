@@ -76,6 +76,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     false,
                     List.of("MixinSpatialSystem")),
             new MixinToggle(
+                    new String[] {"Mixins", "Experimental", "ShutdownSaveTimeout"},
+                    true,
+                    false,
+                    List.of("MixinStoreShutdown")),
+            new MixinToggle(
                     new String[] {"Mixins", "Experimental", "PathfindingBudget"},
                     true,
                     false,
@@ -110,6 +115,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     true,
                     false,
                     List.of("MixinChunkReplicateChanges")),
+            new MixinToggle(
+                    new String[] {"Mixins", "Experimental", "ConnectionBackpressure"},
+                    true,
+                    false,
+                    List.of("MixinNettyUtilBackpressure")),
             new MixinToggle(
                     new String[] {"Mixins", "Crashfixes", "BlockSectionSafety"},
                     true,
@@ -155,6 +165,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     new String[] {"Mixins", "Crashfixes", "DeployableOwnerComponent"},
                     true,
                     List.of("MixinDeployableOwnerComponent")),
+            new MixinToggle(new String[] {"Mixins", "Crashfixes", "MountPlugin"}, true, List.of("MixinMountPlugin")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "ArchetypeChunk"}, true, List.of("MixinArchetypeChunk")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "BeaconAddRemoveSystem"},
@@ -177,8 +188,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             new MixinToggle(new String[] {"Mixins", "Helpers", "HytaleServer"}, true, List.of("MixinHytaleServer")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "InteractionChain"}, true, List.of("MixinInteractionChain")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "InteractionManager"}, true, List.of("MixinInteractionManager")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "MarkerAddRemoveSystem"},
                     true,

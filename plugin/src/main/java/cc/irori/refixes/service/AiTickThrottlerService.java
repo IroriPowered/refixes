@@ -67,7 +67,10 @@ public class AiTickThrottlerService {
 
     private final Map<String, WorldState> worldStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
-    private long lastGaugeNanos;
+    private volatile double lastCycleMs;
+    private AutoCloseable throttledGauge;
+    private AutoCloseable activeGauge;
+    private AutoCloseable cycleMsGauge;
 
     public void registerService() {
         int intervalMs = Math.max(20, AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.UPDATE_INTERVAL_MS));
@@ -84,6 +87,9 @@ public class AiTickThrottlerService {
                 5000,
                 intervalMs,
                 TimeUnit.MILLISECONDS);
+        throttledGauge = BlackboxBridge.registerGauge("AiTickThrottler throttled", () -> getThrottledCount());
+        activeGauge = BlackboxBridge.registerGauge("AiTickThrottler active", () -> getActiveNpcCount());
+        cycleMsGauge = BlackboxBridge.registerGauge("AiTickThrottler cycle ms", () -> lastCycleMs);
     }
 
     public void unregisterService() {
@@ -91,17 +97,30 @@ public class AiTickThrottlerService {
             task.cancel(false);
             task = null;
         }
+        closeQuietly(throttledGauge);
+        closeQuietly(activeGauge);
+        closeQuietly(cycleMsGauge);
+        throttledGauge = null;
+        activeGauge = null;
+        cycleMsGauge = null;
         // Unfreeze all entities we froze before clearing state
         unfreezeAllWorld();
         worldStates.clear();
     }
 
+    private static void closeQuietly(AutoCloseable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
     private void unfreezeAllWorld() {
-        Map<String, World> worlds = Universe.get().getWorlds();
-        for (Map.Entry<String, WorldState> ws : worldStates.entrySet()) {
-            World world = worlds.get(ws.getKey());
-            if (world != null) {
-                WorldState state = ws.getValue();
+        for (World world : Universe.get().getWorlds().values()) {
+            WorldState state = worldStates.get(world.getName());
+            if (state != null) {
                 try {
                     world.execute(() -> unfreezeAll(world, state));
                 } catch (RuntimeException ignored) {
@@ -132,7 +151,11 @@ public class AiTickThrottlerService {
         AiTickThrottlerConfig cfg = AiTickThrottlerConfig.get();
 
         Map<String, World> worlds = Universe.get().getWorlds();
-        worldStates.keySet().removeIf(name -> !worlds.containsKey(name));
+        Set<String> liveWorldNames = new HashSet<>();
+        for (World world : worlds.values()) {
+            liveWorldNames.add(world.getName());
+        }
+        worldStates.keySet().removeIf(name -> !liveWorldNames.contains(name));
 
         for (World world : worlds.values()) {
             WorldState state = worldStates.computeIfAbsent(world.getName(), _k -> new WorldState());
@@ -152,19 +175,20 @@ public class AiTickThrottlerService {
                 state.inProgress.set(false);
             }
         }
-
-        long now = System.nanoTime();
-        if (now - lastGaugeNanos >= 1_000_000_000L) {
-            lastGaugeNanos = now;
-            BlackboxBridge.gauge("AiTickThrottler throttled", getThrottledCount());
-        }
     }
 
-    /** Currently throttled entity count across all worlds (slightly stale; for reporting). */
     public int getThrottledCount() {
         int total = 0;
         for (WorldState state : worldStates.values()) {
             total += state.entries.size();
+        }
+        return total;
+    }
+
+    public int getActiveNpcCount() {
+        int total = 0;
+        for (WorldState state : worldStates.values()) {
+            total += state.lastScanned;
         }
         return total;
     }
@@ -191,6 +215,7 @@ public class AiTickThrottlerService {
                 state.frozenWithoutPlayers = true;
                 BlackboxBridge.event("AiTickThrottler", "froze all NPCs in '" + world.getName() + "' (no players)");
             }
+            state.lastScanned = 0;
             return;
         }
         state.frozenWithoutPlayers = false;
@@ -313,6 +338,7 @@ public class AiTickThrottlerService {
             }
         });
 
+        state.lastScanned = state.seen.size();
         // Prune entries for entities no longer in the world
         state.entries.keySet().retainAll(state.seen);
 
@@ -325,7 +351,7 @@ public class AiTickThrottlerService {
             BlackboxBridge.count("AiTickThrottler unfroze", unfroze);
         }
         long cycleNanos = System.nanoTime() - cycleStartNanos;
-        BlackboxBridge.gauge("AiTickThrottler cycle ms", cycleNanos / 1_000_000.0);
+        lastCycleMs = cycleNanos / 1_000_000.0;
         if (cycleNanos > budgetNanos) {
             BlackboxBridge.count("AiTickThrottler budget exceeded", 1);
         }
@@ -469,6 +495,7 @@ public class AiTickThrottlerService {
         final Map<UUID, AiLodEntry> entries = new ConcurrentHashMap<>();
         final Set<UUID> seen = ConcurrentHashMap.newKeySet();
         boolean frozenWithoutPlayers;
+        volatile int lastScanned;
     }
 
     private static final class AiLodEntry {

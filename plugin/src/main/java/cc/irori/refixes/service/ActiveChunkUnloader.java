@@ -19,7 +19,9 @@ import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -60,8 +62,11 @@ public class ActiveChunkUnloader {
 
         Map<String, World> worldsByName = Universe.get().getWorlds();
 
-        // Clean cached state for worlds that no longer exist
-        outOfRangeSinceByWorld.keySet().removeIf(name -> !worldsByName.containsKey(name));
+        Set<String> liveWorldNames = new HashSet<>();
+        for (World world : worldsByName.values()) {
+            liveWorldNames.add(world.getName());
+        }
+        outOfRangeSinceByWorld.keySet().removeIf(name -> !liveWorldNames.contains(name));
 
         for (World world : worldsByName.values()) {
             world.execute(() -> unloadWorld(world, config));

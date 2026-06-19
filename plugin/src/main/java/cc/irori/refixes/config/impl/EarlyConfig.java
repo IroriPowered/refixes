@@ -33,9 +33,16 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
             new ConfigurationKey<>("PathfindingTotalNodesLimit", ConfigField.INTEGER, 400);
     public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_MAX_NEW_SEARCHES_PER_TICK =
             new ConfigurationKey<>("PathfindingMaxNewSearchesPerTick", ConfigField.INTEGER, 8);
-    // 0 = unlimited.
     public static final ConfigurationKey<EarlyConfig, Integer> PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK =
             new ConfigurationKey<>("PathfindingMaxNodeExpansionsPerTick", ConfigField.INTEGER, 600);
+
+    public static final ConfigurationKey<EarlyConfig, Integer> SHUTDOWN_SAVE_TIMEOUT_SECONDS =
+            new ConfigurationKey<>("ShutdownSaveTimeoutSeconds", ConfigField.INTEGER, 10);
+
+    public static final ConfigurationKey<EarlyConfig, Integer> BACKPRESSURE_MAX_OUTBOUND_BYTES =
+            new ConfigurationKey<>("BackpressureMaxOutboundBytes", ConfigField.INTEGER, 16777216);
+    public static final ConfigurationKey<EarlyConfig, Integer> BACKPRESSURE_GRACE_MS =
+            new ConfigurationKey<>("BackpressureGraceMs", ConfigField.INTEGER, 10000);
 
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
@@ -53,7 +60,10 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 PATHFINDING_OPEN_NODES_LIMIT,
                 PATHFINDING_TOTAL_NODES_LIMIT,
                 PATHFINDING_MAX_NEW_SEARCHES_PER_TICK,
-                PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK);
+                PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK,
+                SHUTDOWN_SAVE_TIMEOUT_SECONDS,
+                BACKPRESSURE_MAX_OUTBOUND_BYTES,
+                BACKPRESSURE_GRACE_MS);
     }
 
     public static EarlyConfig get() {

@@ -9,10 +9,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import java.lang.reflect.Constructor;
 import java.util.Deque;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 import org.spongepowered.asm.mixin.Final;
@@ -22,7 +19,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -80,9 +76,6 @@ public abstract class MixinStore<ECS_TYPE> {
         }
     }
 
-    @Unique
-    private static final ThreadLocal<Boolean> refixes$SUPPRESS_WRITE_ASSERT = ThreadLocal.withInitial(() -> false);
-
     @Inject(method = "assertWriteProcessing", at = @At("HEAD"), cancellable = true)
     private void refixes$disableProcessingAssert(CallbackInfo ci) {
         ci.cancel();
@@ -96,7 +89,9 @@ public abstract class MixinStore<ECS_TYPE> {
             if (commandBuffers.isEmpty()) {
                 return refixes$newCommandBuffer();
             }
-            return commandBuffers.pop();
+            CommandBuffer<ECS_TYPE> buffer = commandBuffers.pop();
+            assert buffer.setThread();
+            return buffer;
         }
     }
 
@@ -112,36 +107,10 @@ public abstract class MixinStore<ECS_TYPE> {
     @Overwrite
     public <T extends Component<ECS_TYPE>> void tryRemoveComponent(
             @Nonnull Ref<ECS_TYPE> ref, @Nonnull ComponentType<ECS_TYPE, T> componentType) {
-        refixes$SUPPRESS_WRITE_ASSERT.set(true);
         try {
             removeComponentIfExists(ref, componentType);
         } catch (IllegalStateException e) {
             refixes$LOGGER.atWarning().withCause(e).log("Store#tryRemoveComponent(): Failed to remove component");
-        } finally {
-            refixes$SUPPRESS_WRITE_ASSERT.set(false);
-        }
-    }
-
-    // Redirects the CompletableFuture.join() call in shutdown0() to use a timeout
-    @Redirect(
-            method = "shutdown0",
-            at = @At(value = "INVOKE", target = "Ljava/util/concurrent/CompletableFuture;join()Ljava/lang/Object;"))
-    private Object refixes$joinWithTimeout(CompletableFuture<?> future) {
-        boolean wasInterrupted = Thread.interrupted(); // clear interrupt flag
-        try {
-            return future.get(10, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            refixes$LOGGER.atWarning().log(
-                    "Store#shutdown0(): saveAllResources timed out after 10s, continuing shutdown");
-            return null;
-        } catch (Exception e) {
-            refixes$LOGGER.atWarning().withCause(e).log(
-                    "Store#shutdown0(): saveAllResources failed, continuing shutdown");
-            return null;
-        } finally {
-            if (wasInterrupted) {
-                Thread.currentThread().interrupt();
-            }
         }
     }
 }

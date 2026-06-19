@@ -6,6 +6,7 @@ import com.hypixel.hytale.component.Store;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 
 public final class PathfindingBudget {
 
@@ -15,8 +16,13 @@ public final class PathfindingBudget {
     }
 
     private static final Map<Store<?>, Cell> CELLS = new ConcurrentHashMap<>();
+    private static final LongAdder DEFERRALS = new LongAdder();
 
     private PathfindingBudget() {}
+
+    public static long deferrals() {
+        return DEFERRALS.sum();
+    }
 
     public static void reset(Store<?> store, int maxSearches, int maxNodes) {
         if (store == null) {
@@ -38,7 +44,11 @@ public final class PathfindingBudget {
         if (cell == null) {
             return true;
         }
-        return cell.searches.getAndDecrement() > 0;
+        if (cell.searches.getAndDecrement() > 0) {
+            return true;
+        }
+        DEFERRALS.increment();
+        return false;
     }
 
     public static boolean tryConsumeNodes(ComponentAccessor<?> accessor, int cost) {

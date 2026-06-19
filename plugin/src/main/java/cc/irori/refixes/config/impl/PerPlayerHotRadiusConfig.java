@@ -11,7 +11,7 @@ public class PerPlayerHotRadiusConfig extends Configuration<PerPlayerHotRadiusCo
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Integer> CHECK_INTERVAL_MS =
             new ConfigurationKey<>("CheckIntervalMs", ConfigField.INTEGER, 5000);
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Integer> MIN_RADIUS =
-            new ConfigurationKey<>("MinRadius", ConfigField.INTEGER, 4);
+            new ConfigurationKey<>("MinRadius", ConfigField.INTEGER, 2);
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Integer> MAX_RADIUS =
             new ConfigurationKey<>("MaxRadius", ConfigField.INTEGER, 6);
     public static final ConfigurationKey<PerPlayerHotRadiusConfig, Float> TPS_LOW =

@@ -21,6 +21,7 @@ import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.copychunks.CopyChunksCommand;
 import cc.irori.refixes.copychunks.PasteChunksCommand;
 import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.util.PathfindingBudget;
 import cc.irori.refixes.early.util.TickSleepOptimization;
 import cc.irori.refixes.listener.ChunkLoaderWorldListener;
 import cc.irori.refixes.listener.InstancePositionTracker;
@@ -47,9 +48,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 public class Refixes extends JavaPlugin {
@@ -74,6 +73,7 @@ public class Refixes extends JavaPlugin {
     private AiTickThrottlerService aiTickThrottler;
     private IdleWorldPauseService idleWorldPauseService;
     private ChunkLoaderService chunkLoaderService;
+    private AutoCloseable pathfindingDeferralsGauge;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
@@ -121,6 +121,11 @@ public class Refixes extends JavaPlugin {
         if (watchdogService != null) {
             watchdogService.registerService();
         }
+        try {
+            pathfindingDeferralsGauge = BlackboxBridge.registerGauge(
+                    "PathfindingBudget deferrals", () -> (double) PathfindingBudget.deferrals());
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
@@ -143,6 +148,13 @@ public class Refixes extends JavaPlugin {
         }
         if (watchdogService != null) {
             watchdogService.unregisterService();
+        }
+        if (pathfindingDeferralsGauge != null) {
+            try {
+                pathfindingDeferralsGauge.close();
+            } catch (Exception ignored) {
+            }
+            pathfindingDeferralsGauge = null;
         }
     }
 
@@ -191,6 +203,12 @@ public class Refixes extends JavaPlugin {
                 () -> config.getValue(EarlyConfig.PATHFINDING_MAX_NEW_SEARCHES_PER_TICK));
         EarlyOptions.PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK.setSupplier(
                 () -> config.getValue(EarlyConfig.PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK));
+        EarlyOptions.SHUTDOWN_SAVE_TIMEOUT_SECONDS.setSupplier(
+                () -> config.getValue(EarlyConfig.SHUTDOWN_SAVE_TIMEOUT_SECONDS));
+
+        EarlyOptions.BACKPRESSURE_MAX_OUTBOUND_BYTES.setSupplier(
+                () -> config.getValue(EarlyConfig.BACKPRESSURE_MAX_OUTBOUND_BYTES));
+        EarlyOptions.BACKPRESSURE_GRACE_MS.setSupplier(() -> config.getValue(EarlyConfig.BACKPRESSURE_GRACE_MS));
 
         EarlyOptions.setAvailable(true);
 
@@ -281,29 +299,6 @@ public class Refixes extends JavaPlugin {
         for (String summary : fixSummary) {
             LOGGER.atInfo().log(summary);
         }
-
-        BlackboxBridge.registerDiagnostics("Refixes systems", this::diagnosticsSnapshot);
-    }
-
-    private Map<String, String> diagnosticsSnapshot() {
-        Map<String, String> out = new LinkedHashMap<>();
-        out.put("Chunk unloader", activeChunkUnloader != null ? "enabled" : "disabled");
-        out.put(
-                "AI tick throttler",
-                aiTickThrottler != null
-                        ? "enabled, " + aiTickThrottler.getThrottledCount() + " throttled"
-                        : "disabled");
-        out.put(
-                "Per-player hot radius",
-                perPlayerHotRadiusService != null
-                        ? "enabled, radius " + perPlayerHotRadiusService.getCurrentTargetRadius()
-                        : "disabled");
-        out.put(
-                "Idle player handler",
-                idlePlayerService != null ? "enabled, " + idlePlayerService.getIdleCount() + " idle" : "disabled");
-        out.put("Idle world pause", idleWorldPauseService != null ? "enabled" : "disabled");
-        out.put("Watchdog", watchdogService != null ? "enabled, " + watchdogService.getState() : "disabled");
-        return out;
     }
 
     private void applyFix(String name, boolean apply, Runnable fix) {
