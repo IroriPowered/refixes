@@ -14,17 +14,13 @@ Refixes builds are available on [CurseForge](https://www.curseforge.com/hytale/m
 Please read the installation guide to apply the mod correctly.
 
 ## Installation
-### Refixes Early Plugin
-Refixes Early Plugin mainly contains high-severity fixes that use Mixin to patch the server behavior directly.
-You need to boot the server via [Hyinit](https://github.com/IroriPowered/hyinit) to apply fixes included in the early plugin.
+Refixes ships as a single jar containing both the runtime plugin and the Mixin-based early patches.
+You need to boot the server via [Hyinit](https://github.com/IroriPowered/hyinit) on Hytale 0.6.4.
 
 To install:
 1. Set up Hyinit to launch your server
-2. Place `refixes-early-X.X.X.jar` inside the `earlyplugins` folder
+2. Place `refixes-X.X.X.jar` inside the `earlyplugins` folder
+3. Remove any older `refixes-early-*` / `refixes-plugin-*` jars from `earlyplugins` and `mods`
 
-### Refixes Main Plugin
-Refixes Main Plugin mainly contains optimizations and light fixes through monitoring system and issue mitigations.
-You can tweak some behaviors using the mod's config file at `mods/IroriPowered_Refixes/Refixes.json`.
-
-To install:
-1. Place `refixes-plugin-X.X.X.jar` inside the `mods` folder.
+Runtime settings (`config.json`) and patch toggles (`Refixes.json`) live in `mods/IroriPowered_Refixes/`.
+See the [wiki](wiki/Home.md) for the full configuration and mixin reference.
