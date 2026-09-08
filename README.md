@@ -1,3 +1,5 @@
+[**Support Discord Server**](https://discord.gg/y5kTgtQtgX)
+
 # Refixes
 A mod for Hytale that offers updated server bug fixes and optimizations in two ways;
 **the runtime plugin** and **Mixin-based patches**.
