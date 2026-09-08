@@ -48,7 +48,11 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_MOUNTS =
             new ConfigurationKey<>("ThrottleExcludeMounts", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_FLYING =
-            new ConfigurationKey<>("ThrottleExcludeFlying", ConfigField.BOOLEAN, false);
+            new ConfigurationKey<>("ThrottleExcludeFlying", ConfigField.BOOLEAN, true);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> THROTTLE_EXCLUDE_AIRBORNE_OR_DEAD =
+            new ConfigurationKey<>("ThrottleExcludeAirborneOrDead", ConfigField.BOOLEAN, true);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> STEP_WITHOUT_PLAYERS =
+            new ConfigurationKey<>("StepWithoutPlayers", ConfigField.BOOLEAN, false);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
             new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, false);
@@ -81,6 +85,8 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 THROTTLE_EXCLUDED_NPC_TYPES,
                 THROTTLE_EXCLUDE_MOUNTS,
                 THROTTLE_EXCLUDE_FLYING,
+                THROTTLE_EXCLUDE_AIRBORNE_OR_DEAD,
+                STEP_WITHOUT_PLAYERS,
                 CLEANUP_FROZEN_ENTITIES,
                 CLEANUP_EXCLUDED_NPC_TYPES,
                 LEGACY_CLEANUP,

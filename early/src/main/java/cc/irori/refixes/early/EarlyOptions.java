@@ -9,9 +9,8 @@ public final class EarlyOptions {
     /* Cylinder Visibility */
     public static final Value<Double> CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER = new Value<>(2.0);
 
-    /* ChunkTracker Rate Limits */
-    public static final Value<Integer> MAX_CHUNKS_PER_SECOND = new Value<>(36);
-    public static final Value<Integer> MAX_CHUNKS_PER_TICK = new Value<>(4);
+    public static final Value<Integer> MAX_SECTIONS_PER_SECOND = new Value<>(360);
+    public static final Value<Integer> MAX_SECTIONS_PER_TICK = new Value<>(40);
     public static final Value<Integer> CHUNK_UNLOAD_OFFSET = new Value<>(4);
     public static final Value<Boolean> VANILLA_KEEP_SPAWN_LOADED = new Value<>(true);
 

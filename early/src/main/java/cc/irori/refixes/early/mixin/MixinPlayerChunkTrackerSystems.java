@@ -13,7 +13,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// Applies configurable MaxChunksPerSecond, MaxChunksPerTick, and MinLoadedChunksRadius to ChunkTracker on player add
 @Mixin(PlayerChunkTrackerSystems.AddSystem.class)
 public class MixinPlayerChunkTrackerSystems {
 
@@ -29,14 +28,14 @@ public class MixinPlayerChunkTrackerSystems {
             return;
         }
 
-        chunkTracker.setMaxChunksPerSecond(EarlyOptions.MAX_CHUNKS_PER_SECOND.get());
-        chunkTracker.setMaxChunksPerTick(EarlyOptions.MAX_CHUNKS_PER_TICK.get());
+        chunkTracker.setMaxSectionsPerSecond(EarlyOptions.MAX_SECTIONS_PER_SECOND.get());
+        chunkTracker.setMaxSectionsPerTick(EarlyOptions.MAX_SECTIONS_PER_TICK.get());
 
         Player player = holder.getComponent(Player.getComponentType());
         if (player != null) {
             int viewRadius = player.getViewRadius();
             int offset = EarlyOptions.CHUNK_UNLOAD_OFFSET.get();
-            chunkTracker.setMinLoadedChunksRadius(viewRadius + offset);
+            chunkTracker.setMinLoadedRadius(viewRadius + offset);
         }
     }
 }

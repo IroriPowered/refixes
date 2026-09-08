@@ -46,6 +46,7 @@ public class ChunkLoaderCommand extends CommandBase {
         private final ChunkLoaderService service;
         private final OptionalArg<World> worldArg;
         private final OptionalArg<Integer> xArg;
+        private final OptionalArg<Integer> yArg;
         private final OptionalArg<Integer> zArg;
         private final OptionalArg<String> labelArg;
         private final FlagArg hereArg;
@@ -55,6 +56,7 @@ public class ChunkLoaderCommand extends CommandBase {
             this.service = service;
             this.worldArg = this.withOptionalArg("world", "target world", ArgTypes.WORLD);
             this.xArg = this.withOptionalArg("x", "chunk x coordinate", ArgTypes.INTEGER);
+            this.yArg = this.withOptionalArg("y", "section Y coordinate", ArgTypes.INTEGER);
             this.zArg = this.withOptionalArg("z", "chunk z coordinate", ArgTypes.INTEGER);
             this.labelArg = this.withOptionalArg("label", "chunk loader label", ArgTypes.STRING);
             this.hereArg = this.withFlagArg("here", "keep every chunk in your /pos1,/pos2 selection loaded");
@@ -109,7 +111,11 @@ public class ChunkLoaderCommand extends CommandBase {
                         indexes.add(ChunkUtil.indexChunk(cx, cz));
                     }
                 }
-                int added = service.addChunks(world, indexes);
+                int added = service.addChunks(
+                        world,
+                        indexes,
+                        ChunkUtil.chunkCoordinate(region.min.y),
+                        ChunkUtil.chunkCoordinate(region.max.y));
                 context.sender()
                         .sendMessage(Message.raw(String.format(
                                         "Keeping %d chunk(s) loaded across region [%d, %d] to [%d, %d] (%d new).",
@@ -124,6 +130,7 @@ public class ChunkLoaderCommand extends CommandBase {
             }
 
             int chunkX, chunkZ;
+            int sectionY = yArg.provided(context) ? yArg.get(context) : 0;
             if (xArg.provided(context) && zArg.provided(context)) {
                 chunkX = xArg.get(context);
                 chunkZ = zArg.get(context);
@@ -146,6 +153,10 @@ public class ChunkLoaderCommand extends CommandBase {
                         (int) transformComponent.getTransform().getPosition().x());
                 chunkZ = ChunkUtil.chunkCoordinate(
                         (int) transformComponent.getTransform().getPosition().z());
+                if (!yArg.provided(context)) {
+                    sectionY = ChunkUtil.chunkCoordinate((int) Math.floor(
+                            transformComponent.getTransform().getPosition().y()));
+                }
             }
 
             String label = labelArg.provided(context) ? labelArg.get(context) : null;
@@ -165,7 +176,7 @@ public class ChunkLoaderCommand extends CommandBase {
             }
 
             boolean existed = service.getKeptChunks(world.getName()).containsKey(chunkIndex);
-            service.addChunk(world, chunkX, chunkZ, label);
+            service.addChunk(world, chunkX, chunkZ, label, sectionY);
 
             String message = (existed ? "Updated" : "Added") + " chunk loader at " + chunkX + ", " + chunkZ;
             if (label != null && !label.isEmpty()) {
@@ -261,10 +272,11 @@ public class ChunkLoaderCommand extends CommandBase {
                 }
                 int x = ChunkUtil.xOfChunkIndex(chunkIndex);
                 int z = ChunkUtil.zOfChunkIndex(chunkIndex);
-                service.removeChunk(world, x, z);
+                boolean removed = service.removeChunk(world, x, z);
                 context.sender()
-                        .sendMessage(Message.raw("Removed chunk loader at " + x + ", " + z + " (" + label + ")")
-                                .color(Color.GREEN));
+                        .sendMessage(Message.raw((removed ? "Removed chunk loader at " : "No chunk loader at ") + x
+                                        + ", " + z + " (" + label + ")")
+                                .color(removed ? Color.GREEN : Color.YELLOW));
                 return;
             }
 
@@ -292,11 +304,10 @@ public class ChunkLoaderCommand extends CommandBase {
                 chunkZ = ChunkUtil.chunkCoordinate(
                         (int) transformComponent.getTransform().getPosition().z());
             }
-
-            service.removeChunk(world, chunkX, chunkZ);
-            context.sender()
-                    .sendMessage(Message.raw("Removed chunk loader at " + chunkX + ", " + chunkZ)
-                            .color(Color.GREEN));
+            boolean removed = service.removeChunk(world, chunkX, chunkZ);
+            context.sendMessage(
+                    Message.raw((removed ? "Removed chunk loader at " : "No chunk loader at ") + chunkX + ", " + chunkZ)
+                            .color(removed ? Color.GREEN : Color.YELLOW));
         }
     }
 

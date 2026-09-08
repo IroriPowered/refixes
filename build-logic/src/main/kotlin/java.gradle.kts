@@ -29,6 +29,15 @@ repositories {
     maven("https://maven.hytale.com/pre-release")
 }
 
+dependencies {
+    val localHytaleJar = (findProperty("hytaleServerJar") as String?)?.trim().orEmpty()
+    if (localHytaleJar.isNotEmpty()) {
+        compileOnly(files(localHytaleJar))
+    } else {
+        compileOnly(libs.findLibrary("hytale").get())
+    }
+}
+
 tasks {
     processResources {
         val hytaleVersion = rootProject.property("hytale_server_version") as String

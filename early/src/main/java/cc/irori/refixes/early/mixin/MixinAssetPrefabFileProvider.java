@@ -36,9 +36,6 @@ public abstract class MixinAssetPrefabFileProvider {
     private static final int MAX_SEARCH_RESULTS = 50;
 
     @Unique
-    private static final String PREFAB_EXT = ".prefab.json";
-
-    @Unique
     @Nullable
     private static Path refixes$baseFor(String key) {
         PrefabStore s = PrefabStore.get();
@@ -128,8 +125,8 @@ public abstract class MixinAssetPrefabFileProvider {
                 String name = file.getFileName().toString();
                 if (name.startsWith(".")) continue;
                 boolean isDir = Files.isDirectory(file, new LinkOption[0]);
-                if (!isDir && !name.endsWith(PREFAB_EXT)) continue;
-                String display = isDir ? name : name.substring(0, name.length() - PREFAB_EXT.length());
+                if (!isDir && !PrefabStore.isPrefabFileName(name)) continue;
+                String display = isDir ? name : PrefabStore.stripPrefabSuffix(name);
                 out.add(new FileListProvider.FileEntry(name, display, isDir));
             }
         } catch (IOException ignored) {
@@ -149,8 +146,8 @@ public abstract class MixinAssetPrefabFileProvider {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     String fn = file.getFileName().toString();
-                    if (!fn.endsWith(PREFAB_EXT)) return FileVisitResult.CONTINUE;
-                    String base = fn.substring(0, fn.length() - PREFAB_EXT.length());
+                    if (!PrefabStore.isPrefabFileName(fn)) return FileVisitResult.CONTINUE;
+                    String base = PrefabStore.stripPrefabSuffix(fn);
                     int score = StringCompareUtil.getFuzzyDistance(base.toLowerCase(), lowerQuery, Locale.ENGLISH);
                     if (score > 0) {
                         Path rel = root.relativize(file);

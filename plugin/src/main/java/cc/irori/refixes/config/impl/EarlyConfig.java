@@ -11,10 +11,10 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     private static final ConfigurationKey<EarlyConfig, KDTreeOptimizationConfig> KDTREE_OPTIMIZATION_CONFIG =
             ConfigurationKey.subConfig("KDTreeOptimization", KDTreeOptimizationConfig.get());
 
-    public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_SECOND =
-            new ConfigurationKey<>("MaxChunksPerSecond", ConfigField.INTEGER, 36);
-    public static final ConfigurationKey<EarlyConfig, Integer> MAX_CHUNKS_PER_TICK =
-            new ConfigurationKey<>("MaxChunksPerTick", ConfigField.INTEGER, 4);
+    public static final ConfigurationKey<EarlyConfig, Integer> MAX_SECTIONS_PER_SECOND =
+            new ConfigurationKey<>("MaxSectionsPerSecond", ConfigField.INTEGER, 360);
+    public static final ConfigurationKey<EarlyConfig, Integer> MAX_SECTIONS_PER_TICK =
+            new ConfigurationKey<>("MaxSectionsPerTick", ConfigField.INTEGER, 40);
     public static final ConfigurationKey<EarlyConfig, Boolean> VANILLA_KEEP_SPAWN_LOADED =
             new ConfigurationKey<>("VanillaKeepSpawnLoaded", ConfigField.BOOLEAN, true);
     public static final ConfigurationKey<EarlyConfig, Integer> UNLOAD_DISTANCE_OFFSET =
@@ -45,8 +45,8 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
         register(
                 CYLINDER_VISIBILITY_CONFIG,
                 KDTREE_OPTIMIZATION_CONFIG,
-                MAX_CHUNKS_PER_SECOND,
-                MAX_CHUNKS_PER_TICK,
+                MAX_SECTIONS_PER_SECOND,
+                MAX_SECTIONS_PER_TICK,
                 VANILLA_KEEP_SPAWN_LOADED,
                 UNLOAD_DISTANCE_OFFSET,
                 PATHFINDING_MAX_PATH_LENGTH,

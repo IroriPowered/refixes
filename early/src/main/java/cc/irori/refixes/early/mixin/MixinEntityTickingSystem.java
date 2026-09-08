@@ -20,4 +20,22 @@ public class MixinEntityTickingSystem {
         cir.cancel();
         cir.setReturnValue(taskCount > 0 || archetypeChunkSize > ParallelRangeTask.PARALLELISM);
     }
+
+    @Mixin(targets = "com.hypixel.hytale.component.system.tick.EntityTickingSystem$SystemTaskData")
+    public abstract static class SystemTaskData {
+        @org.spongepowered.asm.mixin.Shadow
+        private com.hypixel.hytale.component.CommandBuffer<?> commandBuffer;
+
+        @com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod(method = "accept(I)V")
+        private void refixes$enterStoreContext(
+                int index, com.llamalad7.mixinextras.injector.wrapoperation.Operation<Void> original) {
+            com.hypixel.hytale.component.CommandBuffer<?> previous =
+                    cc.irori.refixes.early.util.ParallelStoreContext.enter(this.commandBuffer);
+            try {
+                original.call(index);
+            } finally {
+                cc.irori.refixes.early.util.ParallelStoreContext.restore(previous);
+            }
+        }
+    }
 }

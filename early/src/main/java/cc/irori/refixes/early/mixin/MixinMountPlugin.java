@@ -20,7 +20,8 @@ public class MixinMountPlugin {
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
     @Redirect(
-            method = "resetOriginalPlayerMovementSettings",
+            method =
+                    "resetOriginalPlayerMovementSettings(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/component/ComponentAccessor;I)V",
             at =
                     @At(
                             value = "INVOKE",

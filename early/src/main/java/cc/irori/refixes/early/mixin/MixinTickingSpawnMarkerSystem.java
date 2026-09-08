@@ -4,17 +4,16 @@ import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.components.SpawnMarkerReference;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.role.support.StateSupport;
 import com.hypixel.hytale.server.npc.systems.SpawnReferenceSystems;
-import com.llamalad7.mixinextras.sugar.Local;
+import com.hypixel.hytale.server.spawning.spawnmarkers.SpawnMarkerEntity;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-// Fixes "java.lang.IllegalStateException: Incorrect store for entity reference" when running CommandBuffer.getComponent
 
 @Mixin(SpawnReferenceSystems.TickingSpawnMarkerSystem.class)
 public class MixinTickingSpawnMarkerSystem {
@@ -22,51 +21,52 @@ public class MixinTickingSpawnMarkerSystem {
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
-    @Unique
-    private static final ThreadLocal<IllegalStateException> refixes$EXCEPTION = new ThreadLocal<>();
+    @Shadow
+    @Final
+    private ComponentType<EntityStore, SpawnMarkerReference> spawnReferenceComponentType;
 
-    @Redirect(
-            method = "tick",
-            at =
-                    @At(
-                            value = "INVOKE",
-                            target =
-                                    "Lcom/hypixel/hytale/component/CommandBuffer;getComponent(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/component/ComponentType;)Lcom/hypixel/hytale/component/Component;"))
-    private <T extends Component<EntityStore>> T refixes$safelyGetComponent(
-            CommandBuffer<EntityStore> instance, Ref<EntityStore> ref, ComponentType<EntityStore, T> componentType) {
-        try {
-            return instance.getComponent(ref, componentType);
-        } catch (IllegalStateException e) {
-            refixes$EXCEPTION.set(e);
-            return null;
-        }
-    }
+    @Shadow
+    @Final
+    private ComponentType<EntityStore, SpawnMarkerEntity> markerTypeComponentType;
 
-    @Inject(
-            method = "tick",
-            at =
-                    @At(
-                            value = "INVOKE",
-                            target =
-                                    "Lcom/hypixel/hytale/component/CommandBuffer;getComponent(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/component/ComponentType;)Lcom/hypixel/hytale/component/Component;",
-                            shift = At.Shift.AFTER),
-            cancellable = true)
-    private void refixes$discardOnNullComponent(
+    @Shadow
+    @Final
+    private ComponentType<EntityStore, NPCEntity> npcEntityComponentType;
+
+    @Overwrite
+    public void tick(
             float dt,
             int index,
             ArchetypeChunk<EntityStore> archetypeChunk,
             Store<EntityStore> store,
-            CommandBuffer<EntityStore> commandBuffer,
-            CallbackInfo ci,
-            @Local(name = "npcComponent") NPCEntity npcComponent) {
-        IllegalStateException e = refixes$EXCEPTION.get();
-        refixes$EXCEPTION.remove();
-
-        if (e != null) {
-            npcComponent.setToDespawn();
-            refixes$LOGGER.atWarning().withCause(e).log(
-                    "TickingSpawnMarkerSystem#tick(): NPCEntity despawning due to IllegalStateException in getComponent");
-            ci.cancel();
+            CommandBuffer<EntityStore> commandBuffer) {
+        NPCEntity npcComponent = archetypeChunk.getComponent(index, npcEntityComponentType);
+        assert npcComponent != null;
+        if (npcComponent.isDespawning() || npcComponent.isPlayingDespawnAnim()) {
+            return;
         }
+        SpawnMarkerReference spawnReference = archetypeChunk.getComponent(index, spawnReferenceComponentType);
+        assert spawnReference != null;
+        if (!spawnReference.tickMarkerLostTimeoutCounter(dt)) {
+            return;
+        }
+        Ref<EntityStore> markerRef = spawnReference.getReference().getEntity(commandBuffer);
+        if (markerRef != null) {
+            SpawnMarkerEntity marker = markerRef.isValid() && markerRef.getStore() == commandBuffer.getStore()
+                    ? commandBuffer.getComponent(markerRef, markerTypeComponentType)
+                    : null;
+            if (marker != null) {
+                spawnReference.refreshTimeoutCounter();
+                marker.refreshTimeout();
+                return;
+            }
+        } else if (StateSupport.get(archetypeChunk.getReferenceTo(index), commandBuffer)
+                .isInBusyState()) {
+            spawnReference.refreshTimeoutCounter();
+            return;
+        }
+        npcComponent.setToDespawn();
+        refixes$LOGGER.atWarning().log(
+                "NPCEntity despawning due to lost marker: %s", archetypeChunk.getReferenceTo(index));
     }
 }

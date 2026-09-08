@@ -16,7 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -29,6 +33,8 @@ public class PerPlayerHotRadiusService {
             Paths.get("mods", "IroriPowered_Refixes", "viewradius-restore");
 
     private ScheduledFuture<?> task;
+    private boolean registered;
+    private final Map<ChunkTracker, Integer> originalHotRadii = new HashMap<>();
     private volatile int currentTargetRadius;
     private volatile IdlePlayerService idlePlayerService;
     private AutoCloseable radiusGauge;
@@ -46,7 +52,11 @@ public class PerPlayerHotRadiusService {
         this.idlePlayerService = idlePlayerService;
     }
 
-    public void registerService() {
+    public synchronized void registerService() {
+        if (registered) {
+            return;
+        }
+        registered = true;
         if (PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.MEMORY_GUARD_ENABLED)) {
             try {
                 initMemoryGuard();
@@ -80,7 +90,8 @@ public class PerPlayerHotRadiusService {
         radiusGauge = BlackboxBridge.registerGauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
     }
 
-    public void unregisterService() {
+    public synchronized void unregisterService() {
+        registered = false;
         if (task != null) {
             task.cancel(false);
             task = null;
@@ -92,10 +103,45 @@ public class PerPlayerHotRadiusService {
             }
             radiusGauge = null;
         }
+        IdlePlayerService idleService = idlePlayerService;
+        for (World world : Universe.get().getWorlds().values()) {
+            for (PlayerRef playerRef : world.getPlayerRefs()) {
+                if (playerRef == null) {
+                    continue;
+                }
+                Integer originalRadius = originalHotRadii.get(playerRef.getChunkTracker());
+                if (originalRadius == null) {
+                    continue;
+                }
+                try {
+                    world.execute(() -> {
+                        if (idleService != null) {
+                            idleService.restoreHotRadius(playerRef, originalRadius);
+                        } else {
+                            playerRef.getChunkTracker().setMaxHotLoadedRadius(originalRadius);
+                        }
+                    });
+                } catch (RuntimeException e) {
+                    LOGGER.atWarning().withCause(e).log(
+                            "Failed to queue hot-radius restoration for player %s", playerRef.getUuid());
+                }
+            }
+        }
+        originalHotRadii.clear();
         restoreMemoryGuard();
     }
 
-    private void checkAndAdjust() {
+    private synchronized void checkAndAdjust() {
+        if (!registered) {
+            return;
+        }
+        Set<ChunkTracker> onlineTrackers = new HashSet<>();
+        for (PlayerRef playerRef : Universe.get().getPlayers()) {
+            if (playerRef != null) {
+                onlineTrackers.add(playerRef.getChunkTracker());
+            }
+        }
+        originalHotRadii.keySet().retainAll(onlineTrackers);
         IdlePlayerService idleService = idlePlayerService;
 
         int lowestTarget = Integer.MAX_VALUE;
@@ -177,8 +223,15 @@ public class PerPlayerHotRadiusService {
         }
         try {
             world.execute(() -> {
-                for (PlayerRef playerRef : snapshot) {
-                    updateHotRadius(playerRef, targetRadius);
+                synchronized (PerPlayerHotRadiusService.this) {
+                    if (!registered) {
+                        return;
+                    }
+                    for (PlayerRef playerRef : snapshot) {
+                        if (idleService == null || !idleService.isIdle(playerRef.getUuid())) {
+                            updateHotRadius(playerRef, targetRadius);
+                        }
+                    }
                 }
             });
             return snapshot.size();
@@ -187,12 +240,14 @@ public class PerPlayerHotRadiusService {
         }
     }
 
-    private static boolean updateHotRadius(PlayerRef playerRef, int radius) {
+    private boolean updateHotRadius(PlayerRef playerRef, int radius) {
         ChunkTracker tracker = playerRef.getChunkTracker();
-        if (tracker.getMaxHotLoadedChunksRadius() == radius) {
+        int currentRadius = tracker.getMaxHotLoadedRadius();
+        if (currentRadius == radius) {
             return false;
         }
-        tracker.setMaxHotLoadedChunksRadius(radius);
+        originalHotRadii.putIfAbsent(tracker, currentRadius);
+        tracker.setMaxHotLoadedRadius(radius);
         return true;
     }
 

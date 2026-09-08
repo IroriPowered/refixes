@@ -11,12 +11,12 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public class MixinUpdateDownloadCommand {
 
     @Redirect(
-            method = "executeAsync",
+            method = {"executeAsync", "runBootstrapInstall"},
             at =
                     @At(
                             value = "INVOKE",
                             target = "Lcom/hypixel/hytale/server/core/auth/ServerAuthManager;hasSessionToken()Z"))
-    private boolean refixes$broaderAuthCheck(ServerAuthManager authManager) {
+    private static boolean refixes$broaderAuthCheck(ServerAuthManager authManager) {
         return authManager.hasSessionToken() || authManager.hasIdentityToken();
     }
 }

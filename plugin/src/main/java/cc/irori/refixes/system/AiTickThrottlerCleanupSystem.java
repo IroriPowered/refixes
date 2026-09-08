@@ -34,7 +34,6 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         }
 
         AiTickThrottlerConfig cfg = AiTickThrottlerConfig.get();
-        boolean throttlerEnabled = cfg.getValue(AiTickThrottlerConfig.ENABLED);
 
         if (cfg.getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ENTITIES)) {
             ComponentType<EntityStore, TickThrottled> tickThrottledType = TickThrottled.getComponentType();
@@ -42,9 +41,7 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
                 if (!isNpcTypeExcluded(ref, commandBuffer, cfg, AiTickThrottlerConfig.CLEANUP_EXCLUDED_NPC_TYPES)) {
                     commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                     commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
-                    if (!throttlerEnabled) {
-                        commandBuffer.tryRemoveComponent(ref, tickThrottledType);
-                    }
+                    commandBuffer.tryRemoveComponent(ref, tickThrottledType);
                 }
             }
         }
@@ -57,6 +54,10 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
                             ref, commandBuffer, cfg, AiTickThrottlerConfig.LEGACY_CLEANUP_EXCLUDED_NPC_TYPES)) {
                 commandBuffer.tryRemoveComponent(ref, Frozen.getComponentType());
                 commandBuffer.tryRemoveComponent(ref, StepComponent.getComponentType());
+                ComponentType<EntityStore, TickThrottled> tickThrottledType = TickThrottled.getComponentType();
+                if (tickThrottledType != null) {
+                    commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+                }
             }
         }
     }

@@ -29,8 +29,10 @@ import cc.irori.refixes.service.ChunkLoaderService;
 import cc.irori.refixes.service.IdlePlayerService;
 import cc.irori.refixes.service.IdleWorldPauseService;
 import cc.irori.refixes.service.PerPlayerHotRadiusService;
+import cc.irori.refixes.service.SharedInstanceStorage;
 import cc.irori.refixes.service.WatchdogService;
 import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
+import cc.irori.refixes.system.ChunkLoaderSectionSystem;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.EntityDespawnTimerSystem;
 import cc.irori.refixes.system.SharedInstanceChunkSaveSkipSystem;
@@ -38,9 +40,12 @@ import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
+import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 import java.util.ArrayList;
@@ -113,6 +118,9 @@ public class Refixes extends JavaPlugin {
         if (watchdogService != null) {
             watchdogService.registerService();
         }
+        if (ChunkLoaderConfig.get().getValue(ChunkLoaderConfig.ENABLED)) {
+            Universe.get().getWorlds().values().forEach(chunkLoaderService::loadWorld);
+        }
         try {
             pathfindingDeferralsGauge = BlackboxBridge.registerGauge(
                     "PathfindingBudget deferrals", () -> (double) PathfindingBudget.deferrals());
@@ -122,6 +130,8 @@ public class Refixes extends JavaPlugin {
 
     @Override
     protected void shutdown() {
+        UnknownBlockCleaner.shutdown();
+        chunkLoaderService.shutdown();
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.unregisterService();
         }
@@ -154,8 +164,8 @@ public class Refixes extends JavaPlugin {
         SharedInstanceConfig sharedInstanceConfig = SharedInstanceConfig.get();
         ExperimentalConfig experimentalConfig = ExperimentalConfig.get();
 
-        EarlyOptions.MAX_CHUNKS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_SECOND));
-        EarlyOptions.MAX_CHUNKS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_CHUNKS_PER_TICK));
+        EarlyOptions.MAX_SECTIONS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_SECOND));
+        EarlyOptions.MAX_SECTIONS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_TICK));
         EarlyOptions.CHUNK_UNLOAD_OFFSET.setSupplier(() -> config.getValue(EarlyConfig.UNLOAD_DISTANCE_OFFSET));
         EarlyOptions.VANILLA_KEEP_SPAWN_LOADED.setSupplier(
                 () -> config.getValue(EarlyConfig.VANILLA_KEEP_SPAWN_LOADED));
@@ -244,20 +254,27 @@ public class Refixes extends JavaPlugin {
                 IdleWorldPauseConfig.get().getValue(IdleWorldPauseConfig.ENABLED),
                 () -> idleWorldPauseService = new IdleWorldPauseService());
 
-        applyFix("Chunk loader", ChunkLoaderConfig.get().getValue(ChunkLoaderConfig.ENABLED), () -> {
-            getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
-            new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
-        });
-
-        getCommandRegistry().registerCommand(new CopyChunksCommand());
-        getCommandRegistry().registerCommand(new PasteChunksCommand());
-
         if (Early.isEnabled()) {
+            SharedInstanceStorage.registerEvents(this);
             getChunkStoreRegistry().registerSystem(new SharedInstancePersistenceSystem());
             getChunkStoreRegistry().registerSystem(new SharedInstanceChunkSaveSkipSystem());
             sharedInstanceBootUnloader = new SharedInstanceBootUnloader();
             sharedInstanceBootUnloader.registerEvents(this);
         }
+
+        applyFix("Chunk loader", ChunkLoaderConfig.get().getValue(ChunkLoaderConfig.ENABLED), () -> {
+            getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
+            getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionSystem(chunkLoaderService));
+            new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
+            getEventRegistry().registerGlobal(EventPriority.LAST, RemoveWorldEvent.class, event -> {
+                if (!event.isCancelled()) {
+                    chunkLoaderService.unloadWorld(event.getWorld());
+                }
+            });
+        });
+
+        getCommandRegistry().registerCommand(new CopyChunksCommand());
+        getCommandRegistry().registerCommand(new PasteChunksCommand());
 
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) {

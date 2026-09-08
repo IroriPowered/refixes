@@ -5,8 +5,6 @@ plugins {
 dependencies {
     compileOnly(project(":early"))
 
-    compileOnly(libs.hytale)
-
     compileOnly(libs.guava)
 }
 

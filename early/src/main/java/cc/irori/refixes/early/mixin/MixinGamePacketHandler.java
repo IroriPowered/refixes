@@ -6,6 +6,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.packets.player.ClientMovement;
 import com.hypixel.hytale.server.core.io.handlers.game.GamePacketHandler;
+import org.joml.Vector3d;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -17,7 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MixinGamePacketHandler {
 
     @Shadow
-    protected abstract void lambda$handle$0(Ref<?> ref, Store<?> store, ClientMovement packet);
+    protected abstract void lambda$handle$0(
+            Ref<?> ref, Store<?> store, ClientMovement packet, boolean ackLeftAcksPending, Vector3d ackedPosition);
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
@@ -26,7 +28,13 @@ public abstract class MixinGamePacketHandler {
     private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
 
     @Inject(method = "lambda$handle$0", at = @At("HEAD"), cancellable = true)
-    private void refixes$wrapClientMovementHandler(Ref<?> ref, Store<?> store, ClientMovement packet, CallbackInfo ci) {
+    private void refixes$wrapClientMovementHandler(
+            Ref<?> ref,
+            Store<?> store,
+            ClientMovement packet,
+            boolean ackLeftAcksPending,
+            Vector3d ackedPosition,
+            CallbackInfo ci) {
         if (refixes$WRAPPING.get()) {
             // Run the original method
             return;
@@ -35,7 +43,7 @@ public abstract class MixinGamePacketHandler {
         ci.cancel();
         refixes$WRAPPING.set(true);
         try {
-            lambda$handle$0(ref, store, packet);
+            lambda$handle$0(ref, store, packet, ackLeftAcksPending, ackedPosition);
         } catch (NullPointerException e) {
             refixes$LOGGER.atWarning().withCause(e).log("GamePacketHandler#handle(ClientMovement): Failed to run");
         } finally {

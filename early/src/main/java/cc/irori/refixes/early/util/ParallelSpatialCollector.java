@@ -61,9 +61,35 @@ public final class ParallelSpatialCollector {
         ForkJoinPool pool = ForkJoinPool.commonPool();
         List<ForkJoinTask<List<Entry<ECS_TYPE>>>> tasks = new ArrayList<>(chunks.size());
 
-        for (ChunkWork<ECS_TYPE> work : chunks) {
-            tasks.add(pool.submit(() -> collectChunk(work)));
+        Throwable[] workerFailure = new Throwable[1];
+        try {
+            for (ChunkWork<ECS_TYPE> work : chunks) {
+                tasks.add(pool.submit(() -> {
+                    try {
+                        return collectChunk(work);
+                    } catch (Throwable thrown) {
+                        synchronized (workerFailure) {
+                            workerFailure[0] = ParallelFailure.combine(workerFailure[0], thrown);
+                        }
+                        return List.of();
+                    }
+                }));
+            }
+        } catch (Error thrown) {
+            throw thrown;
+        } catch (Throwable thrown) {
+            throw new ParallelFailure.Unrecoverable(thrown);
         }
+
+        Throwable failure = null;
+        for (ForkJoinTask<List<Entry<ECS_TYPE>>> task : tasks) {
+            try {
+                task.join();
+            } catch (Throwable thrown) {
+                failure = ParallelFailure.combine(failure, thrown);
+            }
+        }
+        ParallelFailure.rethrow(ParallelFailure.combine(failure, workerFailure[0]));
 
         // Merge results sequentially into SpatialData
         for (ForkJoinTask<List<Entry<ECS_TYPE>>> task : tasks) {

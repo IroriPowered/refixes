@@ -1,20 +1,24 @@
-[**Support Discord Server**](https://discord.gg/y5kTgtQtgX)
+# Refixes
 
-### ⚠️ **Warning:** Refixes requires the server to be launched via [**Hyinit**](https://www.curseforge.com/hytale/bootstrap/hyinit)! See Hyinit's project page for more information.
+Server fixes and optional optimizations for Hytale 0.6.4, based on Hyfixes and Hyzen Kernel.
 
-# ♻️ Refixes
+## Installation
 
-Refixes is a Hytale server mod that backports and maintains community bug fixes and performance patches for current Hytale releases.
+1. Launch the server through [Hyinit](https://www.curseforge.com/hytale/bootstrap/hyinit).
+2. Put `refixes-X.X.X.jar` in `earlyplugins`.
+3. Remove older Refixes copies from `earlyplugins` and `mods`. One JAR provides both the runtime plugin and early patches.
 
-This project is derived from patches in Hyfixes / Hyzen Kernel, both of which are unfortunately no longer maintained at this time, and we aim to keep important patches updated to newer Hytale releases.
+## Configuration
 
-Refixes ships as a single jar containing both the runtime plugin and the Mixin-based early patches. Hyinit auto-discovers both from the one jar.
+Both files are in `mods/IroriPowered_Refixes/`.
 
-# ✅ Installation
+| File | Purpose |
+| --- | --- |
+| `config.json` | [Runtime settings](Configuration) |
+| `Refixes.json` | [Mixin patches](Mixins) |
 
-To install:
+Existing values override defaults. Restart the server after editing the files.
 
-1. Set up [Hyinit](https://www.curseforge.com/hytale/bootstrap/hyinit) to launch your server
-2. Place `refixes-X.X.X.jar` inside the `earlyplugins` folder
+Experimental parallel patches are off by default. Enable them only when testing.
 
-Config lives in `mods/IroriPowered_Refixes/`, split across two files: runtime settings in `config.json` (see [Configuration](Configuration)) and Mixin patch toggles in `Refixes.json` (see [Mixins](Mixins)).
+[Support Discord](https://discord.gg/y5kTgtQtgX)

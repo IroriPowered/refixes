@@ -32,9 +32,14 @@ public class IdlePlayerService {
 
     private final Map<UUID, PlayerIdleState> playerStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
+    private boolean registered;
     private AutoCloseable idleGauge;
 
-    public void registerService() {
+    public synchronized void registerService() {
+        if (registered) {
+            return;
+        }
+        registered = true;
         int intervalSec =
                 Math.max(5, IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.CHECK_INTERVAL_SECONDS));
         task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
@@ -49,9 +54,14 @@ public class IdlePlayerService {
                 intervalSec * 1000L,
                 TimeUnit.MILLISECONDS);
         idleGauge = BlackboxBridge.registerGauge("IdlePlayer idle", () -> getIdleCount());
+        if (IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
+            LOGGER.atInfo().log(
+                    "AFK minimum-loaded radius affects legacy columns only; independent sections use view/hot radii");
+        }
     }
 
-    public void unregisterService() {
+    public synchronized void unregisterService() {
+        registered = false;
         if (task != null) {
             task.cancel(false);
             task = null;
@@ -63,12 +73,24 @@ public class IdlePlayerService {
             }
             idleGauge = null;
         }
-        playerStates.clear();
+        Set<UUID> onlineUuids = new HashSet<>();
+        for (PlayerRef playerRef : Universe.get().getPlayers()) {
+            if (playerRef == null) {
+                continue;
+            }
+            UUID uuid = playerRef.getUuid();
+            onlineUuids.add(uuid);
+            PlayerIdleState state = playerStates.get(uuid);
+            if (state != null) {
+                restorePlayerSettings(playerRef, state);
+            }
+        }
+        playerStates.keySet().removeIf(uuid -> !onlineUuids.contains(uuid));
     }
 
-    private void evaluatePlayers() {
+    private synchronized void evaluatePlayers() {
         IdlePlayerHandlerConfig cfg = IdlePlayerHandlerConfig.get();
-        if (!cfg.getValue(IdlePlayerHandlerConfig.ENABLED)) {
+        if (!registered || !cfg.getValue(IdlePlayerHandlerConfig.ENABLED)) {
             return;
         }
 
@@ -91,7 +113,7 @@ public class IdlePlayerService {
             if (state.lastPosition != null && hasPlayerMoved(state.lastPosition, currentPos, movementThreshold)) {
                 state.markActivity();
                 if (state.wasIdle) {
-                    restorePlayerSettings(playerRef, state, cfg);
+                    restorePlayerSettings(playerRef, state);
                 }
             }
             if (state.lastPosition == null) {
@@ -121,31 +143,26 @@ public class IdlePlayerService {
 
     public boolean isIdle(UUID uuid) {
         PlayerIdleState state = playerStates.get(uuid);
-        return state != null && state.wasIdle;
+        return state != null && (state.wasIdle || state.pendingApply);
     }
 
     private void applyIdleSettings(PlayerRef playerRef, PlayerIdleState state, IdlePlayerHandlerConfig cfg) {
         if (state.pendingApply) {
             return;
         }
+        World world = getPlayerWorld(playerRef);
+        if (world == null) {
+            return;
+        }
         state.pendingApply = true;
 
-        Ref<EntityStore> entityRef = playerRef.getReference();
-        if (entityRef == null || !entityRef.isValid()) {
-            state.pendingApply = false;
-            return;
-        }
-
-        Store<EntityStore> store = entityRef.getStore();
-        World world = ((EntityStore) store.getExternalData()).getWorld();
-        if (world == null) {
-            state.pendingApply = false;
-            return;
-        }
-
-        HytaleServer.SCHEDULED_EXECUTOR.schedule(
-                () -> world.execute(() -> {
+        try {
+            world.execute(() -> {
+                synchronized (IdlePlayerService.this) {
                     try {
+                        if (!registered || playerStates.get(playerRef.getUuid()) != state) {
+                            return;
+                        }
                         ChunkTracker tracker = playerRef.getChunkTracker();
 
                         if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_VIEW_RADIUS)) {
@@ -154,28 +171,34 @@ public class IdlePlayerService {
                                 int currentView = player.getClientViewRadius();
                                 int idleView = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_VIEW_RADIUS));
                                 if (currentView > idleView) {
-                                    state.savedViewRadius = currentView;
+                                    if (state.savedViewRadius == null) {
+                                        state.savedViewRadius = currentView;
+                                    }
                                     player.setClientViewRadius(idleView);
                                 }
                             }
                         }
 
                         if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)) {
-                            int currentHot = tracker.getMaxHotLoadedChunksRadius();
+                            int currentHot = tracker.getMaxHotLoadedRadius();
                             int idleHot = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_HOT_RADIUS));
                             if (currentHot > idleHot) {
-                                state.savedHotRadius = currentHot;
-                                tracker.setMaxHotLoadedChunksRadius(idleHot);
+                                if (state.savedHotRadius == null) {
+                                    state.savedHotRadius = currentHot;
+                                }
+                                tracker.setMaxHotLoadedRadius(idleHot);
                             }
                         }
 
                         if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
-                            int currentMinLoaded = tracker.getMinLoadedChunksRadius();
+                            int currentMinLoaded = tracker.getMinLoadedRadius();
                             int idleMinLoaded =
                                     Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_MIN_LOADED_RADIUS));
                             if (currentMinLoaded > idleMinLoaded) {
-                                state.savedMinLoadedRadius = currentMinLoaded;
-                                tracker.setMinLoadedChunksRadius(idleMinLoaded);
+                                if (state.savedMinLoadedRadius == null) {
+                                    state.savedMinLoadedRadius = currentMinLoaded;
+                                }
+                                tracker.setMinLoadedRadius(idleMinLoaded);
                             }
                         }
 
@@ -188,54 +211,53 @@ public class IdlePlayerService {
                     } finally {
                         state.pendingApply = false;
                     }
-                }),
-                50,
-                TimeUnit.MILLISECONDS);
+                }
+            });
+        } catch (RuntimeException e) {
+            state.pendingApply = false;
+            LOGGER.atWarning().withCause(e).log("Failed to queue idle settings for player %s", playerRef.getUuid());
+        }
     }
 
-    private void restorePlayerSettings(PlayerRef playerRef, PlayerIdleState state, IdlePlayerHandlerConfig cfg) {
+    private void restorePlayerSettings(PlayerRef playerRef, PlayerIdleState state) {
         if (state.pendingRestore) {
+            return;
+        }
+        World world = getPlayerWorld(playerRef);
+        if (world == null) {
             return;
         }
         state.pendingRestore = true;
 
-        Ref<EntityStore> entityRef = playerRef.getReference();
-        if (entityRef == null || !entityRef.isValid()) {
-            state.pendingRestore = false;
-            return;
-        }
-
-        Store<EntityStore> store = entityRef.getStore();
-        World world = ((EntityStore) store.getExternalData()).getWorld();
-        if (world == null) {
-            state.pendingRestore = false;
-            return;
-        }
-
-        HytaleServer.SCHEDULED_EXECUTOR.schedule(
-                () -> world.execute(() -> {
+        try {
+            world.execute(() -> {
+                synchronized (IdlePlayerService.this) {
                     try {
                         ChunkTracker tracker = playerRef.getChunkTracker();
 
                         if (state.savedViewRadius != null) {
                             Player player = getPlayerComponent(playerRef);
-                            if (player != null) {
-                                player.setClientViewRadius(state.savedViewRadius);
+                            if (player == null) {
+                                return;
                             }
+                            player.setClientViewRadius(state.savedViewRadius);
                             state.savedViewRadius = null;
                         }
 
                         if (state.savedHotRadius != null) {
-                            tracker.setMaxHotLoadedChunksRadius(state.savedHotRadius);
+                            tracker.setMaxHotLoadedRadius(state.savedHotRadius);
                             state.savedHotRadius = null;
                         }
 
                         if (state.savedMinLoadedRadius != null) {
-                            tracker.setMinLoadedChunksRadius(state.savedMinLoadedRadius);
+                            tracker.setMinLoadedRadius(state.savedMinLoadedRadius);
                             state.savedMinLoadedRadius = null;
                         }
 
                         state.wasIdle = false;
+                        if (!registered) {
+                            playerStates.remove(playerRef.getUuid(), state);
+                        }
                         LOGGER.atInfo().log("Restored settings for player %s", playerRef.getUuid());
                         BlackboxBridge.count("IdlePlayer restored", 1);
                     } catch (Throwable t) {
@@ -244,9 +266,35 @@ public class IdlePlayerService {
                     } finally {
                         state.pendingRestore = false;
                     }
-                }),
-                50,
-                TimeUnit.MILLISECONDS);
+                }
+            });
+        } catch (RuntimeException e) {
+            state.pendingRestore = false;
+            LOGGER.atWarning().withCause(e).log(
+                    "Failed to queue radius restoration for player %s", playerRef.getUuid());
+        }
+    }
+
+    synchronized void restoreHotRadius(PlayerRef playerRef, int radius) {
+        PlayerIdleState state = playerStates.get(playerRef.getUuid());
+        if (state != null
+                && (state.savedHotRadius != null
+                        || (state.wasIdle
+                                && IdlePlayerHandlerConfig.get()
+                                        .getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)))) {
+            state.savedHotRadius = radius;
+        } else {
+            playerRef.getChunkTracker().setMaxHotLoadedRadius(radius);
+        }
+    }
+
+    private static World getPlayerWorld(PlayerRef playerRef) {
+        Ref<EntityStore> entityRef = playerRef.getReference();
+        if (entityRef == null || !entityRef.isValid()) {
+            return null;
+        }
+        Store<EntityStore> store = entityRef.getStore();
+        return store.getExternalData().getWorld();
     }
 
     private static Player getPlayerComponent(PlayerRef playerRef) {

@@ -5,8 +5,8 @@ import com.hypixel.hytale.common.plugin.PluginIdentifier;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.TickableSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
+import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -23,21 +23,16 @@ public abstract class MixinStoreTickGuard {
     private static final long refixes$RELOG_INTERVAL_NANOS = 300_000_000_000L;
 
     @Unique
-    private static final Map<String, Long> refixes$lastLogNanos = new ConcurrentHashMap<>();
+    private final Map<TickableSystem<?>, Long> refixes$lastLogNanos = new IdentityHashMap<>();
 
-    // A save throwing once is usually transient (momentary disk-full, a file lock, a brief I/O blip);
-    // we keep the world alive and let the next save interval retry. Only a sustained failure escalates
-    // to a crash, so the watchdog can reload from the last good save (bounded loss) rather than letting
-    // the world run unsaved forever. Window is generous enough that the slowest saver can reach the count.
     @Unique
     private static final long refixes$SAVE_FAILURE_WINDOW_NANOS = 300_000_000_000L;
 
     @Unique
     private static final int refixes$MAX_SAVE_FAILURES = 3;
 
-    // class name -> {windowStartNanos, failureCount}
     @Unique
-    private static final Map<String, long[]> refixes$saveFailureWindows = new ConcurrentHashMap<>();
+    private final Map<TickableSystem<?>, long[]> refixes$saveFailureWindows = new IdentityHashMap<>();
 
     @Redirect(
             method = "tickInternal",
@@ -50,7 +45,7 @@ public abstract class MixinStoreTickGuard {
     private void refixes$guardSystemTick(TickableSystem system, float dt, int systemIndex, Store store) {
         try {
             system.tick(dt, systemIndex, store);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             if (refixes$isPersistenceSystem(system)) {
                 if (refixes$persistenceFailureShouldEscalate(system, t)) {
                     refixes$sneakyThrow(t);
@@ -70,10 +65,10 @@ public abstract class MixinStoreTickGuard {
     // Returns true if the save has failed too many times within the window (caller should rethrow to crash).
     // Otherwise swallows the failure: the world keeps running and the save retries next interval.
     @Unique
-    private static boolean refixes$persistenceFailureShouldEscalate(TickableSystem system, Throwable t) {
+    private boolean refixes$persistenceFailureShouldEscalate(TickableSystem system, Throwable t) {
         String name = system.getClass().getName();
         long now = System.nanoTime();
-        long[] window = refixes$saveFailureWindows.computeIfAbsent(name, k -> new long[] {now, 0});
+        long[] window = refixes$saveFailureWindows.computeIfAbsent(system, k -> new long[] {now, 0});
         boolean escalate;
         synchronized (window) {
             if (now - window[0] > refixes$SAVE_FAILURE_WINDOW_NANOS) {
@@ -85,23 +80,17 @@ public abstract class MixinStoreTickGuard {
             escalate = window[1] >= refixes$MAX_SAVE_FAILURES;
         }
         if (escalate) {
-            refixes$saveFailureWindows.remove(name);
-            refixes$LOGGER
-                    .at(Level.SEVERE)
-                    .withCause(t)
-                    .log(
-                            "%s",
-                            "Refixes TickSurvival: persistence system " + name + " failed "
-                                    + refixes$MAX_SAVE_FAILURES + " times; letting it crash so the watchdog can"
-                                    + " recover the world from the last good save instead of running unsaved.");
+            refixes$saveFailureWindows.remove(system);
+            refixes$LOGGER.at(Level.SEVERE).withCause(t).log(
+                    "%s",
+                    "Refixes TickSurvival: persistence system " + name + " failed "
+                            + refixes$MAX_SAVE_FAILURES + " times; letting it crash so the watchdog can"
+                            + " recover the world from the last good save instead of running unsaved.");
         } else {
-            refixes$LOGGER
-                    .at(Level.WARNING)
-                    .withCause(t)
-                    .log(
-                            "%s",
-                            "Refixes TickSurvival: persistence system " + name + " failed to save; keeping the"
-                                    + " world alive and retrying next save interval.");
+            refixes$LOGGER.at(Level.WARNING).withCause(t).log(
+                    "%s",
+                    "Refixes TickSurvival: persistence system " + name + " failed to save; keeping the"
+                            + " world alive and retrying next save interval.");
         }
         return escalate;
     }
@@ -113,23 +102,20 @@ public abstract class MixinStoreTickGuard {
     }
 
     @Unique
-    private static void refixes$reportFailed(TickableSystem system, Throwable t) {
+    private void refixes$reportFailed(TickableSystem system, Throwable t) {
         String name = system.getClass().getName();
         long now = System.nanoTime();
-        Long prev = refixes$lastLogNanos.get(name);
+        Long prev = refixes$lastLogNanos.get(system);
         if (prev != null && now - prev < refixes$RELOG_INTERVAL_NANOS) {
             return;
         }
-        refixes$lastLogNanos.put(name, now);
+        refixes$lastLogNanos.put(system, now);
         PluginIdentifier culprit = PluginIdentifier.identifyThirdPartyPlugin(t);
         String suffix = culprit == null ? "" : " (likely caused by plugin " + culprit.getName() + ")";
-        refixes$LOGGER
-                .at(Level.SEVERE)
-                .withCause(t)
-                .log(
-                        "%s",
-                        "Refixes TickSurvival: system " + name + " threw" + suffix
-                                + "; skipped this tick to keep the world alive instead of killing the tick thread."
-                                + " Fix the system or disable Mixins.Experimental.TickSurvival.");
+        refixes$LOGGER.at(Level.SEVERE).withCause(t).log(
+                "%s",
+                "Refixes TickSurvival: system " + name + " threw" + suffix
+                        + "; aborted this system's tick after partial execution; no rollback was performed."
+                        + " Fix the system or disable Mixins.Experimental.TickSurvival.");
     }
 }

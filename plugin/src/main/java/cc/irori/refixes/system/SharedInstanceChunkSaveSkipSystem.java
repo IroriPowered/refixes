@@ -23,7 +23,7 @@ public class SharedInstanceChunkSaveSkipSystem extends WorldEventSystem<ChunkSto
             @NonNull CommandBuffer<ChunkStore> commandBuffer,
             @NonNull ChunkSaveEvent event) {
         WorldChunk chunk = event.getChunk();
-        if (!chunk.is(ChunkFlag.ON_DISK)) {
+        if (!chunk.is(ChunkFlag.ON_DISK) || chunk.is(ChunkFlag.NEEDS_FORMAT_REWRITE)) {
             return;
         }
         World world = store.getExternalData().getWorld();

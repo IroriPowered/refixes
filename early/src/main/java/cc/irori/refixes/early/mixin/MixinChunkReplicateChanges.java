@@ -57,12 +57,13 @@ public class MixinChunkReplicateChanges {
             return;
         }
 
-        long chunkIndex = ChunkUtil.indexChunk(section.getX(), section.getZ());
+        int sx = section.getX();
+        int sy = section.getY();
+        int sz = section.getZ();
 
         if (changes.size() >= 1024) {
             // Defer the entire async compression
             ObjectArrayList<PlayerRef> playersCopy = new ObjectArrayList<>(players);
-            int sx = section.getX(), sy = section.getY(), sz = section.getZ();
             commandBuffer.run(s -> {
                 blockSection.getCachedChunkPacket(sx, sy, sz).thenAccept(packet -> {
                     for (PlayerRef player : playersCopy) {
@@ -70,7 +71,7 @@ public class MixinChunkReplicateChanges {
                         ChunkTracker tracker;
                         if (ref == null
                                 || (tracker = player.getChunkTracker()) == null
-                                || !tracker.isLoaded(chunkIndex)) continue;
+                                || !tracker.isLoaded(sx, sy, sz)) continue;
                         player.getPacketHandler().writeNoCache((ToClientPacket) packet);
                     }
                 });
@@ -93,7 +94,7 @@ public class MixinChunkReplicateChanges {
                 for (PlayerRef player : players) {
                     Ref<EntityStore> ref = player.getReference();
                     ChunkTracker tracker;
-                    if (ref == null || (tracker = player.getChunkTracker()) == null || !tracker.isLoaded(chunkIndex))
+                    if (ref == null || (tracker = player.getChunkTracker()) == null || !tracker.isLoaded(sx, sy, sz))
                         continue;
                     player.getPacketHandler().writeNoCache(packet);
                 }
@@ -115,7 +116,7 @@ public class MixinChunkReplicateChanges {
                 for (PlayerRef player : players) {
                     Ref<EntityStore> ref = player.getReference();
                     ChunkTracker tracker;
-                    if (ref == null || (tracker = player.getChunkTracker()) == null || !tracker.isLoaded(chunkIndex))
+                    if (ref == null || (tracker = player.getChunkTracker()) == null || !tracker.isLoaded(sx, sy, sz))
                         continue;
                     player.getPacketHandler().writeNoCache(packet);
                 }

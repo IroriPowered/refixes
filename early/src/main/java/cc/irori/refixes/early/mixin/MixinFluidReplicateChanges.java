@@ -13,7 +13,6 @@ import com.hypixel.hytale.protocol.packets.world.ServerSetFluids;
 import com.hypixel.hytale.protocol.packets.world.SetFluidCmd;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.FluidSection;
@@ -71,7 +70,6 @@ public class MixinFluidReplicateChanges {
         ChunkSection section = archetypeChunk.getComponent(index, this.chunkSectionComponentType);
         assert section != null;
 
-        World world = commandBuffer.getExternalData().getWorld();
         WorldChunk worldChunk =
                 commandBuffer.getComponent(section.getChunkColumnReference(), this.worldChunkComponentType);
 
@@ -91,7 +89,9 @@ public class MixinFluidReplicateChanges {
             return;
         }
 
-        long chunkIndex = ChunkUtil.indexChunk(fluidSection.getX(), fluidSection.getZ());
+        int sectionX = section.getX();
+        int sectionY = section.getY();
+        int sectionZ = section.getZ();
 
         if (changes.size() >= 1024) {
             // Defer entire async path to merge phase
@@ -104,7 +104,8 @@ public class MixinFluidReplicateChanges {
                         ChunkTracker tracker;
                         if (ref == null
                                 || !ref.isValid()
-                                || !(tracker = playerRef.getChunkTracker()).isLoaded(chunkIndex)) continue;
+                                || (tracker = playerRef.getChunkTracker()) == null
+                                || !tracker.isLoaded(sectionX, sectionY, sectionZ)) continue;
                         playerRef.getPacketHandler().writeNoCache((ToClientPacket) packet);
                     }
                 });
@@ -126,8 +127,10 @@ public class MixinFluidReplicateChanges {
                 for (PlayerRef playerRef : playerRefs) {
                     Ref<EntityStore> ref = playerRef.getReference();
                     ChunkTracker tracker;
-                    if (ref == null || !ref.isValid() || !(tracker = playerRef.getChunkTracker()).isLoaded(chunkIndex))
-                        continue;
+                    if (ref == null
+                            || !ref.isValid()
+                            || (tracker = playerRef.getChunkTracker()) == null
+                            || !tracker.isLoaded(sectionX, sectionY, sectionZ)) continue;
                     playerRef.getPacketHandler().writeNoCache(packet);
                 }
             });
@@ -148,8 +151,10 @@ public class MixinFluidReplicateChanges {
                 for (PlayerRef playerRef : playerRefs) {
                     Ref<EntityStore> ref = playerRef.getReference();
                     ChunkTracker tracker;
-                    if (ref == null || !ref.isValid() || !(tracker = playerRef.getChunkTracker()).isLoaded(chunkIndex))
-                        continue;
+                    if (ref == null
+                            || !ref.isValid()
+                            || (tracker = playerRef.getChunkTracker()) == null
+                            || !tracker.isLoaded(sectionX, sectionY, sectionZ)) continue;
                     playerRef.getPacketHandler().writeNoCache(packet);
                 }
             });

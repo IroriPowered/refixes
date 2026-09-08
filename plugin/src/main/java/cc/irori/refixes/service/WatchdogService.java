@@ -2,6 +2,7 @@ package cc.irori.refixes.service;
 
 import cc.irori.refixes.compat.BlackboxBridge;
 import cc.irori.refixes.config.impl.WatchdogConfig;
+import cc.irori.refixes.early.accessor.TickingThreadAccess;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -259,9 +261,10 @@ public class WatchdogService {
                     int saveTimeout = config.getValue(WatchdogConfig.RESTART_SAVE_TIMEOUT_MS);
                     if (!trySaveWorldWithTimeout(worldToRestart, saveTimeout)) {
                         LOGGER.atSevere().log(
-                                "Aborting auto-restart of '%s': save timed out (%dms)", worldName, saveTimeout);
+                                "Aborting auto-restart of '%s': save or shutdown did not safely complete within %dms",
+                                worldName, saveTimeout);
                         BlackboxBridge.event(
-                                "Watchdog", "gave up on '" + worldName + "': save timed out (" + saveTimeout + "ms)");
+                                "Watchdog", "gave up on '" + worldName + "': save/shutdown not safely completed");
                         worldsGivenUp.add(worldName);
                         continue;
                     }
@@ -306,8 +309,42 @@ public class WatchdogService {
 
     private boolean trySaveWorldWithTimeout(World world, int timeoutMs) {
         try {
-            ChunkSavingSystems.saveChunksInWorld(world.getChunkStore().getStore())
-                    .get(timeoutMs, TimeUnit.MILLISECONDS);
+            if (!world.isAlive() || !world.isStarted()) {
+                if (!(world instanceof TickingThreadAccess access)) {
+                    LOGGER.atSevere().log(
+                            "Cannot establish shutdown completion for world '%s': missing thread accessor",
+                            world.getName());
+                    return false;
+                }
+                Thread thread = access.refixes$getThread();
+                if (thread == null || thread == Thread.currentThread()) return false;
+                thread.join(Math.max(1L, timeoutMs));
+                if (thread.isAlive()) return false;
+                boolean closed = world.getChunkStore().getStore().isShutdown()
+                        && world.getEntityStore().getStore().isShutdown()
+                        && world.getChunkStore().getSaver() == null;
+                if (!closed) {
+                    LOGGER.atSevere().log(
+                            "World '%s' terminated without completing store shutdown; refusing unsafe direct save",
+                            world.getName());
+                }
+                return closed;
+            }
+            CompletableFuture<Void> save = CompletableFuture.supplyAsync(
+                            () -> {
+                                if (!world.isAlive()
+                                        || !world.isStarted()
+                                        || world.getChunkStore().getStore().isShutdown()
+                                        || world.getEntityStore().getStore().isShutdown()
+                                        || HytaleServer.get().isShuttingDown()) {
+                                    throw new IllegalStateException("World began stopping before the watchdog save");
+                                }
+                                return ChunkSavingSystems.saveChunksInWorld(
+                                        world.getChunkStore().getStore(), world);
+                            },
+                            world)
+                    .thenCompose(future -> future);
+            save.get(Math.max(1, timeoutMs), TimeUnit.MILLISECONDS);
             return true;
         } catch (TimeoutException e) {
             return false;
