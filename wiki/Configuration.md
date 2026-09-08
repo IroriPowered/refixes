@@ -9,41 +9,41 @@ Runtime settings in `mods/IroriPowered_Refixes/config.json`, created by the serv
 # Early Patches
 Section: `Early`
 
-Requires a full restart. Some settings also require their matching [Mixin](Mixins).
+Requires a full restart. Each key only acts through its Mixin patch — without it, changing the value is a silent no-op.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `MaxSectionsPerSecond` | `360` | Sections streamed per player per second. Legacy `MaxChunksPerSecond` is ignored. |
-| `MaxSectionsPerTick` | `40` | Sections streamed per player per tick. Legacy `MaxChunksPerTick` is ignored. |
-| `VanillaKeepSpawnLoaded` | `true` | Keep spawn chunks loaded. |
-| `UnloadDistanceOffset` | `4` | Extra loaded chunks beyond player view radius. |
-| `PathfindingMaxPathLength` | `200` | Maximum nodes in an NPC path. |
-| `PathfindingOpenNodesLimit` | `80` | Maximum simultaneous A* frontier nodes per search. |
-| `PathfindingTotalNodesLimit` | `400` | Maximum expanded nodes per A* search. |
-| `PathfindingMaxNewSearchesPerTick` | `8` | Maximum new searches per tick. |
-| `PathfindingMaxNodeExpansionsPerTick` | `600` | Maximum A* expansions per tick across searches. |
-| `ShutdownSaveTimeoutSeconds` | `10` | Store resource save timeout in seconds. Nonpositive values wait indefinitely. |
-| `BackpressureMaxOutboundBytes` | `16777216` | Outbound bytes per connection before backpressure, 16 MiB. |
-| `BackpressureGraceMs` | `10000` | Milliseconds before closing a stalled connection. |
+| `MaxSectionsPerSecond` | `360` | Sections streamed per player per second. Legacy `MaxChunksPerSecond` is ignored. Requires `Mixins.Optimizations.PlayerChunkTrackerSystems`. |
+| `MaxSectionsPerTick` | `40` | Sections streamed per player per tick. Legacy `MaxChunksPerTick` is ignored. Requires `Mixins.Optimizations.PlayerChunkTrackerSystems`. |
+| `VanillaKeepSpawnLoaded` | `true` | Keep spawn chunks loaded. Requires `Mixins.Optimizations.ChunkUnloadingSystem`. |
+| `UnloadDistanceOffset` | `4` | Extra loaded chunks beyond player view radius. Requires `Mixins.Optimizations.PlayerChunkTrackerSystems` and `Mixins.Helpers.PlayerViewRadius`. |
+| `PathfindingMaxPathLength` | `200` | Maximum nodes in an NPC path. Requires `Mixins.Optimizations.AStarBase`. |
+| `PathfindingOpenNodesLimit` | `80` | Maximum simultaneous A* frontier nodes per search. Requires `Mixins.Optimizations.AStarBase`. |
+| `PathfindingTotalNodesLimit` | `400` | Maximum expanded nodes per A* search. Requires `Mixins.Optimizations.AStarBase`. |
+| `PathfindingMaxNewSearchesPerTick` | `8` | Maximum new searches per tick. Requires `Mixins.Experimental.PathfindingBudget`. |
+| `PathfindingMaxNodeExpansionsPerTick` | `600` | Maximum A* expansions per tick across searches. Requires `Mixins.Experimental.PathfindingBudget`. |
+| `ShutdownSaveTimeoutSeconds` | `10` | Store resource save timeout in seconds. Nonpositive values wait indefinitely. Requires `Mixins.Experimental.ShutdownSaveTimeout`. |
+| `BackpressureMaxOutboundBytes` | `16777216` | Outbound bytes per connection before backpressure, 16 MiB. Requires `Mixins.Experimental.ConnectionBackpressure`. |
+| `BackpressureGraceMs` | `10000` | Milliseconds before closing a stalled connection. Requires `Mixins.Experimental.ConnectionBackpressure`. |
 
 ## Cylinder Visibility
 Section: `Early.CylinderVisibility`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `HeightMultiplier` | `2.0` | Cylinder vertical half height relative to horizontal view radius. |
+| `HeightMultiplier` | `2.0` | Cylinder vertical half height relative to horizontal view radius. Requires `Mixins.Optimizations.CollectVisible`. |
 
 ## KD Tree Optimization
 Section: `Early.KDTreeOptimization`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `SpatialFastSortThreshold` | `64` | Below this entity count, use coordinate sorting instead of Morton sorting. |
+| `SpatialFastSortThreshold` | `64` | Below this entity count, use coordinate sorting instead of Morton sorting. Requires `Mixins.Optimizations.KDTree`. |
 
 # Listeners
 Section: `Listeners`
 
-Cleaner scans require `UnknownBlockCleaner`. They delete unknown content.
+⚠️ **Warning:** the cleaner **deletes** unknown blocks, fluids, container items, and player inventory items. Test `UnknownBlockCleanerExclude` first — deletions are irreversible. All scans require `UnknownBlockCleaner`.
 
 | Key | Default | Description |
 |-----|---------|-------------|

@@ -17,7 +17,7 @@ Both files are in `mods/IroriPowered_Refixes/`.
 | `config.json` | [Runtime settings](Configuration) |
 | `Refixes.json` | [Mixin patches](Mixins) |
 
-Existing values override defaults. Restart the server after editing the files.
+You only need to set values you want to change — everything else uses defaults. Restart the server after editing the files.
 
 Experimental parallel patches are off by default. Enable them only when testing.
 
