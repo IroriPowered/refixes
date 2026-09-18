@@ -13,7 +13,9 @@
     ],
     "ServerVersion": ">=${hytaleVersion}",
     "Dependencies": {},
-    "OptionalDependencies": {},
+    "OptionalDependencies": {
+        "Xytronix:Hybox": "*"
+    },
     "IncludesAssetPack": true,
     "Mixins": [
         "refixes.mixins.json"

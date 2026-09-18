@@ -1,6 +1,6 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.Ref;
@@ -53,7 +53,7 @@ public class IdlePlayerService {
                 5000,
                 intervalSec * 1000L,
                 TimeUnit.MILLISECONDS);
-        idleGauge = BlackboxBridge.registerGauge("IdlePlayer idle", () -> getIdleCount());
+        idleGauge = HyboxBridge.registerGauge("IdlePlayer idle", () -> getIdleCount());
         if (IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
             LOGGER.atInfo().log(
                     "AFK minimum-loaded radius affects legacy columns only; independent sections use view/hot radii");
@@ -204,7 +204,7 @@ public class IdlePlayerService {
 
                         state.wasIdle = true;
                         LOGGER.atInfo().log("Applied idle settings for player %s", playerRef.getUuid());
-                        BlackboxBridge.count("IdlePlayer applied", 1);
+                        HyboxBridge.count("IdlePlayer applied", 1);
                     } catch (Throwable t) {
                         LOGGER.atWarning().withCause(t).log(
                                 "Failed to apply idle settings for player %s", playerRef.getUuid());
@@ -259,7 +259,7 @@ public class IdlePlayerService {
                             playerStates.remove(playerRef.getUuid(), state);
                         }
                         LOGGER.atInfo().log("Restored settings for player %s", playerRef.getUuid());
-                        BlackboxBridge.count("IdlePlayer restored", 1);
+                        HyboxBridge.count("IdlePlayer restored", 1);
                     } catch (Throwable t) {
                         LOGGER.atWarning().withCause(t).log(
                                 "Failed to restore settings for player %s", playerRef.getUuid());

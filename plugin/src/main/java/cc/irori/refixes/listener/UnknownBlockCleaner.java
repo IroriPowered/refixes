@@ -1,6 +1,6 @@
 package cc.irori.refixes.listener;
 
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.ListenerConfig;
 import cc.irori.refixes.early.duck.UnknownFluidScannable;
 import cc.irori.refixes.util.Logs;
@@ -194,7 +194,7 @@ public final class UnknownBlockCleaner {
                     section.getZ(),
                     world.getName(),
                     removedCounts);
-            BlackboxBridge.count("UnknownBlockCleaner removed", total);
+            HyboxBridge.count("UnknownBlockCleaner removed", total);
         }
     }
 
@@ -354,7 +354,7 @@ public final class UnknownBlockCleaner {
             LOGGER.atInfo().log(
                     "Cleaned %d unknown items (%d types) from a player's inventory in world '%s': %s",
                     total, removedCounts.size(), world.getName(), removedCounts);
-            BlackboxBridge.count("UnknownBlockCleaner removed", total);
+            HyboxBridge.count("UnknownBlockCleaner removed", total);
         }
     }
 

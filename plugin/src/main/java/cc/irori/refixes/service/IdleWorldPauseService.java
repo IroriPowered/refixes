@@ -1,6 +1,6 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -34,7 +34,7 @@ public class IdleWorldPauseService {
                 5000,
                 interval,
                 TimeUnit.MILLISECONDS);
-        pausedGauge = BlackboxBridge.registerGauge("IdleWorldPause paused worlds", () -> getPausedWorldCount());
+        pausedGauge = HyboxBridge.registerGauge("IdleWorldPause paused worlds", () -> getPausedWorldCount());
     }
 
     public void unregisterService() {
@@ -67,7 +67,7 @@ public class IdleWorldPauseService {
                 world.execute(() -> {
                     if (world.getPlayerCount() == 0 && !world.isPaused()) {
                         world.setPaused(true);
-                        BlackboxBridge.event("IdleWorldPause", "paused world '" + world.getName() + "'");
+                        HyboxBridge.event("IdleWorldPause", "paused world '" + world.getName() + "'");
                     }
                 });
             }

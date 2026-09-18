@@ -1,6 +1,6 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.early.accessor.TickingThreadAccess;
 import cc.irori.refixes.util.Logs;
@@ -253,7 +253,7 @@ public class WatchdogService {
 
                 LOGGER.atSevere().log("========== AUTO WORLD RESTART ==========");
                 LOGGER.atSevere().log("World: %s", worldName);
-                BlackboxBridge.event("Watchdog", "auto-restarting world '" + worldName + "'");
+                HyboxBridge.event("Watchdog", "auto-restarting world '" + worldName + "'");
                 dumpThreads(worldName);
 
                 World worldToRestart = Universe.get().getWorld(worldName);
@@ -263,7 +263,7 @@ public class WatchdogService {
                         LOGGER.atSevere().log(
                                 "Aborting auto-restart of '%s': save or shutdown did not safely complete within %dms",
                                 worldName, saveTimeout);
-                        BlackboxBridge.event(
+                        HyboxBridge.event(
                                 "Watchdog", "gave up on '" + worldName + "': save/shutdown not safely completed");
                         worldsGivenUp.add(worldName);
                         continue;
@@ -288,7 +288,7 @@ public class WatchdogService {
                 try {
                     Universe.get().loadWorld(worldName).join();
                     LOGGER.atInfo().log("World %s loaded", worldName);
-                    BlackboxBridge.event("Watchdog", "world '" + worldName + "' restarted");
+                    HyboxBridge.event("Watchdog", "world '" + worldName + "' restarted");
                     worldRestartFailures.remove(worldName);
                 } catch (Exception e) {
                     int failures = worldRestartFailures.merge(worldName, 1, Integer::sum);
@@ -299,7 +299,7 @@ public class WatchdogService {
                         LOGGER.atSevere().log(
                                 "Giving up on auto-restarting world '%s' after %d failures. Resolve the underlying issue and restart the server.",
                                 worldName, failures);
-                        BlackboxBridge.event(
+                        HyboxBridge.event(
                                 "Watchdog", "gave up on '" + worldName + "' after " + failures + " failures");
                     }
                 }
@@ -425,7 +425,7 @@ public class WatchdogService {
         LOGGER.atSevere().log("========== AUTO SERVER SHUTDOWN ==========");
         LOGGER.atSevere().log("Reason: %s", reason);
         LOGGER.atSevere().log("Dumping threads and shutting down the server...");
-        BlackboxBridge.event("Watchdog", "server shutdown: " + reason);
+        HyboxBridge.event("Watchdog", "server shutdown: " + reason);
 
         dumpThreads();
 

@@ -1,6 +1,6 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
 import cc.irori.refixes.util.HeapPressureMonitor;
 import cc.irori.refixes.util.Logs;
@@ -87,7 +87,7 @@ public class PerPlayerHotRadiusService {
                 5000,
                 interval,
                 TimeUnit.MILLISECONDS);
-        radiusGauge = BlackboxBridge.registerGauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
+        radiusGauge = HyboxBridge.registerGauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
     }
 
     public synchronized void unregisterService() {
@@ -170,7 +170,7 @@ public class PerPlayerHotRadiusService {
                 LOGGER.atInfo().log(
                         "Adjusted per-player hot radius: %d -> %d (TPS: %.1f, players: %d)",
                         currentTargetRadius, lowestTarget, lowestTps, appliedAtLowest);
-                BlackboxBridge.event(
+                HyboxBridge.event(
                         "PerPlayerHotRadius",
                         String.format(
                                 java.util.Locale.ROOT,
@@ -315,7 +315,7 @@ public class PerPlayerHotRadiusService {
             if (target < current) {
                 HytaleServer.get().getConfig().setMaxViewRadius(target);
                 LOGGER.atWarning().log("Memory pressure: reducing max view radius %d -> %d", current, target);
-                BlackboxBridge.event(
+                HyboxBridge.event(
                         "PerPlayerHotRadius",
                         String.format(java.util.Locale.ROOT, "memory view radius %d to %d", current, target));
                 lastViewAdjustmentMs = now;

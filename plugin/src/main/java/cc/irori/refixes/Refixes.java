@@ -1,7 +1,7 @@
 package cc.irori.refixes;
 
 import cc.irori.refixes.command.ChunkLoaderCommand;
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkLoaderConfig;
@@ -122,7 +122,7 @@ public class Refixes extends JavaPlugin {
             Universe.get().getWorlds().values().forEach(chunkLoaderService::loadWorld);
         }
         try {
-            pathfindingDeferralsGauge = BlackboxBridge.registerGauge(
+            pathfindingDeferralsGauge = HyboxBridge.registerGauge(
                     "PathfindingBudget deferrals", () -> (double) PathfindingBudget.deferrals());
         } catch (Throwable ignored) {
         }

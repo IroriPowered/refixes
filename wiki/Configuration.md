@@ -1,10 +1,10 @@
 Runtime settings in `mods/IroriPowered_Refixes/config.json`, created by the server. Patch switches are documented in [Mixins](Mixins).
 
-# Blackbox Integration
+# Hybox Integration
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `BlackboxIntegration` | `true` | Send events and gauges to Blackbox, if installed. |
+| `HyboxIntegration` | `true` | Send events, counters and gauges to Hybox, if installed. Requires a restart. |
 
 # Early Patches
 Section: `Early`

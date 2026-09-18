@@ -13,6 +13,8 @@
     ],
     "ServerVersion": ">=${hytaleVersion}",
     "Dependencies": {},
-    "OptionalDependencies": {},
+    "OptionalDependencies": {
+        "Xytronix:Hybox": "*"
+    },
     "IncludesAssetPack": true
 }

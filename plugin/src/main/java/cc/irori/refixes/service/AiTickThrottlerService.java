@@ -1,6 +1,6 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.BlackboxBridge;
+import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.util.Logs;
@@ -94,9 +94,9 @@ public class AiTickThrottlerService {
                 5000,
                 intervalMs,
                 TimeUnit.MILLISECONDS);
-        throttledGauge = BlackboxBridge.registerGauge("AiTickThrottler throttled", () -> getThrottledCount());
-        activeGauge = BlackboxBridge.registerGauge("AiTickThrottler active", () -> getActiveNpcCount());
-        cycleMsGauge = BlackboxBridge.registerGauge("AiTickThrottler cycle ms", () -> lastCycleMs);
+        throttledGauge = HyboxBridge.registerGauge("AiTickThrottler throttled", () -> getThrottledCount());
+        activeGauge = HyboxBridge.registerGauge("AiTickThrottler active", () -> getActiveNpcCount());
+        cycleMsGauge = HyboxBridge.registerGauge("AiTickThrottler cycle ms", () -> lastCycleMs);
     }
 
     public void unregisterService() {
@@ -384,16 +384,16 @@ public class AiTickThrottlerService {
 
         int froze = Math.min(freezeCount.get(), maxFreezes);
         if (froze > 0) {
-            BlackboxBridge.count("AiTickThrottler froze", froze);
+            HyboxBridge.count("AiTickThrottler froze", froze);
         }
         int unfroze = Math.min(unfreezeCount.get(), maxUnfreezes);
         if (unfroze > 0) {
-            BlackboxBridge.count("AiTickThrottler unfroze", unfroze);
+            HyboxBridge.count("AiTickThrottler unfroze", unfroze);
         }
         long cycleNanos = System.nanoTime() - cycleStartNanos;
         lastCycleMs = cycleNanos / 1_000_000.0;
         if (cycleNanos > budgetNanos) {
-            BlackboxBridge.count("AiTickThrottler budget exceeded", 1);
+            HyboxBridge.count("AiTickThrottler budget exceeded", 1);
         }
     }
 
