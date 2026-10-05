@@ -20,12 +20,16 @@ public abstract class MixinPageManager {
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
     @Inject(
-            method = "handleEvent",
-            at = @At(value = "NEW", target = "java/lang/IllegalArgumentException"),
-            cancellable = true)
+            method =
+                    "handleLegacyCustomPageEvent(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/component/Store;Lcom/hypixel/hytale/protocol/packets/interface_/CustomPageEvent;)V",
+            at = @At(value = "NEW", target = "(Ljava/lang/String;)Ljava/lang/IllegalArgumentException;"),
+            cancellable = true,
+            require = 1,
+            allow = 1)
     private void refixes$swallowUnexpectedAck(
             Ref<EntityStore> ref, Store<EntityStore> store, CustomPageEvent event, CallbackInfo ci) {
-        refixes$LOGGER.atWarning().log("PageManager#handleEvent: ignoring unexpected client acknowledgement");
+        refixes$LOGGER.atWarning().log(
+                "PageManager#handleLegacyCustomPageEvent: ignoring unexpected client acknowledgement");
         ci.cancel();
     }
 }

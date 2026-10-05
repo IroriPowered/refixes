@@ -1,51 +1,91 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.util.SharedInstanceConstants;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
-import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.builtin.instances.config.InstanceWorldConfig;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.WorldConfig;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import javax.annotation.Nonnull;
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import java.util.function.Function;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(InstancesPlugin.class)
 public abstract class MixinInstancesPlugin {
 
-    @Shadow
-    @Nonnull
-    public abstract CompletableFuture<World> spawnInstance(
-            @NonNullDecl String name,
-            @NullableDecl String worldName,
-            @NonNullDecl World forWorld,
-            @NonNullDecl Transform returnPoint);
+    // The first getter is only the naming fallback in the canonical five-argument spawn continuation.
+    // Leave the authored config (and the later RespawnWhenTargeted key validation) unchanged.
+    @ModifyExpressionValue(
+            method =
+                    "lambda$spawnInstance$0(Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/world/World;Lcom/hypixel/hytale/math/vector/Transform;Ljava/util/function/Consumer;Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/Universe;Ljava/nio/file/Path;Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/builtin/instances/config/InstanceWorldConfig;getInstanceKey()Ljava/lang/String;",
+                            ordinal = 0),
+            require = 1,
+            allow = 1)
+    private String refixes$sharedWorldKey(String authoredKey, @Local(argsOnly = true, ordinal = 0) String name) {
+        if (authoredKey != null || refixes$isExcluded(name)) {
+            return authoredKey;
+        }
+        return SharedInstanceConstants.SHARED_INSTANCE_PREFIX + InstancesPlugin.safeName(name);
+    }
 
-    /**
-     * @author KabanFriends
-     * @reason Shared instance system
-     */
-    @Overwrite
-    public CompletableFuture<World> spawnInstance(
-            @Nonnull String name, @Nonnull World forWorld, @Nonnull Transform returnPoint) {
-        String[] excludedPrefixes = EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.get();
-        for (String prefix : excludedPrefixes) {
+    // Reuse saved shared worlds through the same native pending-spawn boundary as new copies.
+    @WrapOperation(
+            method =
+                    "lambda$spawnInstance$0(Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/world/World;Lcom/hypixel/hytale/math/vector/Transform;Ljava/util/function/Consumer;Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/Universe;Ljava/nio/file/Path;Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Ljava/util/Map;computeIfAbsent(Ljava/lang/Object;Ljava/util/function/Function;)Ljava/lang/Object;"),
+            require = 1,
+            allow = 1)
+    private Object refixes$loadPersistedSharedInstance(
+            Map<String, CompletableFuture<World>> pendingSpawns,
+            Object worldKey,
+            Function<String, CompletableFuture<World>> create,
+            Operation<Object> original,
+            @Local(argsOnly = true, ordinal = 0) String name,
+            @Local(argsOnly = true, ordinal = 1) String worldName,
+            @Local(argsOnly = true) WorldConfig config) {
+        if (worldName != null || refixes$isExcluded(name)) {
+            return original.call(pendingSpawns, worldKey, create);
+        }
+        InstanceWorldConfig instanceConfig = InstanceWorldConfig.get(config);
+        if (instanceConfig != null && instanceConfig.getInstanceKey() != null) {
+            return original.call(pendingSpawns, worldKey, create);
+        }
+        String sharedKey = (String) worldKey;
+        Universe universe = Universe.get();
+        if (!sharedKey.startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)
+                || !universe.isWorldLoadable(sharedKey)) {
+            return original.call(pendingSpawns, worldKey, create);
+        }
+        Function<String, CompletableFuture<World>> load = universe::loadWorld;
+        CompletableFuture<?> future = (CompletableFuture<?>) original.call(pendingSpawns, worldKey, load);
+        future.whenComplete((world, error) -> pendingSpawns.remove(sharedKey, future));
+        return future;
+    }
+
+    @Unique
+    private static boolean refixes$isExcluded(String name) {
+        for (String prefix : EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.get()) {
             if (name.startsWith(prefix)) {
-                return spawnInstance(name, null, forWorld, returnPoint);
+                return true;
             }
         }
-
-        String worldName = "instance-shared-" + InstancesPlugin.safeName(name);
-        World existing = Universe.get().getWorld(worldName);
-        if (existing != null && existing.isAlive()) {
-            return CompletableFuture.completedFuture(existing);
-        } else if (Universe.get().isWorldLoadable(worldName)) {
-            return Universe.get().loadWorld(worldName);
-        }
-
-        return spawnInstance(name, worldName, forWorld, returnPoint);
+        return false;
     }
 }

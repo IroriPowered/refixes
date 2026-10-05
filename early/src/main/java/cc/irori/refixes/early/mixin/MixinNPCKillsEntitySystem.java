@@ -14,7 +14,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public class MixinNPCKillsEntitySystem {
 
     @Redirect(
-            method = "onComponentAdded",
+            method =
+                    "onComponentAdded(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/server/core/modules/entity/damage/DeathComponent;Lcom/hypixel/hytale/component/Store;Lcom/hypixel/hytale/component/CommandBuffer;)V",
             at =
                     @At(
                             value = "INVOKE",

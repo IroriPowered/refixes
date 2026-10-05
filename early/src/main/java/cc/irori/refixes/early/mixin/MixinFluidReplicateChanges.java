@@ -28,7 +28,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 
-// Makes FluidSystems.ReplicateChanges parallel-safe by deferring all packet sends
+// Defers packet-path setup to command-buffer drain; compression completion retains its native thread.
 
 @Mixin(FluidSystems.ReplicateChanges.class)
 public class MixinFluidReplicateChanges {
@@ -75,12 +75,11 @@ public class MixinFluidReplicateChanges {
 
         // Defer light invalidation to merge phase
         commandBuffer.run(s -> {
-            if (worldChunk == null || worldChunk.getWorld() == null) return;
-            worldChunk
-                    .getWorld()
+            if (worldChunk == null) return;
+            ChunkStore chunks = s.getExternalData();
+            chunks.getWorld()
                     .getChunkLighting()
-                    .invalidateLightInChunkSection(
-                            store.getExternalData(), section.getX(), section.getY(), section.getZ());
+                    .invalidateLightInChunkSection(chunks, section.getX(), section.getY(), section.getZ());
         });
 
         Collection<PlayerRef> playerRefs = store.getExternalData().getWorld().getPlayerRefs();

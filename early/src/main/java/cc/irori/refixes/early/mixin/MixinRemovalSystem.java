@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(RemovalSystem.class)
 public class MixinRemovalSystem {
 
-    @Inject(method = "shouldRemoveWorld", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "shouldRemoveWorld(Lcom/hypixel/hytale/component/Store;)Z", at = @At("HEAD"), cancellable = true)
     private static void refixes$overrideWorldRemoval(Store<ChunkStore> store, CallbackInfoReturnable<Boolean> cir) {
         World world = store.getExternalData().getWorld();
         if (!world.getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
@@ -32,7 +32,7 @@ public class MixinRemovalSystem {
 
         if (instanceData.getTimeoutTimer() == null) {
             double seconds = portalWorld.getRemainingSeconds(world);
-            PortalWorld.setRemainingSeconds(world, seconds);
+            PortalWorld.setRemainingSeconds(world, seconds, false);
         }
 
         if (portalWorld.getRemainingSeconds(world) > 0.0d) {

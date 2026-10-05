@@ -1,6 +1,6 @@
 # Refixes
 
-Server fixes and optional optimizations for Hytale 0.6.4, based on Hyfixes and Hyzen Kernel.
+Server fixes and optional optimizations, based on Hyfixes and Hyzen Kernel. The `pre-release` branch targets Hytale Server **0.7.0-pre.5.1** on **JDK 25**.
 
 ## Installation
 

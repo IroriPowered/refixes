@@ -12,16 +12,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 // Guards against the AssertionError in debugAssertInTickingThread during shutdown.
 @Mixin(TickingThread.class)
-public class MixinTickingThreadAssert {
+public abstract class MixinTickingThreadAssert {
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
     @Shadow
-    private Thread thread;
+    protected abstract Thread getThread();
 
     @Inject(method = "debugAssertInTickingThread", at = @At("HEAD"), cancellable = true)
     private void refixes$skipAssertDuringShutdown(CallbackInfo ci) {
+        Thread thread = getThread();
         if (thread != null && !thread.isAlive()) {
             refixes$LOGGER.atFine().log(
                     "TickingThread#debugAssertInTickingThread(): Skipped assertion (thread no longer alive during shutdown)");

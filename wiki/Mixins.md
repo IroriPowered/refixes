@@ -33,7 +33,7 @@ Disabled by default. These can affect stability or gameplay. Test one change at 
 | `ShutdownSaveTimeout` | `false` | Bounds Store resource saves during shutdown. |
 | `PathfindingBudget` | `false` | Limits A* work per tick, excluding attacking NPCs and those with marked targets. |
 | `SkipEmptyLightSections` | `false` | Skips propagation from empty sections containing no light. |
-| `SharedInstances` | `false` | Reuses instance worlds across players, with configurable prefix exclusions. Can break consumable dungeon content. |
+| `SharedInstances` | `false` | Reuses instance worlds across players through the native asynchronous spawn path. Explicit world names and authored instance keys retain precedence; prefix exclusions keep native behavior. Can break consumable dungeon content. |
 | `ConnectionBackpressure` | `false` | Limits outbound buffering for slow clients. |
 | `TickSurvival` | `false` | Logs exceptions and skips the failed system's remaining work for that tick. Can mask bugs. Save systems retry, then rethrow after three failures within five minutes. `Error`s still propagate. |
 
@@ -54,7 +54,7 @@ The advanced group permits reads only in the exact active store. Structural writ
 | `AllSystems` | `false` | Enables systems using `maybeUseParallel` on large chunks. `ItemPrePhysicsSystem` stays on the owner thread for chunk store access. Forces the helpers and both replication companions below. |
 | `Steering` | `false` | Forces NPC steering parallel despite the engine's chunk access restriction. Forces the `RelaxStoreAsserts` helpers. |
 | `RelaxStoreAsserts` | `false` | Enables scoped store reads, processing counter synchronization, notification deferral and task context helpers. Logs relaxed call sites. Workers still cannot bypass structural write guards, including the legacy processing assertion override. |
-| `FluidReplicateChanges` | `false` | Defers fluid replication packets to the merge phase. Required by `AllSystems`. |
+| `FluidReplicateChanges` | `false` | Defers fluid packet-path setup and light invalidation to command-buffer drain. Compression completion retains its native callback thread. Required by `AllSystems`. |
 | `ChunkReplicateChanges` | `false` | Defers block replication packets to the merge phase. Required by `AllSystems`. |
 
 Dependencies override explicit `false` values at boot without rewriting those values in the file.
@@ -71,12 +71,12 @@ Enabled by default.
 | `TurnOffTeleportersSystem` | `true` | Defers teleporter updates outside chunk loading callbacks. |
 | `EntityChunkLoadingSystem` | `true` | Skips broken entity records and saves the repaired chunk. |
 | `CollisionModule` | `true` | Rejects invalid positions and empty or inverted hitboxes. |
-| `PageManager` | `true` | Ignores unexpected client page acknowledgements. |
+| `PageManager` | `true` | Ignores unexpected legacy custom-page acknowledgements. |
 | `TeleportToPlayerCommand` | `true` | Avoids stale teleport history references in `/tp <player>` across worlds. |
 | `DeployableOwnerComponent` | `true` | Prunes stale deployable references after world changes. |
 | `MountPlugin` | `true` | Guards invalid rider references. |
 | `DespawnSystem` | `true` | Skips despawn timers with no instant. |
-| `ChunkStoreSectionBackoffDeadlock` | `true` | Avoids deadlock when section loading fails under the chunk store write lock. |
+| `ChunkStoreSectionBackoffDeadlock` | `true` | Pairs `ChunkGrid` section-load backoff with `ChunkGrid.LoadState` failure handling to avoid re-entering the write lock. |
 
 ## Helpers
 Section: `Mixins.Helpers`
@@ -88,7 +88,7 @@ Supporting patches, enabled by default. Accessors have no standalone effect.
 | `ArchetypeChunk` | `true` | Logs and skips component access outside valid entity indexes. |
 | `BeaconAddRemoveSystem` | `true` | Despawns NPCs missing their beacon spawn controller. |
 | `BlockComponentChunk` | `true` | Logs and ignores duplicate component references and holders. |
-| `BlockHealthSystem` | `true` | Catches and logs null pointer exceptions during block health ticks. |
+| `BlockComponentSectionAccess` | `true` | Exposes section block references for non-destructive container inspection. Required when container cleaning is enabled. |
 | `CommandBuffer` | `true` | Guards buffered removals against invalid entity references. |
 | `EntityViewer` | `true` | Skips updates and removals for entities outside the viewer's visible set. |
 | `FluidSection` | `true` | Exposes unknown fluid detection for the runtime cleaner. |
@@ -109,9 +109,9 @@ Supporting patches, enabled by default. Accessors have no standalone effect.
 | `StateSupport` | `true` | Discards NPC role updates with incorrect store references. |
 | `TickingSpawnMarkerSystem` | `true` | Despawns NPCs whose spawn marker tick uses an incorrect store reference. |
 | `TickSleep` | `true` | Reserves the final 1ms for brief parking instead of busy spinning. |
-| `TickingThread` | `true` | Preserves exact owner identity for `isInThread()`. Workers are not world threads. |
+| `TickingThread` | `true` | Exposes the native active-run thread for the watchdog; it can be absent during lifecycle transitions. Native `isInThread()` retains exact owner identity. |
 | `TickingThreadAssert` | `true` | Suppresses a harmless shutdown thread assertion. |
-| `ChunkStoreAccess` | `true` | Exposes the cubic chunk loader and saver for storage wrapping. |
+| `ChunkStoreAccess` | `true` | Exposes the loader on `ChunkGrid` and saver on `ChunkStore` for storage wrapping. Both accessors share this toggle. |
 | `TrackedPlacementAccessor` | `true` | Exposes block names for `TrackedPlacementOnAddRemove`. |
 | `TrackedPlacementOnAddRemove` | `true` | Logs and skips missing tracked placements or block names on removal. |
 | `UUIDSystem` | `true` | Skips removal steps when the UUID component is missing. |

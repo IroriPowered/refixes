@@ -1,10 +1,12 @@
 package cc.irori.refixes.service;
 
+import cc.irori.refixes.early.accessor.ChunkGridAccess;
 import cc.irori.refixes.early.accessor.ChunkStoreAccess;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.function.consumer.TriIntConsumer;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.metrics.MetricProvider;
 import com.hypixel.hytale.metrics.MetricResults;
@@ -15,6 +17,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.world.chunk.ChunkColumn;
 import com.hypixel.hytale.server.core.universe.world.chunk.ChunkFlag;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
+import com.hypixel.hytale.server.core.universe.world.chunk.heightmap.TreeHeightmap;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockComponentSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
 import com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent;
@@ -53,12 +56,12 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
             if (chunks.getSaver() instanceof SharedInstanceStorage) return;
             if (!(chunks.getSaver() instanceof IChunkSaver.Cubic cubic)
                     || !(chunks.getLoader() instanceof IChunkLoader.Cubic loader)) return;
-            if (!(chunks instanceof ChunkStoreAccess access)) {
+            if (!(chunks instanceof ChunkGridAccess gridAccess) || !(chunks instanceof ChunkStoreAccess storeAccess)) {
                 throw new IllegalStateException("Shared-instance cubic storage requires Refixes early storage access");
             }
             SharedInstanceStorage storage = new SharedInstanceStorage(cubic, chunks.getStore());
-            access.refixes$setLoader(storage.new Loader(loader));
-            access.refixes$setSaver(storage);
+            gridAccess.refixes$setLoader(storage.new Loader(loader));
+            storeAccess.refixes$setSaver(storage);
         });
     }
 
@@ -466,6 +469,16 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
         @Override
         public LongList getIndexes() throws IOException {
             return loader.getIndexes();
+        }
+
+        @Override
+        public void forEachSection(TriIntConsumer consumer) throws IOException {
+            loader.forEachSection(consumer);
+        }
+
+        @Override
+        public CompletableFuture<Void> resolveTreeHeightmapColumns(int x, int z, TreeHeightmap heightmap) {
+            return loader.resolveTreeHeightmapColumns(x, z, heightmap);
         }
 
         @Override

@@ -5,6 +5,7 @@ import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.early.accessor.TickingThreadAccess;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.Message;
@@ -317,11 +318,18 @@ public class WatchdogService {
                     return false;
                 }
                 Thread thread = access.refixes$getThread();
-                if (thread == null || thread == Thread.currentThread()) return false;
-                thread.join(Math.max(1L, timeoutMs));
-                if (thread.isAlive()) return false;
-                boolean closed = world.getChunkStore().getStore().isShutdown()
-                        && world.getEntityStore().getStore().isShutdown()
+                if (thread == Thread.currentThread()) return false;
+                if (thread != null) {
+                    thread.join(Math.max(1L, timeoutMs));
+                    if (thread.isAlive()) return false;
+                }
+                // The current run is cleared after shutdown, even when its thread was abandoned.
+                // Store owners still identify that thread and must be finished before restarting.
+                Store<?> chunkStore = world.getChunkStore().getStore();
+                Store<?> entityStore = world.getEntityStore().getStore();
+                if (chunkStore.isAliveInDifferentThread() || entityStore.isAliveInDifferentThread()) return false;
+                boolean closed = chunkStore.isShutdown()
+                        && entityStore.isShutdown()
                         && world.getChunkStore().getSaver() == null;
                 if (!closed) {
                     LOGGER.atSevere().log(

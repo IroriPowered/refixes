@@ -43,7 +43,7 @@ Section: `Early.KDTreeOptimization`
 # Listeners
 Section: `Listeners`
 
-⚠️ **Warning:** the cleaner **deletes** unknown blocks, fluids, container items, and player inventory items. Test `UnknownBlockCleanerExclude` first — deletions are irreversible. All scans require `UnknownBlockCleaner`.
+**Warning:** the cleaner **deletes** unknown blocks, fluids, container items, and player inventory items. Keep it disabled until the intended asset packs are loaded, back up the world, and test `UnknownBlockCleanerExclude` first — deletions are irreversible. All scans require `UnknownBlockCleaner`. Container scans inspect live section references without removing them and require `Mixins.Helpers.BlockComponentSectionAccess`; enabling container cleaning forces this companion on at boot.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -165,17 +165,17 @@ Section: `ChunkLoader`
 # Shared Instance Worlds
 Section: `SharedInstanceWorlds`
 
-Controls persistent instance reuse and resets, such as dungeons.
+Controls persistent instance reuse and resets, such as dungeons, when `Mixins.Experimental.SharedInstances` is enabled. Explicit world names and authored `InstanceKey` values retain native precedence. Otherwise, non-excluded instances use a stable shared name; saved worlds are loaded through the native pending-spawn boundary so concurrent requests share the same future.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ExcludedPrefixes` | `[]` | World name prefixes excluded from shared instance handling. |
+| `ExcludedPrefixes` | `[]` | Instance asset-name prefixes excluded from shared naming and saved-world reuse. |
 | `ResetOnEmpty` | `false` | Reset shared instances when their last player leaves. |
 
 # Watchdog
 Section: `Watchdog`
 
-Monitors world threads for stalls and crashes.
+Monitors world threads for stalls and crashes using the native active-run thread, which can be absent during startup or shutdown. Restart requires both entity and chunk store owners to have stopped; a lingering live owner aborts restart.
 
 | Key | Default | Description |
 |-----|---------|-------------|
