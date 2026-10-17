@@ -131,16 +131,17 @@ public abstract class MixinStore<ECS_TYPE> {
 
     @Unique
     private static String refixes$callSite() {
-        return StackWalker.getInstance().walk(frames -> frames.map(StackWalker.StackFrame::toStackTraceElement)
-                .filter(e -> {
-                    String c = e.getClassName();
-                    return !c.startsWith("java.")
-                            && !c.startsWith("jdk.")
-                            && !c.equals("cc.irori.refixes.early.mixin.MixinStore");
-                })
-                .limit(8)
-                .map(StackTraceElement::toString)
-                .collect(Collectors.joining("\n    at ")));
+        return StackWalker.getInstance()
+                .walk(frames -> frames.map(StackWalker.StackFrame::toStackTraceElement)
+                        .filter(e -> {
+                            String c = e.getClassName();
+                            return !c.startsWith("java.")
+                                    && !c.startsWith("jdk.")
+                                    && !c.equals("cc.irori.refixes.early.mixin.MixinStore");
+                        })
+                        .limit(8)
+                        .map(StackTraceElement::toString)
+                        .collect(Collectors.joining("\n    at ")));
     }
 
     // synchronize the isEmpty + pop sequence
