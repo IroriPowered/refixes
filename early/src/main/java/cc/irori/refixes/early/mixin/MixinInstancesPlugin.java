@@ -23,7 +23,7 @@ public abstract class MixinInstancesPlugin {
 
     @ModifyExpressionValue(
             method =
-                    "lambda$spawnInstance$0(Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/world/World;Lcom/hypixel/hytale/math/vector/Transform;Ljava/util/function/Consumer;Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/Universe;Ljava/nio/file/Path;Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
+                    "spawnInstance+ -> Ljava/util/function/Function;apply(Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
             at =
                     @At(
                             value = "INVOKE",
@@ -41,7 +41,7 @@ public abstract class MixinInstancesPlugin {
 
     @WrapOperation(
             method =
-                    "lambda$spawnInstance$0(Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/world/World;Lcom/hypixel/hytale/math/vector/Transform;Ljava/util/function/Consumer;Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/Universe;Ljava/nio/file/Path;Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
+                    "spawnInstance+ -> Ljava/util/function/Function;apply(Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
             at =
                     @At(
                             value = "INVOKE",

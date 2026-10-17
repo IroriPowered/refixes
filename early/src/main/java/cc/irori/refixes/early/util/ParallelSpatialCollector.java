@@ -18,14 +18,15 @@ public final class ParallelSpatialCollector {
 
     private ParallelSpatialCollector() {}
 
-    // A collected spatial entry: position + entity reference.
-    public static final class Entry<ECS_TYPE> {
-        public final Vector3d position;
-        public final Ref<ECS_TYPE> ref;
+    private static final class ChunkEntries<ECS_TYPE> {
+        private final Vector3d[] positions;
+        private final Ref<ECS_TYPE>[] refs;
+        private int size;
 
-        public Entry(Vector3d position, Ref<ECS_TYPE> ref) {
-            this.position = position;
-            this.ref = ref;
+        @SuppressWarnings("unchecked")
+        private ChunkEntries(int capacity) {
+            this.positions = new Vector3d[capacity];
+            this.refs = (Ref<ECS_TYPE>[]) new Ref<?>[capacity];
         }
     }
 
@@ -59,7 +60,7 @@ public final class ParallelSpatialCollector {
         }
 
         ForkJoinPool pool = ForkJoinPool.commonPool();
-        List<ForkJoinTask<List<Entry<ECS_TYPE>>>> tasks = new ArrayList<>(chunks.size());
+        List<ForkJoinTask<ChunkEntries<ECS_TYPE>>> tasks = new ArrayList<>(chunks.size());
 
         Throwable[] workerFailure = new Throwable[1];
         try {
@@ -71,7 +72,7 @@ public final class ParallelSpatialCollector {
                         synchronized (workerFailure) {
                             workerFailure[0] = ParallelFailure.combine(workerFailure[0], thrown);
                         }
-                        return List.of();
+                        return null;
                     }
                 }));
             }
@@ -82,7 +83,7 @@ public final class ParallelSpatialCollector {
         }
 
         Throwable failure = null;
-        for (ForkJoinTask<List<Entry<ECS_TYPE>>> task : tasks) {
+        for (ForkJoinTask<ChunkEntries<ECS_TYPE>> task : tasks) {
             try {
                 task.join();
             } catch (Throwable thrown) {
@@ -92,28 +93,29 @@ public final class ParallelSpatialCollector {
         ParallelFailure.rethrow(ParallelFailure.combine(failure, workerFailure[0]));
 
         // Merge results sequentially into SpatialData
-        for (ForkJoinTask<List<Entry<ECS_TYPE>>> task : tasks) {
-            List<Entry<ECS_TYPE>> entries = task.join();
-            if (entries.isEmpty()) {
+        for (ForkJoinTask<ChunkEntries<ECS_TYPE>> task : tasks) {
+            ChunkEntries<ECS_TYPE> entries = task.join();
+            if (entries.size == 0) {
                 continue;
             }
-            spatialData.addCapacity(entries.size());
-            for (Entry<ECS_TYPE> entry : entries) {
-                spatialData.append(entry.position, entry.ref);
+            spatialData.addCapacity(entries.size);
+            for (int i = 0; i < entries.size; i++) {
+                spatialData.append(entries.positions[i], entries.refs[i]);
             }
         }
     }
 
-    private static <ECS_TYPE> List<Entry<ECS_TYPE>> collectChunk(ChunkWork<ECS_TYPE> work) {
+    private static <ECS_TYPE> ChunkEntries<ECS_TYPE> collectChunk(ChunkWork<ECS_TYPE> work) {
         int size = work.chunk.size();
-        List<Entry<ECS_TYPE>> entries = new ArrayList<>(size);
+        ChunkEntries<ECS_TYPE> entries = new ChunkEntries<>(size);
         for (int i = 0; i < size; i++) {
             Vector3d position = work.extractor.getPosition(work.chunk, i);
             if (position == null) {
                 continue;
             }
             Ref<ECS_TYPE> ref = work.chunk.getReferenceTo(i);
-            entries.add(new Entry<>(position, ref));
+            entries.positions[entries.size] = position;
+            entries.refs[entries.size++] = ref;
         }
         return entries;
     }

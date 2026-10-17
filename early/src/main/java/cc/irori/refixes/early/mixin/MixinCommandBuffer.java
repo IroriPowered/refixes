@@ -14,7 +14,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public class MixinCommandBuffer {
 
     @Redirect(
-            method = "lambda$removeComponent$0",
+            method =
+                    "removeComponent(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/component/ComponentType;)V -> Ljava/util/function/Consumer;accept(Lcom/hypixel/hytale/component/Store;)V",
             at =
                     @At(
                             value = "INVOKE",
@@ -26,7 +27,7 @@ public class MixinCommandBuffer {
     }
 
     @Redirect(
-            method = {"lambda$removeEntity$0", "lambda$removeEntity$1"},
+            method = "removeEntity+ -> Ljava/util/function/Consumer;accept(Lcom/hypixel/hytale/component/Store;)V",
             at =
                     @At(
                             value = "INVOKE",

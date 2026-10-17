@@ -6,48 +6,32 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.packets.player.ClientMovement;
 import com.hypixel.hytale.server.core.io.handlers.game.GamePacketHandler;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import org.joml.Vector3d;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GamePacketHandler.class)
 public abstract class MixinGamePacketHandler {
 
-    @Shadow
-    protected abstract void lambda$handle$0(
-            Ref<?> ref, Store<?> store, ClientMovement packet, boolean ackLeftAcksPending, Vector3d ackedPosition);
-
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
-    @Unique
-    private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
-
-    @Inject(method = "lambda$handle$0", at = @At("HEAD"), cancellable = true)
+    @WrapMethod(
+            method =
+                    "handle(Lcom/hypixel/hytale/protocol/packets/player/ClientMovement;)V -> Ljava/lang/Runnable;run()V")
     private void refixes$wrapClientMovementHandler(
             Ref<?> ref,
             Store<?> store,
             ClientMovement packet,
             boolean ackLeftAcksPending,
             Vector3d ackedPosition,
-            CallbackInfo ci) {
-        if (refixes$WRAPPING.get()) {
-            // Run the original method
-            return;
-        }
-
-        ci.cancel();
-        refixes$WRAPPING.set(true);
+            Operation<Void> original) {
         try {
-            lambda$handle$0(ref, store, packet, ackLeftAcksPending, ackedPosition);
+            original.call(ref, store, packet, ackLeftAcksPending, ackedPosition);
         } catch (NullPointerException e) {
             refixes$LOGGER.atWarning().withCause(e).log("GamePacketHandler#handle(ClientMovement): Failed to run");
-        } finally {
-            refixes$WRAPPING.set(false);
         }
     }
 }
