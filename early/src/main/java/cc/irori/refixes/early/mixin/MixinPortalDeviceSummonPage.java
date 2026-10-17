@@ -4,7 +4,7 @@ import cc.irori.refixes.early.util.SharedInstanceConstants;
 import com.hypixel.hytale.builtin.instances.removal.InstanceDataResource;
 import com.hypixel.hytale.builtin.portals.resources.PortalWorld;
 import com.hypixel.hytale.builtin.portals.ui.PortalDeviceSummonPage;
-import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.logger.sentry.SkipSentryException;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.WorldConfig;
 import com.hypixel.hytale.server.core.universe.world.spawn.ISpawnProvider;
@@ -19,7 +19,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(PortalDeviceSummonPage.class)
 public class MixinPortalDeviceSummonPage {
 
-    @Inject(method = "spawnReturnPortal", at = @At("HEAD"), cancellable = true)
+    @Inject(
+            method =
+                    "spawnReturnPortal(Lcom/hypixel/hytale/server/core/universe/world/World;Lcom/hypixel/hytale/builtin/portals/resources/PortalWorld;Ljava/util/UUID;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;",
+            at = @At("HEAD"),
+            cancellable = true)
     private static void refixes$preventDuplicateReturnPortal(
             World world,
             PortalWorld portalWorld,
@@ -33,18 +37,21 @@ public class MixinPortalDeviceSummonPage {
             return;
         }
 
-        // Reset InstanceDataResource timers so shared worlds behave like a fresh instance
         InstanceDataResource data =
                 world.getChunkStore().getStore().getResource(InstanceDataResource.getResourceType());
+        if (data.isRemoving()) {
+            cir.setReturnValue(CompletableFuture.failedFuture(
+                    new SkipSentryException("Shared portal world is being removed: " + world.getName(), null)));
+            return;
+        }
+
         data.setTimeoutTimer(null);
         data.setIdleTimeoutTimer(null);
         data.setWorldTimeoutTimer(null);
         data.setHadPlayer(false);
-        data.setRemoving(false);
 
         // If a spawn point already exists, skip spawning a new return portal
         if (portalWorld.getSpawnPoint() != null) {
-            cir.cancel();
             cir.setReturnValue(CompletableFuture.completedFuture(world));
             return;
         }
@@ -55,12 +62,22 @@ public class MixinPortalDeviceSummonPage {
         ISpawnProvider spawnProvider = worldConfig.getSpawnProvider();
 
         if (spawnProvider instanceof IndividualSpawnProvider) {
-            Transform spawn = spawnProvider.getSpawnPoint(world, uuid);
-            if (spawn != null) {
-                portalWorld.setSpawnPoint(spawn);
-                cir.cancel();
-                cir.setReturnValue(CompletableFuture.completedFuture(world));
-            }
+            cir.setReturnValue(spawnProvider
+                    .getSpawnPointAsync(world, uuid)
+                    .thenApplyAsync(
+                            spawn -> {
+                                if (spawn == null) {
+                                    throw new SkipSentryException(
+                                            "No valid spawn location for portal world " + world.getName(), null);
+                                }
+                                if (data.isRemoving()) {
+                                    throw new SkipSentryException(
+                                            "Shared portal world is being removed: " + world.getName(), null);
+                                }
+                                portalWorld.setSpawnPoint(spawn);
+                                return world;
+                            },
+                            world));
         }
     }
 }

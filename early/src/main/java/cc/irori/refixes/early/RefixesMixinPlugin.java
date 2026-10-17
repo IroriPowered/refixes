@@ -175,7 +175,9 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     true,
                     List.of("MixinBlockComponentChunk")),
             new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "BlockHealthSystem"}, true, List.of("MixinBlockHealthSystem")),
+                    new String[] {"Mixins", "Helpers", "BlockComponentSectionAccess"},
+                    true,
+                    List.of("MixinBlockComponentSectionAccess")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "CommandBuffer"}, true, List.of("MixinCommandBuffer")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "EntityViewer"}, true, List.of("MixinEntityViewer")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "FluidSection"}, true, List.of("MixinFluidSection")),
@@ -225,15 +227,15 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     List.of("MixinTickingSpawnMarkerSystem")),
             new MixinToggle(new String[] {"Mixins", "Helpers", "TickSleep"}, true, List.of("MixinTickSleep")),
             new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "TickingThread"},
-                    true,
-                    List.of("MixinTickingThread", "MixinTickingThreadAccess")),
+                    new String[] {"Mixins", "Helpers", "TickingThread"}, true, List.of("MixinTickingThreadAccess")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "TickingThreadAssert"},
                     true,
                     List.of("MixinTickingThreadAssert")),
             new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "ChunkStoreAccess"}, true, List.of("MixinChunkStoreAccess")),
+                    new String[] {"Mixins", "Helpers", "ChunkStoreAccess"},
+                    true,
+                    List.of("MixinChunkGridAccess", "MixinChunkStoreAccess")),
             new MixinToggle(
                     new String[] {"Mixins", "Helpers", "TrackedPlacementAccessor"},
                     true,
@@ -297,6 +299,12 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         if (parallelAllSystems) {
             forceEnable(disabled, "MixinChunkReplicateChanges");
             forceEnable(disabled, "MixinFluidReplicateChanges");
+        }
+
+        if (Boolean.TRUE.equals(getBoolean(config, new String[] {"Listeners", "UnknownBlockCleaner"}))
+                && Boolean.TRUE.equals(
+                        getBoolean(config, new String[] {"Listeners", "UnknownBlockCleanerScanContainers"}))) {
+            disabled.remove("MixinBlockComponentSectionAccess");
         }
 
         disabledMixins = disabled;

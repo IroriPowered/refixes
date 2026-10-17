@@ -6,6 +6,7 @@ dependencies {
     compileOnly(project(":early"))
 
     compileOnly(libs.guava)
+    compileOnly(libs.jspecify)
 }
 
 base {

@@ -1,14 +1,14 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.util.SectionLockHold;
-import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkGrid;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import java.util.concurrent.locks.StampedLock;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
-@Mixin(ChunkStore.class)
+@Mixin(ChunkGrid.class)
 public abstract class MixinChunkStoreSectionBackoffDeadlock {
 
     @WrapOperation(

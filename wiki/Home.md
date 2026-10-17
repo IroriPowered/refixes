@@ -1,6 +1,6 @@
 # Refixes
 
-Server fixes and optional optimizations for Hytale 0.6.4, based on Hyfixes and Hyzen Kernel.
+Server fixes and optional optimizations for Hytale 0.7.2, based on Hyfixes and Hyzen Kernel.
 
 ## Installation
 

@@ -2,6 +2,7 @@ package cc.irori.refixes.listener;
 
 import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.ListenerConfig;
+import cc.irori.refixes.early.accessor.BlockComponentSectionAccess;
 import cc.irori.refixes.early.duck.UnknownFluidScannable;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.assetstore.map.BlockTypeAssetMap;
@@ -29,9 +30,9 @@ import com.hypixel.hytale.server.core.modules.block.components.ItemContainerBloc
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.world.SetBlockSettings;
 import com.hypixel.hytale.server.core.universe.world.World;
-import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.BlockOperations;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
+import com.hypixel.hytale.server.core.universe.world.chunk.heightmap.HeightmapColumn;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockComponentSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkSection;
@@ -39,6 +40,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.section.FluidSection;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.FillerBlockUtil;
+import it.unimi.dsi.fastutil.shorts.Short2ReferenceMaps;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +61,11 @@ public final class UnknownBlockCleaner {
     private UnknownBlockCleaner() {}
 
     public static synchronized void registerEvents(JavaPlugin plugin) {
+        if (ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_SCAN_CONTAINERS)
+                && !BlockComponentSectionAccess.class.isAssignableFrom(BlockComponentSection.class)) {
+            throw new IllegalStateException(
+                    "Unknown-block container cleaning requires Refixes early BlockComponentSectionAccess");
+        }
         shutdown();
         long currentGeneration = generation;
         running = true;
@@ -213,8 +220,8 @@ public final class UnknownBlockCleaner {
         if (columnRef == null || !columnRef.isValid()) {
             return;
         }
-        BlockChunk blockChunk = store.getComponent(columnRef, BlockChunk.getComponentType());
-        if (blockChunk == null) {
+        HeightmapColumn heightmap = store.getComponent(columnRef, HeightmapColumn.getComponentType());
+        if (heightmap == null) {
             return;
         }
         ChunkStore chunkStore = store.getExternalData();
@@ -236,7 +243,7 @@ public final class UnknownBlockCleaner {
                                         section,
                                         blocks,
                                         blockComponents,
-                                        blockChunk,
+                                        heightmap,
                                         startX + x,
                                         startY + y,
                                         startZ + z,
@@ -309,7 +316,10 @@ public final class UnknownBlockCleaner {
             return;
         }
         String worldName = store.getExternalData().getWorld().getName();
-        for (var entry : blockComponents.getBlockReferences().short2ReferenceEntrySet()) {
+        var references = Short2ReferenceMaps.fastIterator(
+                ((BlockComponentSectionAccess) blockComponents).refixes$getBlockReferences());
+        while (references.hasNext()) {
+            var entry = references.next();
             Ref<ChunkStore> blockRef = entry.getValue();
             if (blockRef == null || !blockRef.isValid()) {
                 continue;

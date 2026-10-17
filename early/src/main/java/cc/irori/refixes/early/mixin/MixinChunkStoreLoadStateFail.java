@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(targets = "com.hypixel.hytale.server.core.universe.world.storage.ChunkStore$LoadState")
+@Mixin(targets = "com.hypixel.hytale.server.core.universe.world.storage.ChunkGrid$LoadState")
 public abstract class MixinChunkStoreLoadStateFail {
 
     @Shadow
@@ -39,7 +39,7 @@ public abstract class MixinChunkStoreLoadStateFail {
     @Shadow
     int failedCounter;
 
-    @Inject(method = "fail", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "fail(Ljava/lang/Throwable;)V", at = @At("HEAD"), cancellable = true)
     private void refixes$failWithoutReentrantWriteLock(Throwable cause, CallbackInfo ci) {
         if (!SectionLockHold.heldByCurrentThread(this.lock)) {
             return;
@@ -53,7 +53,7 @@ public abstract class MixinChunkStoreLoadStateFail {
         ci.cancel();
     }
 
-    @Inject(method = "checkAndResetBackoff", at = @At("HEAD"))
+    @Inject(method = "checkAndResetBackoff()Z", at = @At("HEAD"))
     private void refixes$clearFailedChainBeforeRetry(CallbackInfoReturnable<Boolean> cir) {
         if (this.throwable != null) {
             this.flags = GetChunkFlags.NONE;

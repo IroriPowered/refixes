@@ -5,6 +5,7 @@ import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.early.accessor.TickingThreadAccess;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.Message;
@@ -299,8 +300,7 @@ public class WatchdogService {
                         LOGGER.atSevere().log(
                                 "Giving up on auto-restarting world '%s' after %d failures. Resolve the underlying issue and restart the server.",
                                 worldName, failures);
-                        HyboxBridge.event(
-                                "Watchdog", "gave up on '" + worldName + "' after " + failures + " failures");
+                        HyboxBridge.event("Watchdog", "gave up on '" + worldName + "' after " + failures + " failures");
                     }
                 }
             }
@@ -317,11 +317,16 @@ public class WatchdogService {
                     return false;
                 }
                 Thread thread = access.refixes$getThread();
-                if (thread == null || thread == Thread.currentThread()) return false;
-                thread.join(Math.max(1L, timeoutMs));
-                if (thread.isAlive()) return false;
-                boolean closed = world.getChunkStore().getStore().isShutdown()
-                        && world.getEntityStore().getStore().isShutdown()
+                if (thread == Thread.currentThread()) return false;
+                if (thread != null) {
+                    thread.join(Math.max(1L, timeoutMs));
+                    if (thread.isAlive()) return false;
+                }
+                Store<?> chunkStore = world.getChunkStore().getStore();
+                Store<?> entityStore = world.getEntityStore().getStore();
+                if (chunkStore.isAliveInDifferentThread() || entityStore.isAliveInDifferentThread()) return false;
+                boolean closed = chunkStore.isShutdown()
+                        && entityStore.isShutdown()
                         && world.getChunkStore().getSaver() == null;
                 if (!closed) {
                     LOGGER.atSevere().log(
