@@ -2,7 +2,6 @@
     "Group": "IroriPowered",
     "Name": "Refixes-Bundle",
     "Version": "${version}",
-    "Website": "https://www.irori.cc/",
     "Description": "Patches and optimizations for Hytale server.",
     "Authors": [
         {

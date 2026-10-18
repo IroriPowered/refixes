@@ -1,94 +1,94 @@
-Runtime settings in `mods/IroriPowered_Refixes/config.json`, created by the server. Patch switches are documented in [Mixins](Mixins).
+Runtime settings live in `mods/IroriPowered_Refixes/config.json`, created and saved by the server. Patch switches are documented in [Mixins](Mixins). Restart after changing either file.
+
+Settings are grouped under `Early` and `Runtime`. Missing values use defaults. Back up your settings before upgrading. Old paths are not migrated and unknown keys are removed on save.
 
 # Hybox Integration
+Section: `Runtime.Diagnostics`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `HyboxIntegration` | `true` | Send events, counters and gauges to Hybox, if installed. Requires a restart. |
+| `HyboxIntegration` | `true` | Send metrics to Hybox, if installed. |
 
 # Early Patches
 Section: `Early`
 
-Requires a full restart. Each key only acts through its Mixin patch — without it, changing the value is a silent no-op.
+These settings require their corresponding Mixin patches.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `MaxSectionsPerSecond` | `360` | Sections streamed per player per second. Legacy `MaxChunksPerSecond` is ignored. Requires `Mixins.Optimizations.PlayerChunkTrackerSystems`. |
-| `MaxSectionsPerTick` | `40` | Sections streamed per player per tick. Legacy `MaxChunksPerTick` is ignored. Requires `Mixins.Optimizations.PlayerChunkTrackerSystems`. |
-| `VanillaKeepSpawnLoaded` | `true` | Keep spawn chunks loaded. Requires `Mixins.Optimizations.ChunkUnloadingSystem`. |
-| `UnloadDistanceOffset` | `4` | Extra loaded chunks beyond player view radius. Requires `Mixins.Optimizations.PlayerChunkTrackerSystems` and `Mixins.Helpers.PlayerViewRadius`. |
-| `PathfindingMaxPathLength` | `200` | Maximum nodes in an NPC path. Requires `Mixins.Optimizations.AStarBase`. |
-| `PathfindingOpenNodesLimit` | `80` | Maximum simultaneous A* frontier nodes per search. Requires `Mixins.Optimizations.AStarBase`. |
-| `PathfindingTotalNodesLimit` | `400` | Maximum expanded nodes per A* search. Requires `Mixins.Optimizations.AStarBase`. |
+| `MaxSectionsPerSecond` | `360` | Sections per player per second. Requires `Mixins.Tuning.ChunkStreaming`. |
+| `MaxSectionsPerTick` | `40` | Sections per player per tick. Requires `Mixins.Tuning.ChunkStreaming`. |
+| `VanillaKeepSpawnLoaded` | `true` | Keep the origin chunk loaded. Requires `Mixins.Features.OriginRetention`. |
+| `UnloadDistanceOffset` | `4` | Extra loaded chunks beyond player view radius. Requires `Mixins.Tuning.ChunkStreaming`. |
+| `PathfindingMaxPathLength` | `200` | Maximum nodes in an NPC path. Requires `Mixins.Tuning.PathfindingLimits`. |
+| `PathfindingOpenNodesLimit` | `80` | Maximum open nodes per search. Requires `Mixins.Tuning.PathfindingLimits`. |
+| `PathfindingTotalNodesLimit` | `400` | Maximum expanded nodes per search. Requires `Mixins.Tuning.PathfindingLimits`. |
 | `PathfindingMaxNewSearchesPerTick` | `8` | Maximum new searches per tick. Requires `Mixins.Experimental.PathfindingBudget`. |
 | `PathfindingMaxNodeExpansionsPerTick` | `600` | Maximum A* expansions per tick across searches. Requires `Mixins.Experimental.PathfindingBudget`. |
-| `ShutdownSaveTimeoutSeconds` | `10` | Store resource save timeout in seconds. Nonpositive values wait indefinitely. Requires `Mixins.Experimental.ShutdownSaveTimeout`. |
-| `BackpressureMaxOutboundBytes` | `16777216` | Outbound bytes per connection before backpressure, 16 MiB. Requires `Mixins.Experimental.ConnectionBackpressure`. |
-| `BackpressureGraceMs` | `10000` | Milliseconds before closing a stalled connection. Requires `Mixins.Experimental.ConnectionBackpressure`. |
+| `ShutdownSaveTimeoutSeconds` | `10` | Save timeout in seconds, unlimited at `0` or below. Requires `Mixins.Recovery.ShutdownSaveTimeout`. |
 
 ## Cylinder Visibility
 Section: `Early.CylinderVisibility`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `HeightMultiplier` | `2.0` | Cylinder vertical half height relative to horizontal view radius. Requires `Mixins.Optimizations.CollectVisible`. |
+| `HeightMultiplier` | `2.0` | Vertical half height as a view radius multiplier. Requires `Mixins.Tuning.CylinderVisibility`. |
 
 ## KD Tree Optimization
 Section: `Early.KDTreeOptimization`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `SpatialFastSortThreshold` | `64` | Below this entity count, use coordinate sorting instead of Morton sorting. Requires `Mixins.Optimizations.KDTree`. |
+| `SpatialFastSortThreshold` | `64` | Entity threshold for coordinate sorting. Requires `Mixins.Optimizations.KDTree`. |
 
-# Listeners
-Section: `Listeners`
+# Unknown Block Cleaner
+Section: `Runtime.Recovery.UnknownBlockCleaner`
 
-⚠️ **Warning:** the cleaner **deletes** unknown blocks, fluids, container items, and player inventory items. Test `UnknownBlockCleanerExclude` first — deletions are irreversible. All scans require `UnknownBlockCleaner`.
+Deletes unknown blocks and optional fluid or item data. Back up the world and check `Exclude` before enabling.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `UnknownBlockCleaner` | `false` | Remove unknown blocks from newly loaded sections. |
-| `UnknownBlockCleanerScanFluids` | `false` | Also remove unknown fluids. |
-| `UnknownBlockCleanerScanContainers` | `false` | Also remove unknown container items. |
-| `UnknownBlockCleanerScanPlayerInventories` | `false` | Also remove unknown inventory items when players enter a world. |
-| `UnknownBlockCleanerExclude` | `[]` | Protected ID prefixes across all scans, such as `dynamicseasons:`. |
-| `UnknownBlockCleanerBudgetMs` | `10` | Section scan budget in milliseconds, checked between sections. |
-| `UnknownBlockCleanerIntervalMs` | `50` | Milliseconds between passes, minimum 20. |
+| `Enabled` | `false` | Remove unknown blocks from newly loaded sections. |
+| `ScanFluids` | `false` | Also remove unknown fluids. |
+| `ScanContainers` | `false` | Also remove unknown container items. |
+| `ScanPlayerInventories` | `false` | Also remove unknown inventory items when players enter a world. |
+| `Exclude` | `[]` | Protected ID prefixes across all scans, such as `dynamicseasons:`. |
+| `BudgetMs` | `10` | Scan budget in milliseconds, checked between sections. |
+| `IntervalMs` | `50` | Milliseconds between passes, minimum 20. |
 
-# Systems
-Section: `Systems`
+# Correctness
+Section: `Runtime.Correctness`
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `CraftingManager` | `true` | Clears stale crafting bench bindings. |
-| `EntityDespawnTimer` | `true` | Manage item, loose block entity and projectile lifetimes. |
+
+# Tuning
 
 ## Entity Despawn Timer
-Section: `Systems.EntityDespawnTimerConfig`
+Section: `Runtime.Tuning.EntityDespawnTimer`
 
-Requires `EntityDespawnTimer`. Existing lifetimes take precedence by default. Category values apply to null timer repairs, added timers or explicit overrides. Missing timers normally mean permanent entities.
+Runs when either timer option is enabled and also repairs null timers. Existing lifetimes are kept unless overridden. Missing timers normally mean permanent entities.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ItemDespawnSeconds` | `300` | Dropped item lifetime in seconds, `0` means permanent. |
 | `BlockEntityDespawnSeconds` | `300` | Loose block entity lifetime in seconds, `0` means permanent. |
 | `ProjectileDespawnSeconds` | `60` | Projectile lifetime in seconds, `0` means permanent. |
-| `AddTimerWhenMissing` | `false` | Add missing timers at spawn, including intentionally permanent entities. Null timers are repaired regardless. |
-| `OverrideExistingTimers` | `false` | Replace existing timers at spawn with category values. `0` removes the timer. Saved entities retain timers on reload. |
-
-# Services
+| `AddTimerWhenMissing` | `false` | Add timers at spawn, including permanent entities. |
+| `OverrideExistingTimers` | `false` | Replace spawn timers. `0` makes them permanent. Saved timers are kept on reload. |
 
 ## AI Tick Throttler
-Section: `Services.AiTickThrottler`
+Section: `Runtime.Tuning.AiTickThrottler`
 
-Distance throttling pauses movement and gravity between NPC steps, not just decisions. Motion exemptions default to `true`, but stored `false` values remain respected. Only freezes owned by this service are released. World pause, global NPC freeze and unrelated freezes still apply.
+Throttles distant NPCs by pausing movement and gravity between steps. Respects unmarked freezes and the global freeze. Later freezes on marked NPCs cannot be distinguished. Saved cleanup is under `Runtime.Compatibility.TickThrottledCleanup`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `Enabled` | `false` | Enable the service. |
 | `UpdateIntervalMs` | `150` | Milliseconds between scans. |
-| `MaxCycleMs` | `30` | Milliseconds for new freeze admissions, `0` disables the budget. Owned cleanup and due steps run regardless, so this is not a total scan cap. |
-| `ScanShards` | `1` | Spread new freeze admissions over this many scans. Check owned NPCs for thaws and due steps every scan. |
+| `MaxCycleMs` | `30` | Budget for new freezes in milliseconds. `0` disables it. Does not cap cleanup or due steps. |
+| `ScanShards` | `1` | Spread new freezes across scans. Check existing freezes every scan. |
 | `NearChunks` | `2` | Full tick rate within this distance, about 64 blocks. |
 | `MidChunks` | `4` | Mid tick rate within this distance, about 128 blocks. |
 | `FarChunks` | `6` | Far tick rate within this distance, about 192 blocks. |
@@ -98,21 +98,17 @@ Distance throttling pauses movement and gravity between NPC steps, not just deci
 | `MinTickSeconds` | `0.05` | Minimum throttled interval in seconds. |
 | `ActivationHysteresisChunks` | `0` | Extra chunk margin before changing bands. |
 | `MaxUnfreezesPerTick` | `10` | Ordinary near thaws per scan. Newly exempt NPCs bypass this cap. |
-| `MaxFreezesPerTick` | `20` | New freezes per scan with players present or `StepWithoutPlayers` enabled. |
+| `MaxFreezesPerTick` | `20` | New freezes per scan when NPC stepping is active. |
 | `ThrottleExcludedNpcTypes` | `[]` | NPC types exempt from throttling. |
 | `ThrottleExcludeMounts` | `true` | Exempt ridden entities. |
-| `ThrottleExcludeFlying` | `true` | Exempt flying controllers or movement states. `false` allows throttling. |
-| `ThrottleExcludeAirborneOrDead` | `true` | Exempt airborne, falling or dead NPCs. `false` allows throttling. |
-| `StepWithoutPlayers` | `false` | Step at `VeryFarTickSeconds` without players. Otherwise remain frozen and cancel pending owned steps. |
-| `CleanupFrozenEntities` | `false` | Release stranded throttler freezes on load. |
-| `CleanupExcludedNpcTypes` | `[]` | NPC types exempt from cleanup. |
-| `LegacyCleanup` | `false` | Enable legacy orphan freeze cleanup. |
-| `LegacyCleanupExcludedNpcTypes` | `[]` | NPC types exempt from legacy cleanup. |
+| `ThrottleExcludeFlying` | `true` | Exempt flying NPCs. |
+| `ThrottleExcludeAirborneOrDead` | `true` | Exempt airborne, falling or dead NPCs. |
+| `StepWithoutPlayers` | `false` | Step NPCs without players. Otherwise keep them frozen. |
 
 ## Per Player Hot Radius
-Section: `Services.PerPlayerHotRadius`
+Section: `Runtime.Tuning.PerPlayerHotRadius`
 
-Adjusts fully ticking chunk radii using each world's TPS. Healthy worlds use `MaxRadius`, matching the engine default of 8. The optional memory guard reduces server view radius after sustained heap pressure following major garbage collection, then restores it.
+Adjusts ticking chunk radii using each world's TPS. Healthy worlds use `MaxRadius`. The optional memory guard lowers view radius under heap pressure.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -120,16 +116,16 @@ Adjusts fully ticking chunk radii using each world's TPS. Healthy worlds use `Ma
 | `CheckIntervalMs` | `5000` | Milliseconds between adjustments. |
 | `MinRadius` | `2` | Minimum hot chunk radius. |
 | `MaxRadius` | `8` | Maximum hot chunk radius. |
-| `TPSLowFraction` | `0.75` | Target TPS fraction at or below which `MinRadius` applies. |
-| `TPSHighFraction` | `0.90` | Target TPS fraction at or above which `MaxRadius` applies. |
-| `MemoryGuardEnabled` | `false` | Reduce server view radius under pressure, restore on recovery or shutdown. |
+| `TPSLowFraction` | `0.75` | TPS fraction for minimum radius. |
+| `TPSHighFraction` | `0.90` | TPS fraction for maximum radius. |
+| `MemoryGuardEnabled` | `false` | Reduce view radius under pressure and restore it after recovery. |
 | `MemoryHeapThreshold` | `0.85` | Heap usage ratio after GC that signals pressure. |
 | `MemoryMinViewRadius` | `2` | Minimum guarded view radius. |
 | `MemoryViewDecreaseFactor` | `0.75` | View radius multiplier per reduction. |
 | `MemoryRecoveryWaitSeconds` | `60` | Seconds without pressure before restoring one radius unit. |
 
 ## Idle Player Handler
-Section: `Services.IdlePlayerHandler`
+Section: `Runtime.Tuning.IdlePlayerHandler`
 
 Reduces inactive players' ticking and view radii.
 
@@ -147,7 +143,7 @@ Reduces inactive players' ticking and view radii.
 | `MovementThreshold` | `0.5` | Blocks moved to reset the idle timer. |
 
 ## Idle World Pause
-Section: `Services.IdleWorldPause`
+Section: `Runtime.Tuning.IdleWorldPause`
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -156,42 +152,62 @@ Section: `Services.IdleWorldPause`
 | `ExcludedWorlds` | `[]` | Worlds never paused when empty. |
 
 # Chunk Loader
-Section: `ChunkLoader`
+Section: `Runtime.Features.ChunkLoader`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `Enabled` | `true` | Register `/chunkloader` and load kept chunks. When disabled, saved loaders remain on disk but are not applied. |
+| `Enabled` | `true` | Enable `/chunkloader` and saved chunk loaders. |
 
 # Shared Instance Worlds
-Section: `SharedInstanceWorlds`
+Section: `Runtime.Features.SharedInstances`
 
-Controls persistent instance reuse and resets, such as dungeons.
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `ExcludedPrefixes` | `[]` | World name prefixes excluded from shared instance handling. |
-| `ResetOnEmpty` | `false` | Reset shared instances when their last player leaves. |
-
-# Watchdog
-Section: `Watchdog`
-
-Monitors world threads for stalls and crashes.
+Requires `Mixins.Features.SharedInstances`. Explicit names and instance keys take precedence. Sharing can change consumable dungeon behavior.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `Enabled` | `true` | Enable monitoring. |
-| `ShutdownOnDefaultWorldCrash` | `true` | Shut down if the default world thread crashes. |
-| `AutoRestartWorlds` | `false` | Restart failed worlds after a successful save. |
+| `ExcludedPrefixes` | `[]` | Instance prefixes excluded from sharing. |
+
+# Compatibility
+Section: `Runtime.Compatibility`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `ExistingSharedInstances` | `true` | Persist existing shared worlds. Requires `Mixins.Features.SharedInstanceStorage`. Does not enable new shared instances. |
+
+## Saved Throttler Cleanup
+Section: `Runtime.Compatibility.TickThrottledCleanup`
+
+Runs on saved entity load, even with throttling disabled. Released NPCs run until the next throttler scan. Markers cannot distinguish later admin freezes.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `CleanupFrozenEntities` | `true` | Clear freezes marked by Refixes. |
+| `CleanupExcludedNpcTypes` | `[]` | NPC types exempt from marked cleanup. |
+| `LegacyCleanup` | `false` | Clear unmarked freezes too, including freezes from other systems. |
+| `LegacyCleanupExcludedNpcTypes` | `[]` | NPC types exempt from legacy cleanup. |
+
+# Watchdog Diagnostics
+Section: `Runtime.Diagnostics.Watchdog`
+
+Reports world stalls and crashes. Recovery actions keep monitoring active even if reporting is disabled.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `Enabled` | `true` | Enable watchdog diagnostic reporting. |
 | `DumpAllThreads` | `false` | Dump all JVM threads, not just the stalled thread. |
 | `ActivationDelayMs` | `10000` | Milliseconds after startup before monitoring. |
 | `ThreadTimeoutMs` | `30000` | Unresponsive milliseconds before flagging a stall. |
-| `ShutdownTimeoutMs` | `60000` | Milliseconds allowed for watchdog shutdown. |
-| `RestartSaveTimeoutMs` | `15000` | Milliseconds allowed for saving before restart. Failure aborts restart. |
-| `AutoRestartingWorldFilter` | `[]` | Empty excludes instances, plus the default world when `ShutdownOnDefaultWorldCrash` is enabled. |
 
-# Experimental
-Section: `Experimental`
+# Watchdog Recovery
+Section: `Runtime.Recovery.Watchdog`
+
+Restart requires stopped store threads and a successful save.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ParallelSteeringThreshold` | `64` | Minimum entities per chunk for parallel steering. Requires `Mixins.Experimental.Parallel.Steering`. |
+| `ShutdownOnDefaultWorldCrash` | `true` | Shut down after a default world crash or watchdog alert. |
+| `AutoRestartWorlds` | `false` | Restart eligible failed worlds after a successful save. |
+| `HaltOnShutdownTimeout` | `false` | Force process exit after the shutdown timeout. |
+| `ShutdownTimeoutMs` | `60000` | Milliseconds before forced exit, when enabled. |
+| `RestartSaveTimeoutMs` | `15000` | Save timeout before restart. Failure cancels restart. |
+| `AutoRestartingWorldFilter` | `[]` | Empty excludes instances, plus the default world when `ShutdownOnDefaultWorldCrash` is enabled. |

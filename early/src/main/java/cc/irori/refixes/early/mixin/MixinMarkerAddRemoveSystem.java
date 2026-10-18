@@ -9,12 +9,10 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.systems.SpawnReferenceSystems;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(SpawnReferenceSystems.MarkerAddRemoveSystem.class)
 public abstract class MixinMarkerAddRemoveSystem {
@@ -25,34 +23,20 @@ public abstract class MixinMarkerAddRemoveSystem {
     @Unique
     private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
 
-    @Shadow
-    public abstract void onEntityAdded(
-            Ref<EntityStore> ref, AddReason reason, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer);
-
-    @Shadow
-    public abstract void onEntityRemove(
-            Ref<EntityStore> ref,
-            RemoveReason reason,
-            Store<EntityStore> store,
-            CommandBuffer<EntityStore> commandBuffer);
-
-    @Inject(method = "onEntityAdded", at = @At("HEAD"), cancellable = true)
+    @WrapMethod(method = "onEntityAdded")
     private void refixes$wrapOnEntityAdded(
             Ref<EntityStore> ref,
             AddReason reason,
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer,
-            CallbackInfo ci) {
-        if (reason != AddReason.LOAD) {
+            Operation<Void> original) {
+        if (reason != AddReason.LOAD || refixes$WRAPPING.get()) {
+            original.call(ref, reason, store, commandBuffer);
             return;
         }
-        if (refixes$WRAPPING.get()) {
-            return;
-        }
-        ci.cancel();
         refixes$WRAPPING.set(true);
         try {
-            onEntityAdded(ref, reason, store, commandBuffer);
+            original.call(ref, reason, store, commandBuffer);
         } catch (Exception e) {
             refixes$LOGGER.atWarning().withCause(e).log(
                     "MarkerAddRemoveSystem#onEntityAdded(): Failed to process spawn marker on load, discarding");
@@ -61,20 +45,20 @@ public abstract class MixinMarkerAddRemoveSystem {
         }
     }
 
-    @Inject(method = "onEntityRemove", at = @At("HEAD"), cancellable = true)
+    @WrapMethod(method = "onEntityRemove")
     private void refixes$wrapOnEntityRemove(
             Ref<EntityStore> ref,
             RemoveReason reason,
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer,
-            CallbackInfo ci) {
+            Operation<Void> original) {
         if (refixes$WRAPPING.get()) {
+            original.call(ref, reason, store, commandBuffer);
             return;
         }
-        ci.cancel();
         refixes$WRAPPING.set(true);
         try {
-            onEntityRemove(ref, reason, store, commandBuffer);
+            original.call(ref, reason, store, commandBuffer);
         } catch (Exception e) {
             refixes$LOGGER.atWarning().withCause(e).log(
                     "MarkerAddRemoveSystem#onEntityRemove(): Unhandled exception while removing NPC references");

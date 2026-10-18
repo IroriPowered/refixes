@@ -101,16 +101,14 @@ public final class CompatibilityProbe {
         int toggles = 0;
         for (Object toggle : (Iterable<?>) togglesField.get(null)) {
             Method pathMethod = toggle.getClass().getDeclaredMethod("jsonPath");
-            Method enabledMethod = toggle.getClass().getDeclaredMethod("enabledWhen");
             pathMethod.setAccessible(true);
-            enabledMethod.setAccessible(true);
             String[] path = (String[]) pathMethod.invoke(toggle);
             JsonObject current = root;
             for (int i = 0; i < path.length - 1; i++) {
                 if (!current.has(path[i])) current.add(path[i], new JsonObject());
                 current = current.getAsJsonObject(path[i]);
             }
-            current.addProperty(path[path.length - 1], (Boolean) enabledMethod.invoke(toggle));
+            current.addProperty(path[path.length - 1], true);
             toggles++;
         }
         if (toggles == 0) throw new AssertionError("No optional mixin toggles discovered");

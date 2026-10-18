@@ -34,11 +34,6 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     public static final ConfigurationKey<EarlyConfig, Integer> SHUTDOWN_SAVE_TIMEOUT_SECONDS =
             new ConfigurationKey<>("ShutdownSaveTimeoutSeconds", ConfigField.INTEGER, 10);
 
-    public static final ConfigurationKey<EarlyConfig, Integer> BACKPRESSURE_MAX_OUTBOUND_BYTES =
-            new ConfigurationKey<>("BackpressureMaxOutboundBytes", ConfigField.INTEGER, 16777216);
-    public static final ConfigurationKey<EarlyConfig, Integer> BACKPRESSURE_GRACE_MS =
-            new ConfigurationKey<>("BackpressureGraceMs", ConfigField.INTEGER, 10000);
-
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
     public EarlyConfig() {
@@ -54,9 +49,7 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 PATHFINDING_TOTAL_NODES_LIMIT,
                 PATHFINDING_MAX_NEW_SEARCHES_PER_TICK,
                 PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK,
-                SHUTDOWN_SAVE_TIMEOUT_SECONDS,
-                BACKPRESSURE_MAX_OUTBOUND_BYTES,
-                BACKPRESSURE_GRACE_MS);
+                SHUTDOWN_SAVE_TIMEOUT_SECONDS);
     }
 
     public static EarlyConfig get() {

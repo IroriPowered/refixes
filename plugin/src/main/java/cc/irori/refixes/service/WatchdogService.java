@@ -2,6 +2,7 @@ package cc.irori.refixes.service;
 
 import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.WatchdogConfig;
+import cc.irori.refixes.config.impl.WatchdogRecoveryConfig;
 import cc.irori.refixes.early.accessor.TickingThreadAccess;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
@@ -49,7 +50,12 @@ public class WatchdogService {
 
     private volatile State state = State.ACTIVATING;
 
-    public WatchdogService() {}
+    public WatchdogService() {
+        if (WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.AUTO_RESTART_WORLDS)
+                && !TickingThreadAccess.class.isAssignableFrom(World.class)) {
+            throw new IllegalStateException("World auto-restart requires Refixes early TickingThreadAccess");
+        }
+    }
 
     public State getState() {
         return state;
@@ -100,21 +106,19 @@ public class WatchdogService {
     }
 
     private void runWatchdog() {
-        WatchdogConfig config = WatchdogConfig.get();
         state = State.ACTIVATING;
 
         try {
-            int delay = config.getValue(WatchdogConfig.ACTIVATION_DELAY_MS);
+            int delay = WatchdogConfig.get().getValue(WatchdogConfig.ACTIVATION_DELAY_MS);
             double seconds = (double) delay / 1000;
             LOGGER.atInfo().log("Watchdog will activate in %.2f seconds", seconds);
-
             Thread.sleep(delay);
 
             state = State.RUNNING;
             LOGGER.atInfo().log("Watchdog running");
 
             while (true) {
-                watchForServerShutdown();
+                if (watchForServerShutdown()) return;
 
                 // Send request -> wait -> check response
                 requestAutoRestartingWorldResponses();
@@ -132,13 +136,13 @@ public class WatchdogService {
     }
 
     private void requestAutoRestartingWorldResponses() {
-        WatchdogConfig config = WatchdogConfig.get();
-        if (!config.getValue(WatchdogConfig.AUTO_RESTART_WORLDS)) {
+        if (!WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.AUTO_RESTART_WORLDS)) {
             return;
         }
 
         List<String> worldNames = new ArrayList<>();
-        String[] configWorldNames = config.getValue(WatchdogConfig.AUTO_RESTARTING_WORLD_FILTER);
+        String[] configWorldNames =
+                WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.AUTO_RESTARTING_WORLD_FILTER);
         for (String worldName : configWorldNames) {
             if (!worldName.trim().isEmpty()) {
                 worldNames.add(worldName.trim());
@@ -148,7 +152,8 @@ public class WatchdogService {
         if (worldNames.isEmpty()) {
             String defaultWorldName =
                     HytaleServer.get().getConfig().getDefaults().getWorld();
-            boolean shutdownOnDefaultCrash = config.getValue(WatchdogConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH);
+            boolean shutdownOnDefaultCrash =
+                    WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH);
 
             // No custom filter set, check status for all loaded worlds
             for (World world : Universe.get().getWorlds().values()) {
@@ -179,8 +184,7 @@ public class WatchdogService {
     }
 
     private void watchForAutoRestartingWorlds() {
-        WatchdogConfig config = WatchdogConfig.get();
-        if (!config.getValue(WatchdogConfig.AUTO_RESTART_WORLDS)) {
+        if (!WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.AUTO_RESTART_WORLDS)) {
             return;
         }
 
@@ -189,7 +193,8 @@ public class WatchdogService {
         }
 
         List<String> worldNames = new ArrayList<>();
-        String[] configWorldNames = config.getValue(WatchdogConfig.AUTO_RESTARTING_WORLD_FILTER);
+        String[] configWorldNames =
+                WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.AUTO_RESTARTING_WORLD_FILTER);
         for (String worldName : configWorldNames) {
             if (!worldName.trim().isEmpty()) {
                 worldNames.add(worldName.trim());
@@ -199,7 +204,8 @@ public class WatchdogService {
         if (worldNames.isEmpty()) {
             String defaultWorldName =
                     HytaleServer.get().getConfig().getDefaults().getWorld();
-            boolean shutdownOnDefaultCrash = config.getValue(WatchdogConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH);
+            boolean shutdownOnDefaultCrash =
+                    WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH);
 
             // No custom filter set, scan loadable world names from disk
             Path worldsDir = Universe.get().getWorldsPath();
@@ -234,7 +240,7 @@ public class WatchdogService {
                 restart = true;
             } else if (response != null) {
                 long elapsed = System.currentTimeMillis() - response;
-                if (elapsed > config.getValue(WatchdogConfig.THREAD_TIMEOUT_MS)) {
+                if (elapsed > WatchdogConfig.get().getValue(WatchdogConfig.THREAD_TIMEOUT_MS)) {
                     LOGGER.atSevere().log("World %s did not respond for %.2f seconds.", worldName, elapsed / 1000.0);
                     restart = true;
                 }
@@ -259,7 +265,8 @@ public class WatchdogService {
 
                 World worldToRestart = Universe.get().getWorld(worldName);
                 if (worldToRestart != null && worldToRestart.getWorldConfig().canSaveChunks()) {
-                    int saveTimeout = config.getValue(WatchdogConfig.RESTART_SAVE_TIMEOUT_MS);
+                    int saveTimeout =
+                            WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.RESTART_SAVE_TIMEOUT_MS);
                     if (!trySaveWorldWithTimeout(worldToRestart, saveTimeout)) {
                         LOGGER.atSevere().log(
                                 "Aborting auto-restart of '%s': save or shutdown did not safely complete within %dms",
@@ -363,8 +370,8 @@ public class WatchdogService {
     }
 
     private void requestDefaultWorldResponse() throws InterruptedException {
-        WatchdogConfig config = WatchdogConfig.get();
-        if (!config.getValue(WatchdogConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) {
+        if (!WatchdogConfig.get().getValue(WatchdogConfig.ENABLED)
+                && !WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) {
             return;
         }
 
@@ -381,7 +388,10 @@ public class WatchdogService {
             lastDefaultWorld = world;
         }
 
-        checkAndShutdown(shutdownReason, shutdown);
+        if (shutdown) {
+            triggerWatchdog(shutdownReason);
+            return;
+        }
 
         try {
             world.execute(() -> {
@@ -397,8 +407,8 @@ public class WatchdogService {
     }
 
     private void watchForDefaultWorld() throws InterruptedException {
-        WatchdogConfig config = WatchdogConfig.get();
-        if (!config.getValue(WatchdogConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) {
+        if (!WatchdogConfig.get().getValue(WatchdogConfig.ENABLED)
+                && !WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) {
             return;
         }
 
@@ -407,17 +417,19 @@ public class WatchdogService {
         }
 
         long elapsed = System.currentTimeMillis() - defaultWorldResponse.get();
-        if (elapsed > config.getValue(WatchdogConfig.THREAD_TIMEOUT_MS)) {
+        if (elapsed > WatchdogConfig.get().getValue(WatchdogConfig.THREAD_TIMEOUT_MS)) {
             triggerWatchdog(
                     "World " + lastDefaultWorld.getName() + " did not respond for " + (elapsed / 1000) + " seconds.");
         }
     }
 
-    private static void watchForServerShutdown() throws InterruptedException {
+    private static boolean watchForServerShutdown() throws InterruptedException {
         if (HytaleServer.get().isShuttingDown()) {
             LOGGER.atInfo().log("Server shutdown detected");
             handleShutdownTimeout();
+            return true;
         }
+        return false;
     }
 
     private static void checkAndShutdown(String reason, boolean shutdown) throws InterruptedException {
@@ -427,12 +439,12 @@ public class WatchdogService {
     }
 
     private static void triggerWatchdog(String reason) throws InterruptedException {
-        LOGGER.atSevere().log("========== AUTO SERVER SHUTDOWN ==========");
+        LOGGER.atSevere().log("========== WATCHDOG ALERT ==========");
         LOGGER.atSevere().log("Reason: %s", reason);
-        LOGGER.atSevere().log("Dumping threads and shutting down the server...");
-        HyboxBridge.event("Watchdog", "server shutdown: " + reason);
-
-        dumpThreads();
+        HyboxBridge.event("Watchdog", reason);
+        if (WatchdogConfig.get().getValue(WatchdogConfig.ENABLED)) dumpThreads();
+        if (!WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) return;
+        LOGGER.atSevere().log("Shutting down the server after watchdog alert");
 
         Thread.sleep(5000);
         HytaleServer.get()
@@ -445,8 +457,7 @@ public class WatchdogService {
     }
 
     private static void dumpThreads(@Nullable String worldName) {
-        WatchdogConfig config = WatchdogConfig.get();
-        boolean dumpAllThreads = config.getValue(WatchdogConfig.DUMP_ALL_THREADS);
+        boolean dumpAllThreads = WatchdogConfig.get().getValue(WatchdogConfig.DUMP_ALL_THREADS);
 
         Thread.getAllStackTraces().forEach((thread, stackTrace) -> {
             if (dumpAllThreads
@@ -461,9 +472,11 @@ public class WatchdogService {
     }
 
     private static void handleShutdownTimeout() throws InterruptedException {
-        WatchdogConfig config = WatchdogConfig.get();
-
-        Thread.sleep(config.getValue(WatchdogConfig.SHUTDOWN_TIMEOUT_MS));
+        WatchdogRecoveryConfig config = WatchdogRecoveryConfig.get();
+        if (!config.getValue(WatchdogRecoveryConfig.HALT_ON_SHUTDOWN_TIMEOUT)) {
+            return;
+        }
+        Thread.sleep(config.getValue(WatchdogRecoveryConfig.SHUTDOWN_TIMEOUT_MS));
         LOGGER.atSevere().log("Shutdown cannot proceed. Forcing exit.");
         Runtime.getRuntime().halt(1);
     }

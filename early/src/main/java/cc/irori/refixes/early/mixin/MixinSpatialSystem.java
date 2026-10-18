@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.util.ParallelSpatialCollector;
+import cc.irori.refixes.early.util.SpatialPolicy;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.ResourceType;
@@ -22,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Parallelizes the entity position collection phase of SpatialSystem.tick().
  * The sequential forEachChunk loop is replaced with parallel per-chunk collection
- * into thread-local buffers, followed by a sequential merge into SpatialData.
+ * into worker buffers, followed by a sequential merge into SpatialData.
  * The KDTree rebuild() remains single-threaded.
  */
 @Mixin(SpatialSystem.class)
@@ -37,6 +38,7 @@ public abstract class MixinSpatialSystem<ECS_TYPE> {
 
     @Inject(method = "tick(FILcom/hypixel/hytale/component/Store;)V", at = @At("HEAD"), cancellable = true)
     private void refixes$parallelCollect(float dt, int systemIndex, Store<ECS_TYPE> store, CallbackInfo ci) {
+        if (!SpatialPolicy.parallelSafe(((Object) this).getClass())) return;
         ci.cancel();
 
         SpatialResource<Ref<ECS_TYPE>, ECS_TYPE> spatialResource = store.getResource(this.resourceType);

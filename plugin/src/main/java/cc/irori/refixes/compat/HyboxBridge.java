@@ -1,6 +1,6 @@
 package cc.irori.refixes.compat;
 
-import cc.irori.refixes.config.impl.RefixesConfig;
+import cc.irori.refixes.config.impl.DiagnosticsConfig;
 import com.hypixel.hytale.common.plugin.PluginIdentifier;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
@@ -110,7 +110,7 @@ public final class HyboxBridge {
 
     private static boolean integrationEnabled() {
         try {
-            return RefixesConfig.get().getValue(RefixesConfig.HYBOX_INTEGRATION);
+            return DiagnosticsConfig.get().getValue(DiagnosticsConfig.HYBOX_INTEGRATION);
         } catch (Throwable t) {
             return false;
         }

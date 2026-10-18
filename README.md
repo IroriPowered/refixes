@@ -1,11 +1,9 @@
 [**Support Discord Server**](https://discord.gg/y5kTgtQtgX)
 
 # Refixes
-A mod for Hytale that offers updated server bug fixes and optimizations in two ways;
-**the runtime plugin** and **Mixin-based patches**.
+Server fixes and optimizations for Hytale through a runtime plugin and Mixin patches.
 
-This project is derived from patches in Hyfixes / Hyzen Kernel, both of which are unfortunately no longer maintained
-at this time. We aim to keep important patches updated to newer Hytale releases.
+Based on Hyfixes and Hyzen Kernel, with patches updated for newer Hytale releases.
 
 > #### ⚠️ **WARNING**
 > Requires the server to be booted using [Hyinit](https://github.com/IroriPowered/Hyinit).  
@@ -17,7 +15,7 @@ Please read the installation guide to apply the mod correctly.
 
 ## Installation
 Refixes ships as a single jar containing both the runtime plugin and the Mixin-based early patches.
-You need to boot the server via [Hyinit](https://github.com/IroriPowered/hyinit) on Hytale 0.7.2.
+Use Hytale 0.7.2 and update [Hyinit](https://github.com/IroriPowered/hyinit) and Refixes together.
 
 To install:
 1. Set up Hyinit to launch your server

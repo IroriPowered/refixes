@@ -4,7 +4,7 @@ Server fixes and optional optimizations for Hytale 0.7.2, based on Hyfixes and H
 
 ## Installation
 
-1. Launch the server through [Hyinit](https://www.curseforge.com/hytale/bootstrap/hyinit).
+1. Update Hyinit and Refixes together, then launch through [Hyinit](https://www.curseforge.com/hytale/bootstrap/hyinit).
 2. Put `refixes-X.X.X.jar` in `earlyplugins`.
 3. Remove older Refixes copies from `earlyplugins` and `mods`. One JAR provides both the runtime plugin and early patches.
 
@@ -17,8 +17,8 @@ Both files are in `mods/IroriPowered_Refixes/`.
 | `config.json` | [Runtime settings](Configuration) |
 | `Refixes.json` | [Mixin patches](Mixins) |
 
-You only need to set values you want to change — everything else uses defaults. Restart the server after editing the files.
+Use the paths in the reference pages. Back up old settings and transfer them before upgrading. Old paths are not migrated. Restart after editing.
 
-Experimental parallel patches are off by default. Enable them only when testing.
+See the reference pages for defaults and required patches.
 
 [Support Discord](https://discord.gg/y5kTgtQtgX)

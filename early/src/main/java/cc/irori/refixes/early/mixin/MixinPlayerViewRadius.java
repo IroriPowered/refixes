@@ -32,7 +32,7 @@ public abstract class MixinPlayerViewRadius {
         ChunkTracker chunkTracker = ref.getStore().getComponent(ref, ChunkTracker.getComponentType());
         if (chunkTracker != null) {
             int offset = EarlyOptions.CHUNK_UNLOAD_OFFSET.get();
-            chunkTracker.setMinLoadedRadius(viewRadius + offset);
+            chunkTracker.setMinLoadedRadius(((Player) (Object) this).getViewRadius() + offset);
         }
     }
 }

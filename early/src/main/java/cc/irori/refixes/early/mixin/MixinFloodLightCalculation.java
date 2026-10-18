@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // Skip empty sections during light propagation as there is nothing to propagate
 @Mixin(FloodLightCalculation.class)
 public class MixinFloodLightCalculation {
-
     @Inject(method = "propagateSide", at = @At("HEAD"), cancellable = true)
     private void refixes$skipEmptySide(
             BitSet bitSetQueue,

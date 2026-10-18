@@ -1,14 +1,21 @@
 package cc.irori.refixes.early;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public final class EarlyOptions {
 
     private static boolean available = false;
+    private static final String MIXIN_SELECTION_PROPERTY = "cc.irori.refixes.early.enabledMixins";
+
+    private record MixinSelection(String encoded, Set<String> mixins) {}
+
+    private static volatile MixinSelection selection = new MixinSelection(null, Set.of());
 
     /* Cylinder Visibility */
     public static final Value<Double> CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER = new Value<>(2.0);
-
     public static final Value<Integer> MAX_SECTIONS_PER_SECOND = new Value<>(360);
     public static final Value<Integer> MAX_SECTIONS_PER_TICK = new Value<>(40);
     public static final Value<Integer> CHUNK_UNLOAD_OFFSET = new Value<>(4);
@@ -18,6 +25,7 @@ public final class EarlyOptions {
     public static final Value<Integer> KDTREE_OPTIMIZATION_THRESHOLD = new Value<>(64);
 
     /* Shared Instances */
+    public static final Value<Boolean> SHARED_INSTANCES_STORAGE_AVAILABLE = new Value<>(false);
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>(new String[0]);
 
     /* Pathfinding */
@@ -26,15 +34,7 @@ public final class EarlyOptions {
     public static final Value<Integer> PATHFINDING_TOTAL_NODES_LIMIT = new Value<>(400);
     public static final Value<Integer> PATHFINDING_MAX_NEW_SEARCHES_PER_TICK = new Value<>(8);
     public static final Value<Integer> PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK = new Value<>(600);
-
-    /* Parallel Steering Threshold */
-    public static final Value<Integer> PARALLEL_STEERING_THRESHOLD = new Value<>(64);
-
     public static final Value<Integer> SHUTDOWN_SAVE_TIMEOUT_SECONDS = new Value<>(10);
-
-    /* Connection Backpressure */
-    public static final Value<Integer> BACKPRESSURE_MAX_OUTBOUND_BYTES = new Value<>(16777216);
-    public static final Value<Integer> BACKPRESSURE_GRACE_MS = new Value<>(10000);
 
     private EarlyOptions() {}
 
@@ -44,6 +44,38 @@ public final class EarlyOptions {
 
     public static boolean isAvailable() {
         return available;
+    }
+
+    static void setMixinSelection(Set<String> selected) {
+        Set<String> immutable = Set.copyOf(selected);
+        String encoded = immutable.stream().sorted().collect(Collectors.joining("\n"));
+        System.setProperty(MIXIN_SELECTION_PROPERTY, encoded);
+        selection = new MixinSelection(encoded, immutable);
+    }
+
+    static void clearMixinSelection() {
+        System.clearProperty(MIXIN_SELECTION_PROPERTY);
+        selection = new MixinSelection(null, Set.of());
+    }
+
+    public static boolean hasMixinSelection() {
+        return System.getProperty(MIXIN_SELECTION_PROPERTY) != null;
+    }
+
+    public static boolean isMixinEnabled(String simpleName) {
+        if (simpleName == null) return false;
+        String encoded = System.getProperty(MIXIN_SELECTION_PROPERTY);
+        if (encoded == null) return false;
+        MixinSelection current = selection;
+        if (!encoded.equals(current.encoded)) {
+            Set<String> selected = new HashSet<>();
+            for (String mixin : encoded.split("\\n")) {
+                if (!mixin.isEmpty()) selected.add(mixin);
+            }
+            current = new MixinSelection(encoded, Set.copyOf(selected));
+            selection = current;
+        }
+        return current.mixins.contains(simpleName);
     }
 
     public static final class Value<T> {

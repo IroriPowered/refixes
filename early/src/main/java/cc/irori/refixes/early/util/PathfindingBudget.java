@@ -60,10 +60,14 @@ public final class PathfindingBudget {
     }
 
     private static Cell cellOf(ComponentAccessor<?> accessor) {
-        if (!(accessor instanceof CommandBuffer)) {
+        Store<?> store;
+        if (accessor instanceof Store<?> direct) {
+            store = direct;
+        } else if (accessor instanceof CommandBuffer<?> buffer) {
+            store = buffer.getStore();
+        } else {
             return null;
         }
-        Store<?> store = ((CommandBuffer<?>) accessor).getStore();
         return store == null ? null : CELLS.get(store);
     }
 }

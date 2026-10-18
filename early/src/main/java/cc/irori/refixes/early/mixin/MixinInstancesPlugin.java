@@ -33,7 +33,7 @@ public abstract class MixinInstancesPlugin {
             require = 1,
             allow = 1)
     private String refixes$sharedWorldKey(String authoredKey, @Local(argsOnly = true, ordinal = 0) String name) {
-        if (authoredKey != null || refixes$isExcluded(name)) {
+        if (!EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.get() || authoredKey != null || refixes$isExcluded(name)) {
             return authoredKey;
         }
         return SharedInstanceConstants.SHARED_INSTANCE_PREFIX + InstancesPlugin.safeName(name);
@@ -57,7 +57,7 @@ public abstract class MixinInstancesPlugin {
             @Local(argsOnly = true, ordinal = 0) String name,
             @Local(argsOnly = true, ordinal = 1) String worldName,
             @Local(argsOnly = true) WorldConfig config) {
-        if (worldName != null || refixes$isExcluded(name)) {
+        if (!EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.get() || worldName != null || refixes$isExcluded(name)) {
             return original.call(pendingSpawns, worldKey, create);
         }
         InstanceWorldConfig instanceConfig = InstanceWorldConfig.get(config);

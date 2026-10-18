@@ -42,8 +42,7 @@ public class MixinCollisionModule {
             if (!refixes$emptyBoxLogged) {
                 refixes$emptyBoxLogged = true;
                 refixes$LOGGER.atWarning().log(
-                        "Skipped collision for empty/inverted collider box (min=%s, max=%s) — likely an NPC with an unpopulated model AABB. Logged once.",
-                        cmin, cmax);
+                        "Skipped collision for empty/inverted collider box (min=%s, max=%s). Logged once.", cmin, cmax);
             }
             ci.cancel();
         }

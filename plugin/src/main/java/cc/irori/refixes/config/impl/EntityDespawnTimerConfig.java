@@ -31,4 +31,8 @@ public class EntityDespawnTimerConfig extends Configuration<EntityDespawnTimerCo
     public static EntityDespawnTimerConfig get() {
         return INSTANCE;
     }
+
+    public boolean shouldRegisterSystem() {
+        return getValue(ADD_TIMER_WHEN_MISSING) || getValue(OVERRIDE_EXISTING_TIMERS);
+    }
 }

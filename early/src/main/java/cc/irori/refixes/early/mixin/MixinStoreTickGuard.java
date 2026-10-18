@@ -116,6 +116,6 @@ public abstract class MixinStoreTickGuard {
                 "%s",
                 "Refixes TickSurvival: system " + name + " threw" + suffix
                         + "; aborted this system's tick after partial execution; no rollback was performed."
-                        + " Fix the system or disable Mixins.Experimental.TickSurvival.");
+                        + " Fix the system or disable Mixins.Recovery.TickSurvival.");
     }
 }

@@ -5,21 +5,27 @@ import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkLoaderConfig;
+import cc.irori.refixes.config.impl.CompatibilityConfig;
+import cc.irori.refixes.config.impl.CorrectnessConfig;
 import cc.irori.refixes.config.impl.CylinderVisibilityConfig;
+import cc.irori.refixes.config.impl.DiagnosticsConfig;
 import cc.irori.refixes.config.impl.EarlyConfig;
-import cc.irori.refixes.config.impl.ExperimentalConfig;
+import cc.irori.refixes.config.impl.EntityDespawnTimerConfig;
+import cc.irori.refixes.config.impl.FeaturesConfig;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
 import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
 import cc.irori.refixes.config.impl.KDTreeOptimizationConfig;
-import cc.irori.refixes.config.impl.ListenerConfig;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
+import cc.irori.refixes.config.impl.RecoveryConfig;
 import cc.irori.refixes.config.impl.RefixesConfig;
+import cc.irori.refixes.config.impl.RuntimeConfig;
 import cc.irori.refixes.config.impl.SharedInstanceConfig;
-import cc.irori.refixes.config.impl.SystemConfig;
-import cc.irori.refixes.config.impl.WatchdogConfig;
-import cc.irori.refixes.copychunks.CopyChunksCommand;
-import cc.irori.refixes.copychunks.PasteChunksCommand;
+import cc.irori.refixes.config.impl.TickThrottledCleanupConfig;
+import cc.irori.refixes.config.impl.TuningConfig;
+import cc.irori.refixes.config.impl.UnknownBlockCleanerConfig;
 import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.accessor.ChunkGridAccess;
+import cc.irori.refixes.early.accessor.ChunkStoreAccess;
 import cc.irori.refixes.early.util.PathfindingBudget;
 import cc.irori.refixes.listener.ChunkLoaderWorldListener;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
@@ -32,6 +38,7 @@ import cc.irori.refixes.service.PerPlayerHotRadiusService;
 import cc.irori.refixes.service.SharedInstanceStorage;
 import cc.irori.refixes.service.WatchdogService;
 import cc.irori.refixes.system.AiTickThrottlerCleanupSystem;
+import cc.irori.refixes.system.ChunkLoaderSectionLifecycleSystem;
 import cc.irori.refixes.system.ChunkLoaderSectionSystem;
 import cc.irori.refixes.system.CraftingManagerFixSystem;
 import cc.irori.refixes.system.EntityDespawnTimerSystem;
@@ -46,6 +53,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 import java.util.ArrayList;
@@ -67,26 +75,36 @@ public class Refixes extends JavaPlugin {
 
     private PerPlayerHotRadiusService perPlayerHotRadiusService;
     private WatchdogService watchdogService;
-
     private IdlePlayerService idlePlayerService;
     private AiTickThrottlerService aiTickThrottler;
-    private IdleWorldPauseService idleWorldPauseService;
     private ChunkLoaderService chunkLoaderService;
+    private IdleWorldPauseService idleWorldPauseService;
+    private final java.nio.file.Path dataDirectory;
     private AutoCloseable pathfindingDeferralsGauge;
 
     public Refixes(@NonNullDecl JavaPluginInit init) {
         super(init);
         instance = this;
+        dataDirectory = init.getDataDirectory();
         config = withConfig(RefixesConfig.get().getCodec());
-        chunkLoaderService = new ChunkLoaderService(init.getDataDirectory());
     }
 
     @Override
     protected void setup() {
+        if (Early.isEnabled()) EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.setSupplier(() -> false);
         config.load().join();
         config.save().join();
 
         if (Early.isEnabled()) {
+            if (!EarlyOptions.hasMixinSelection()) {
+                throw new IllegalStateException(
+                        "Refixes early mixin selection failed. Check mods/IroriPowered_Refixes/Refixes.json and the Hyinit log.");
+            }
+            if (EarlyOptions.isMixinEnabled("MixinInstancesPlugin")
+                    && !CompatibilityConfig.get().getValue(CompatibilityConfig.EXISTING_SHARED_INSTANCES)) {
+                throw new IllegalStateException(
+                        "Shared-instance creation requires Runtime.Compatibility.ExistingSharedInstances");
+            }
             try {
                 registerEarlyOptions();
             } catch (Exception e) {
@@ -118,7 +136,7 @@ public class Refixes extends JavaPlugin {
         if (watchdogService != null) {
             watchdogService.registerService();
         }
-        if (ChunkLoaderConfig.get().getValue(ChunkLoaderConfig.ENABLED)) {
+        if (chunkLoaderService != null) {
             Universe.get().getWorlds().values().forEach(chunkLoaderService::loadWorld);
         }
         try {
@@ -130,8 +148,9 @@ public class Refixes extends JavaPlugin {
 
     @Override
     protected void shutdown() {
+        if (Early.isEnabled()) EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.setSupplier(() -> false);
         UnknownBlockCleaner.shutdown();
-        chunkLoaderService.shutdown();
+        if (chunkLoaderService != null) chunkLoaderService.shutdown();
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.unregisterService();
         }
@@ -162,7 +181,6 @@ public class Refixes extends JavaPlugin {
         CylinderVisibilityConfig cylinderVisibilityConfig = CylinderVisibilityConfig.get();
         KDTreeOptimizationConfig kdTreeOptimizationConfig = KDTreeOptimizationConfig.get();
         SharedInstanceConfig sharedInstanceConfig = SharedInstanceConfig.get();
-        ExperimentalConfig experimentalConfig = ExperimentalConfig.get();
 
         EarlyOptions.MAX_SECTIONS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_SECOND));
         EarlyOptions.MAX_SECTIONS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_TICK));
@@ -179,9 +197,6 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.setSupplier(
                 () -> sharedInstanceConfig.getValue(SharedInstanceConfig.EXCLUDED_PREFIXES));
 
-        EarlyOptions.PARALLEL_STEERING_THRESHOLD.setSupplier(
-                () -> experimentalConfig.getValue(ExperimentalConfig.PARALLEL_STEERING_THRESHOLD));
-
         EarlyOptions.PATHFINDING_MAX_PATH_LENGTH.setSupplier(
                 () -> config.getValue(EarlyConfig.PATHFINDING_MAX_PATH_LENGTH));
         EarlyOptions.PATHFINDING_OPEN_NODES_LIMIT.setSupplier(
@@ -195,10 +210,6 @@ public class Refixes extends JavaPlugin {
         EarlyOptions.SHUTDOWN_SAVE_TIMEOUT_SECONDS.setSupplier(
                 () -> config.getValue(EarlyConfig.SHUTDOWN_SAVE_TIMEOUT_SECONDS));
 
-        EarlyOptions.BACKPRESSURE_MAX_OUTBOUND_BYTES.setSupplier(
-                () -> config.getValue(EarlyConfig.BACKPRESSURE_MAX_OUTBOUND_BYTES));
-        EarlyOptions.BACKPRESSURE_GRACE_MS.setSupplier(() -> config.getValue(EarlyConfig.BACKPRESSURE_GRACE_MS));
-
         EarlyOptions.setAvailable(true);
     }
 
@@ -209,77 +220,88 @@ public class Refixes extends JavaPlugin {
 
     private void registerFixes() {
         fixSummary.clear();
+        RuntimeConfig runtime = RuntimeConfig.get();
+        TuningConfig tuning = runtime.getValue(RuntimeConfig.TUNING_CONFIG);
+        FeaturesConfig features = runtime.getValue(RuntimeConfig.FEATURES_CONFIG);
+        RecoveryConfig recovery = runtime.getValue(RuntimeConfig.RECOVERY_CONFIG);
+        DiagnosticsConfig diagnostics = runtime.getValue(RuntimeConfig.DIAGNOSTICS_CONFIG);
+        CompatibilityConfig compatibility = runtime.getValue(RuntimeConfig.COMPATIBILITY_CONFIG);
 
         // Listeners
+        UnknownBlockCleanerConfig cleaner = recovery.getValue(RecoveryConfig.UNKNOWN_BLOCK_CLEANER_CONFIG);
         applyFix(
                 "Unknown block cleaner",
-                ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER),
+                cleaner.getValue(UnknownBlockCleanerConfig.ENABLED),
                 () -> UnknownBlockCleaner.registerEvents(this));
 
         // Systems
+        CorrectnessConfig correctness = runtime.getValue(RuntimeConfig.CORRECTNESS_CONFIG);
         applyFix(
                 "Crafting manager fix",
-                SystemConfig.get().getValue(SystemConfig.CRAFTING_MANAGER),
+                correctness.getValue(CorrectnessConfig.CRAFTING_MANAGER),
                 () -> getEntityStoreRegistry().registerSystem(new CraftingManagerFixSystem()));
-        applyFix(
-                "Entity despawn timer",
-                SystemConfig.get().getValue(SystemConfig.ENTITY_DESPAWN_TIMER),
-                () -> getEntityStoreRegistry().registerSystem(new EntityDespawnTimerSystem()));
-        applyFix(
-                "AI throttler cleanup",
-                AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.CLEANUP_FROZEN_ENTITIES)
-                        || AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.LEGACY_CLEANUP),
-                () -> getEntityStoreRegistry().registerSystem(new AiTickThrottlerCleanupSystem()));
+        EntityDespawnTimerConfig despawn = tuning.getValue(TuningConfig.ENTITY_DESPAWN_TIMER_CONFIG);
+        if (despawn.shouldRegisterSystem()) getEntityStoreRegistry().registerSystem(new EntityDespawnTimerSystem());
+        TickThrottledCleanupConfig cleanup = compatibility.getValue(CompatibilityConfig.TICK_THROTTLED_CLEANUP_CONFIG);
+        if (cleanup.isEnabled()) getEntityStoreRegistry().registerSystem(new AiTickThrottlerCleanupSystem());
 
         // Services
         applyFix(
                 "Per-player hot radius",
-                PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.ENABLED),
+                tuning.getValue(TuningConfig.PER_PLAYER_RADIUS_CONFIG).getValue(PerPlayerHotRadiusConfig.ENABLED),
                 () -> perPlayerHotRadiusService = new PerPlayerHotRadiusService());
-        applyFix("Server watchdog", WatchdogConfig.get().getValue(WatchdogConfig.ENABLED), () -> {
-            watchdogService = new WatchdogService();
-            watchdogService.registerEvents(this);
-        });
-
+        applyFix(
+                "Server watchdog",
+                diagnostics.getValue(DiagnosticsConfig.WATCHDOG_CONFIG).shouldRegisterService(),
+                () -> {
+                    watchdogService = new WatchdogService();
+                    watchdogService.registerEvents(this);
+                });
         applyFix(
                 "Idle player handler",
-                IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.ENABLED),
+                tuning.getValue(TuningConfig.IDLE_PLAYER_HANDLER_CONFIG).getValue(IdlePlayerHandlerConfig.ENABLED),
                 () -> idlePlayerService = new IdlePlayerService());
         applyFix(
                 "AI tick throttler",
-                AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.ENABLED),
+                tuning.getValue(TuningConfig.AI_TICK_THROTTLER_CONFIG).getValue(AiTickThrottlerConfig.ENABLED),
                 () -> aiTickThrottler = new AiTickThrottlerService());
         applyFix(
                 "Idle world pause",
-                IdleWorldPauseConfig.get().getValue(IdleWorldPauseConfig.ENABLED),
+                tuning.getValue(TuningConfig.IDLE_WORLD_PAUSE_CONFIG).getValue(IdleWorldPauseConfig.ENABLED),
                 () -> idleWorldPauseService = new IdleWorldPauseService());
-
-        if (Early.isEnabled()) {
+        if (Early.isEnabled() && compatibility.getValue(CompatibilityConfig.EXISTING_SHARED_INSTANCES)) {
+            if (!EarlyOptions.isMixinEnabled("MixinChunkGridAccess")
+                    || !EarlyOptions.isMixinEnabled("MixinChunkStoreAccess")) {
+                throw new IllegalStateException(
+                        "Existing shared-instance storage requires Mixins.Features.SharedInstanceStorage");
+            }
+            if (!ChunkGridAccess.class.isAssignableFrom(ChunkStore.class)
+                    || !ChunkStoreAccess.class.isAssignableFrom(ChunkStore.class)) {
+                throw new IllegalStateException(
+                        "Shared early classes do not match. Update Hyinit and Refixes together.");
+            }
             SharedInstanceStorage.registerEvents(this);
             getChunkStoreRegistry().registerSystem(new SharedInstancePersistenceSystem());
             getChunkStoreRegistry().registerSystem(new SharedInstanceChunkSaveSkipSystem());
             sharedInstanceBootUnloader = new SharedInstanceBootUnloader();
             sharedInstanceBootUnloader.registerEvents(this);
+            EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.setSupplier(() -> true);
         }
-
-        applyFix("Chunk loader", ChunkLoaderConfig.get().getValue(ChunkLoaderConfig.ENABLED), () -> {
+        ChunkLoaderConfig chunkLoader = features.getValue(FeaturesConfig.CHUNK_LOADER_CONFIG);
+        if (chunkLoader.getValue(ChunkLoaderConfig.ENABLED)) {
+            chunkLoaderService = new ChunkLoaderService(dataDirectory);
             getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
             getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionSystem(chunkLoaderService));
+            getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionLifecycleSystem(chunkLoaderService));
+            getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionLifecycleSystem.Changes(chunkLoaderService));
+            getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionLifecycleSystem.Stores(chunkLoaderService));
             new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
             getEventRegistry().registerGlobal(EventPriority.LAST, RemoveWorldEvent.class, event -> {
-                if (!event.isCancelled()) {
-                    chunkLoaderService.unloadWorld(event.getWorld());
-                }
+                if (!event.isCancelled()) chunkLoaderService.unloadWorld(event.getWorld());
             });
-        });
-
-        getCommandRegistry().registerCommand(new CopyChunksCommand());
-        getCommandRegistry().registerCommand(new PasteChunksCommand());
-
-        LOGGER.atInfo().log("=== Refixes runtime patches ===");
-        for (String summary : fixSummary) {
-            LOGGER.atInfo().log(summary);
         }
+        LOGGER.atInfo().log("=== Refixes runtime patches ===");
+        for (String summary : fixSummary) LOGGER.atInfo().log(summary);
     }
 
     private void applyFix(String name, boolean apply, Runnable fix) {
@@ -298,6 +320,10 @@ public class Refixes extends JavaPlugin {
 
     public ComponentType<EntityStore, TickThrottled> getTickThrottledComponent() {
         return tickThrottledComponent;
+    }
+
+    public ChunkLoaderService getChunkLoaderService() {
+        return chunkLoaderService;
     }
 
     public static Refixes get() {

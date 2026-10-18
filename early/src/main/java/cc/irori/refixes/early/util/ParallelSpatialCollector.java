@@ -6,7 +6,7 @@ import com.hypixel.hytale.component.spatial.SpatialData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.RecursiveTask;
 import org.joml.Vector3d;
 
 /**
@@ -15,18 +15,83 @@ import org.joml.Vector3d;
  * then all buffers are merged sequentially into SpatialData.
  */
 public final class ParallelSpatialCollector {
+    private static final int MIN_PARALLEL_CANDIDATES = 4096;
+    private static final int MAX_BATCHES = 32;
+    private static final int ENTRIES_PER_SEGMENT = 256;
 
     private ParallelSpatialCollector() {}
 
-    private static final class ChunkEntries<ECS_TYPE> {
+    private static final class Segment<ECS_TYPE> {
         private final Vector3d[] positions;
         private final Ref<ECS_TYPE>[] refs;
+        private Segment<ECS_TYPE> next;
         private int size;
 
         @SuppressWarnings("unchecked")
-        private ChunkEntries(int capacity) {
+        private Segment(int capacity) {
             this.positions = new Vector3d[capacity];
             this.refs = (Ref<ECS_TYPE>[]) new Ref<?>[capacity];
+        }
+    }
+
+    private static final class Entries<ECS_TYPE> {
+        private final int segmentCapacity;
+        private Segment<ECS_TYPE> head;
+        private Segment<ECS_TYPE> tail;
+        private int size;
+
+        private Entries(long candidates) {
+            this.segmentCapacity = (int) Math.min(ENTRIES_PER_SEGMENT, Math.max(1, candidates));
+        }
+
+        private void append(Vector3d position, Ref<ECS_TYPE> ref) {
+            if (tail == null || tail.size == tail.positions.length) {
+                Segment<ECS_TYPE> next = new Segment<>(segmentCapacity);
+                if (tail == null) head = next;
+                else tail.next = next;
+                tail = next;
+            }
+            tail.positions[tail.size] = position;
+            tail.refs[tail.size++] = ref;
+            size++;
+        }
+    }
+
+    private static final class Batch<ECS_TYPE> extends RecursiveTask<Entries<ECS_TYPE>> {
+        private final List<ChunkWork<ECS_TYPE>> chunks;
+        private final int start;
+        private final int end;
+        private final long candidates;
+        private boolean started;
+        private boolean discarded;
+        private Throwable failure;
+
+        private Batch(List<ChunkWork<ECS_TYPE>> chunks, int start, int end, long candidates) {
+            this.chunks = chunks;
+            this.start = start;
+            this.end = end;
+            this.candidates = candidates;
+        }
+
+        @Override
+        protected Entries<ECS_TYPE> compute() {
+            synchronized (this) {
+                if (discarded) return null;
+                started = true;
+            }
+            try {
+                return collectBatch(chunks, start, end, candidates);
+            } catch (Throwable thrown) {
+                failure = thrown;
+                return null;
+            }
+        }
+
+        private synchronized void discardIfUnstarted() {
+            if (!started) {
+                discarded = true;
+                complete(null);
+            }
         }
     }
 
@@ -49,73 +114,94 @@ public final class ParallelSpatialCollector {
     // Collects entity positions from the given chunks in parallel, then merges into spatialData.
     public static <ECS_TYPE> void collectParallel(
             List<ChunkWork<ECS_TYPE>> chunks, SpatialData<Ref<ECS_TYPE>> spatialData) {
-        if (chunks.isEmpty()) {
-            return;
-        }
-
         // For small workloads, collect sequentially
         if (chunks.size() <= 2) {
             collectSequential(chunks, spatialData);
             return;
         }
+        collectParallel(chunks, spatialData, ForkJoinPool.commonPool());
+    }
 
-        ForkJoinPool pool = ForkJoinPool.commonPool();
-        List<ForkJoinTask<ChunkEntries<ECS_TYPE>>> tasks = new ArrayList<>(chunks.size());
-
-        Throwable[] workerFailure = new Throwable[1];
-        try {
-            for (ChunkWork<ECS_TYPE> work : chunks) {
-                tasks.add(pool.submit(() -> {
-                    try {
-                        return collectChunk(work);
-                    } catch (Throwable thrown) {
-                        synchronized (workerFailure) {
-                            workerFailure[0] = ParallelFailure.combine(workerFailure[0], thrown);
-                        }
-                        return null;
-                    }
-                }));
-            }
-        } catch (Error thrown) {
-            throw thrown;
-        } catch (Throwable thrown) {
-            throw new ParallelFailure.Unrecoverable(thrown);
+    static <ECS_TYPE> void collectParallel(
+            List<ChunkWork<ECS_TYPE>> chunks, SpatialData<Ref<ECS_TYPE>> spatialData, ForkJoinPool pool) {
+        if (chunks.isEmpty()) return;
+        int parallelism = pool.getParallelism();
+        if (chunks.size() <= 2 || parallelism <= 1) {
+            collectSequential(chunks, spatialData);
+            return;
         }
 
+        long candidates = 0;
+        for (ChunkWork<ECS_TYPE> work : chunks) candidates += work.chunk.size();
+        if (candidates < MIN_PARALLEL_CANDIDATES) {
+            collectSequential(chunks, spatialData);
+            return;
+        }
+
+        int batchLimit = (int) Math.min(chunks.size(), Math.min(MAX_BATCHES, (long) parallelism * 2));
+        long target = (candidates + batchLimit - 1) / batchLimit;
+        List<Batch<ECS_TYPE>> batches = new ArrayList<>(batchLimit);
+        int start = 0;
+        long batchCandidates = 0;
+        for (int i = 0; i < chunks.size(); i++) {
+            batchCandidates += chunks.get(i).chunk.size();
+            if (batchCandidates >= target && batches.size() < batchLimit - 1) {
+                batches.add(new Batch<>(chunks, start, i + 1, batchCandidates));
+                start = i + 1;
+                batchCandidates = 0;
+            }
+        }
+        if (start < chunks.size()) batches.add(new Batch<>(chunks, start, chunks.size(), batchCandidates));
+
         Throwable failure = null;
-        for (ForkJoinTask<ChunkEntries<ECS_TYPE>> task : tasks) {
+        int submitted = 0;
+        for (Batch<ECS_TYPE> batch : batches) {
+            submitted++;
             try {
-                task.join();
+                pool.execute(batch);
+            } catch (Throwable thrown) {
+                failure = thrown;
+                for (int i = 0; i < submitted; i++) batches.get(i).discardIfUnstarted();
+                break;
+            }
+        }
+        for (int i = 0; i < submitted; i++) {
+            Batch<ECS_TYPE> batch = batches.get(i);
+            try {
+                batch.join();
             } catch (Throwable thrown) {
                 failure = ParallelFailure.combine(failure, thrown);
             }
+            failure = ParallelFailure.combine(failure, batch.failure);
         }
-        ParallelFailure.rethrow(ParallelFailure.combine(failure, workerFailure[0]));
+        ParallelFailure.rethrow(failure);
 
         // Merge results sequentially into SpatialData
-        for (ForkJoinTask<ChunkEntries<ECS_TYPE>> task : tasks) {
-            ChunkEntries<ECS_TYPE> entries = task.join();
-            if (entries.size == 0) {
-                continue;
-            }
+        for (Batch<ECS_TYPE> batch : batches) {
+            Entries<ECS_TYPE> entries = batch.getRawResult();
+            if (entries == null) continue;
             spatialData.addCapacity(entries.size);
-            for (int i = 0; i < entries.size; i++) {
-                spatialData.append(entries.positions[i], entries.refs[i]);
+            for (Segment<ECS_TYPE> segment = entries.head; segment != null; segment = segment.next) {
+                for (int i = 0; i < segment.size; i++) {
+                    spatialData.append(segment.positions[i], segment.refs[i]);
+                }
             }
         }
     }
 
-    private static <ECS_TYPE> ChunkEntries<ECS_TYPE> collectChunk(ChunkWork<ECS_TYPE> work) {
-        int size = work.chunk.size();
-        ChunkEntries<ECS_TYPE> entries = new ChunkEntries<>(size);
-        for (int i = 0; i < size; i++) {
-            Vector3d position = work.extractor.getPosition(work.chunk, i);
-            if (position == null) {
-                continue;
+    private static <ECS_TYPE> Entries<ECS_TYPE> collectBatch(
+            List<ChunkWork<ECS_TYPE>> chunks, int start, int end, long candidates) {
+        Entries<ECS_TYPE> entries = null;
+        for (int c = start; c < end; c++) {
+            ChunkWork<ECS_TYPE> work = chunks.get(c);
+            int size = work.chunk.size();
+            for (int i = 0; i < size; i++) {
+                Vector3d position = work.extractor.getPosition(work.chunk, i);
+                if (position == null) continue;
+                Ref<ECS_TYPE> ref = work.chunk.getReferenceTo(i);
+                if (entries == null) entries = new Entries<>(candidates);
+                entries.append(position, ref);
             }
-            Ref<ECS_TYPE> ref = work.chunk.getReferenceTo(i);
-            entries.positions[entries.size] = position;
-            entries.refs[entries.size++] = ref;
         }
         return entries;
     }
@@ -127,9 +213,7 @@ public final class ParallelSpatialCollector {
             spatialData.addCapacity(size);
             for (int i = 0; i < size; i++) {
                 Vector3d position = work.extractor.getPosition(work.chunk, i);
-                if (position == null) {
-                    continue;
-                }
+                if (position == null) continue;
                 Ref<ECS_TYPE> ref = work.chunk.getReferenceTo(i);
                 spatialData.append(position, ref);
             }

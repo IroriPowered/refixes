@@ -1,6 +1,7 @@
 package cc.irori.refixes.listener;
 
 import cc.irori.refixes.early.util.SharedInstanceConstants;
+import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -53,6 +54,7 @@ public class SharedInstanceBootUnloader {
                 LOGGER.atInfo().log("Shared instance world '%s' has players, skipping unload", world.getName());
                 continue;
             }
+            SharedInstancePersistenceSystem.preserveStorage(world.getWorldConfig());
             toUnload.add(world.getName());
         }
 

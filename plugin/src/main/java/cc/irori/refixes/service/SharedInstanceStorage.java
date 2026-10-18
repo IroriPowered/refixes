@@ -3,6 +3,7 @@ package cc.irori.refixes.service;
 import cc.irori.refixes.early.accessor.ChunkGridAccess;
 import cc.irori.refixes.early.accessor.ChunkStoreAccess;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
+import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -52,6 +53,7 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
     public static void registerEvents(JavaPlugin plugin) {
         plugin.getEventRegistry().registerGlobal(StartWorldEvent.class, event -> {
             if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
+            SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
             ChunkStore chunks = event.getWorld().getChunkStore();
             if (chunks.getSaver() instanceof SharedInstanceStorage) return;
             if (!(chunks.getSaver() instanceof IChunkSaver.Cubic cubic)

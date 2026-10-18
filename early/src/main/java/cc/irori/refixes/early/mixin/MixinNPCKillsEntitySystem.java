@@ -6,14 +6,15 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.systems.NPCDeathSystems;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(NPCDeathSystems.NPCKillsEntitySystem.class)
 public class MixinNPCKillsEntitySystem {
 
-    @Redirect(
+    @WrapOperation(
             method =
                     "onComponentAdded(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/server/core/modules/entity/damage/DeathComponent;Lcom/hypixel/hytale/component/Store;Lcom/hypixel/hytale/component/CommandBuffer;)V",
             at =
@@ -23,10 +24,10 @@ public class MixinNPCKillsEntitySystem {
                                     "Lcom/hypixel/hytale/component/Store;getComponent(Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/component/ComponentType;)Lcom/hypixel/hytale/component/Component;",
                             ordinal = 0))
     private <T extends Component<EntityStore>> T refixes$guardKillerRef(
-            Store<EntityStore> store, Ref<EntityStore> ref, ComponentType<EntityStore, T> type) {
-        if (!ref.isValid()) {
+            Store<EntityStore> store, Ref<EntityStore> ref, ComponentType<EntityStore, T> type, Operation<T> original) {
+        if (!ref.isValid() || ref.getStore() != store) {
             return null;
         }
-        return store.getComponent(ref, type);
+        return original.call(store, ref, type);
     }
 }
