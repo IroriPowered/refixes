@@ -12,6 +12,7 @@ Fixes that preserve intended server behavior.
 | `MountPlugin` | `true` | Guards invalid rider references. |
 | `TrackedPlacementOnAddRemove` | `true` | Logs and skips missing tracked placements or block names during removal. |
 | `WorldNullGuard` | `true` | Returns an empty player list before the entity store is available. |
+| `WorldEventSaving` | `true` | Saves world events in order. |
 | `WorldTransfer` | `true` | Cancels stale player transfer retries. |
 | `ParallelTaskLifecycle` | `true` | Fixes parallel task reuse. |
 | `ChunkStoreSectionBackoffDeadlock` | `true` | Avoids deadlock when section loading fails under the chunk store write lock. |

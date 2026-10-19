@@ -74,6 +74,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Compatibility", "UpdateModule", true, "MixinUpdateModule"),
             toggle("Compatibility", "WorldConfig", true, "MixinWorldConfig"),
             toggle("Correctness", "WorldNullGuard", true, "MixinWorld"),
+            toggle("Correctness", "WorldEventSaving", true, "MixinGlobalWorldEventManager"),
             toggle("Correctness", "WorldTransfer", true, "MixinWorldTransfer"),
             toggle(
                     "Correctness",

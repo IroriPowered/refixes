@@ -43,6 +43,9 @@ public abstract class MixinServerAuthManager {
     public abstract String getSessionToken();
 
     @Shadow
+    public abstract boolean isSingleplayer();
+
+    @Shadow
     public abstract String getIdentityToken();
 
     @Shadow
@@ -362,13 +365,14 @@ public abstract class MixinServerAuthManager {
 
     @Inject(method = "shutdown", at = @At("TAIL"))
     private void refixes$terminateExternalSession(CallbackInfo ci) {
+        if (isSingleplayer()) return;
         String currentSessionToken = getSessionToken();
         if (currentSessionToken != null && !currentSessionToken.isEmpty()) {
             if (sessionServiceClient == null) {
                 sessionServiceClient = new SessionServiceClient("https://sessions.hytale.com");
             }
             sessionServiceClient.terminateSession(currentSessionToken);
-            refixes$LOGGER.atInfo().log("Terminated session on shutdown");
+            refixes$LOGGER.atInfo().log("Requested session termination on shutdown");
         }
     }
 }
