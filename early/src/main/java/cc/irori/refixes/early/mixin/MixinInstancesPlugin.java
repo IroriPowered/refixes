@@ -2,6 +2,7 @@ package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
+import cc.irori.refixes.early.util.SharedInstanceReset;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
 import com.hypixel.hytale.builtin.instances.config.InstanceWorldConfig;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -40,6 +41,22 @@ public abstract class MixinInstancesPlugin {
     }
 
     @WrapOperation(
+            method = {
+                "spawnInstance(Ljava/lang/String;Ljava/lang/String;Lcom/hypixel/hytale/server/core/universe/world/World;Lcom/hypixel/hytale/math/vector/Transform;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;",
+                "spawnInstance+ -> Ljava/util/function/Function;apply(Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;"
+            },
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/server/core/universe/Universe;getWorld(Ljava/lang/String;)Lcom/hypixel/hytale/server/core/universe/world/World;"),
+            require = 2,
+            allow = 2)
+    private World refixes$skipResettingWorld(Universe universe, String worldName, Operation<World> original) {
+        return SharedInstanceReset.gate(worldName) != null ? null : original.call(universe, worldName);
+    }
+
+    @WrapOperation(
             method =
                     "spawnInstance+ -> Ljava/util/function/Function;apply(Lcom/hypixel/hytale/server/core/universe/world/WorldConfig;)Ljava/util/concurrent/CompletionStage;",
             at =
@@ -55,9 +72,19 @@ public abstract class MixinInstancesPlugin {
             Function<String, CompletableFuture<World>> create,
             Operation<Object> original,
             @Local(argsOnly = true, ordinal = 0) String name,
-            @Local(argsOnly = true, ordinal = 1) String worldName,
             @Local(argsOnly = true) WorldConfig config) {
-        if (!EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.get() || worldName != null || refixes$isExcluded(name)) {
+        CompletableFuture<Void> gate = SharedInstanceReset.gate((String) worldKey);
+        if (gate != null) {
+            return gate.thenComposeAsync(ignored -> {
+                World existing = Universe.get().getWorld((String) worldKey);
+                if (existing != null) return CompletableFuture.completedFuture(existing);
+                @SuppressWarnings("unchecked")
+                CompletableFuture<World> next = (CompletableFuture<World>)
+                        refixes$loadPersistedSharedInstance(pendingSpawns, worldKey, create, original, name, config);
+                return next;
+            });
+        }
+        if (!EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.get() || refixes$isExcluded(name)) {
             return original.call(pendingSpawns, worldKey, create);
         }
         InstanceWorldConfig instanceConfig = InstanceWorldConfig.get(config);
@@ -65,15 +92,17 @@ public abstract class MixinInstancesPlugin {
             return original.call(pendingSpawns, worldKey, create);
         }
         String sharedKey = (String) worldKey;
-        Universe universe = Universe.get();
-        if (!sharedKey.startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)
-                || !universe.isWorldLoadable(sharedKey)) {
+        if (!sharedKey.startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
             return original.call(pendingSpawns, worldKey, create);
         }
-        Function<String, CompletableFuture<World>> load = universe::loadWorld;
-        CompletableFuture<?> future = (CompletableFuture<?>) original.call(pendingSpawns, worldKey, load);
-        future.whenComplete((world, error) -> pendingSpawns.remove(sharedKey, future));
-        return future;
+        Universe universe = Universe.get();
+        Function<String, CompletableFuture<World>> load = key -> {
+            if (!universe.isWorldLoadable(key)) return create.apply(key);
+            CompletableFuture<World> future = universe.loadWorld(key);
+            future.whenCompleteAsync((world, error) -> pendingSpawns.remove(key, future));
+            return future;
+        };
+        return original.call(pendingSpawns, worldKey, load);
     }
 
     @Unique

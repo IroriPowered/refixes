@@ -27,6 +27,7 @@ public final class EarlyOptions {
     /* Shared Instances */
     public static final Value<Boolean> SHARED_INSTANCES_STORAGE_AVAILABLE = new Value<>(false);
     public static final Value<String[]> SHARED_INSTANCES_EXCLUDED_PREFIXES = new Value<>(new String[0]);
+    public static final Value<Boolean> SHARED_INSTANCES_RESET_ON_EMPTY = new Value<>(false);
 
     /* Pathfinding */
     public static final Value<Integer> PATHFINDING_MAX_PATH_LENGTH = new Value<>(200);

@@ -219,12 +219,13 @@ public class IdlePlayerService {
         }
     }
 
-    private void restorePlayerSettings(PlayerRef playerRef, PlayerIdleState state) {
+    private synchronized void restorePlayerSettings(PlayerRef playerRef, PlayerIdleState state) {
         if (state.pendingRestore) {
             return;
         }
         World world = getPlayerWorld(playerRef);
         if (world == null) {
+            retryRestore(playerRef, state);
             return;
         }
         state.pendingRestore = true;
@@ -232,6 +233,11 @@ public class IdlePlayerService {
         try {
             world.execute(() -> {
                 synchronized (IdlePlayerService.this) {
+                    if (getPlayerWorld(playerRef) != world) {
+                        state.pendingRestore = false;
+                        restorePlayerSettings(playerRef, state);
+                        return;
+                    }
                     try {
                         ChunkTracker tracker = playerRef.getChunkTracker();
 
@@ -272,6 +278,19 @@ public class IdlePlayerService {
             state.pendingRestore = false;
             LOGGER.atWarning().withCause(e).log(
                     "Failed to queue radius restoration for player %s", playerRef.getUuid());
+        }
+    }
+
+    private void retryRestore(PlayerRef playerRef, PlayerIdleState state) {
+        if (!state.wasIdle
+                || playerStates.get(playerRef.getUuid()) != state
+                || Universe.get().getPlayer(playerRef.getUuid()) != playerRef) {
+            return;
+        }
+        try {
+            HytaleServer.SCHEDULED_EXECUTOR.schedule(
+                    () -> restorePlayerSettings(playerRef, state), 1, TimeUnit.SECONDS);
+        } catch (RuntimeException ignored) {
         }
     }
 

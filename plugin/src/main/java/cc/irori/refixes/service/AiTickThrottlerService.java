@@ -3,12 +3,15 @@ package cc.irori.refixes.service;
 import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
+import cc.irori.refixes.early.util.ThrottleOwnership;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.mounts.NPCMountComponent;
 import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.data.unknown.UnknownComponents;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
@@ -28,6 +31,8 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.StepComponent;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.movement.controllers.MotionControllerFly;
+import com.hypixel.hytale.server.npc.role.support.CombatSupport;
+import com.hypixel.hytale.server.npc.role.support.MarkedEntitySupport;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,6 +71,8 @@ public class AiTickThrottlerService {
     private ComponentType<EntityStore, NPCMountComponent> mountType;
     private ComponentType<EntityStore, MovementStatesComponent> movementStatesType;
     private ComponentType<EntityStore, DeathComponent> deathType;
+    private ComponentType<EntityStore, CombatSupport> combatType;
+    private ComponentType<EntityStore, MarkedEntitySupport> markedType;
     private Query<EntityStore> npcQuery;
 
     private final Map<String, WorldState> worldStates = new ConcurrentHashMap<>();
@@ -78,6 +85,7 @@ public class AiTickThrottlerService {
     private AutoCloseable throttledGauge;
     private AutoCloseable activeGauge;
     private AutoCloseable cycleMsGauge;
+    private volatile boolean stopped;
 
     public void registerService() {
         int intervalMs = Math.max(20, AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.UPDATE_INTERVAL_MS));
@@ -100,6 +108,7 @@ public class AiTickThrottlerService {
     }
 
     public void unregisterService() {
+        stopped = true;
         if (task != null) {
             task.cancel(false);
             task = null;
@@ -141,16 +150,28 @@ public class AiTickThrottlerService {
             return;
         }
         Store<EntityStore> store = world.getEntityStore().getStore();
+        ComponentType<EntityStore, ?> marker =
+                store.getRegistry().getData().getComponentType(ThrottleOwnership.MARKER_ID);
+        ComponentType<EntityStore, UnknownComponents<EntityStore>> unknownType =
+                store.getRegistry().getUnknownComponentType();
         store.forEachEntityParallel(npcQuery, (index, archetypeChunk, commandBuffer) -> {
-            TickThrottled tickThrottled = archetypeChunk.getComponent(index, tickThrottledType);
-            if (tickThrottled == null) {
-                return;
+            if (marker != null) {
+                if (!archetypeChunk.getArchetype().contains(marker)) {
+                    return;
+                }
+            } else {
+                UnknownComponents<EntityStore> unknown = archetypeChunk.getComponent(index, unknownType);
+                if (unknown == null || unknown.getUnknownComponents().remove(ThrottleOwnership.MARKER_ID) == null) {
+                    return;
+                }
             }
 
             Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
             commandBuffer.tryRemoveComponent(ref, frozenType);
             commandBuffer.tryRemoveComponent(ref, stepType);
-            commandBuffer.tryRemoveComponent(ref, tickThrottledType);
+            if (marker != null) {
+                commandBuffer.tryRemoveComponent(ref, marker);
+            }
         });
     }
 
@@ -213,7 +234,7 @@ public class AiTickThrottlerService {
     }
 
     private void processWorld(World world, AiTickThrottlerConfig cfg) {
-        if (world.getWorldConfig().isAllNPCFrozen()) {
+        if (stopped || world.getWorldConfig().isAllNPCFrozen()) {
             return;
         }
 
@@ -276,7 +297,13 @@ public class AiTickThrottlerService {
             }
 
             if (isExcluded(
-                    index, archetypeChunk, excludedNpcTypes, excludeMounts, excludeFlying, excludeAirborneOrDead)) {
+                    index,
+                    archetypeChunk,
+                    commandBuffer,
+                    excludedNpcTypes,
+                    excludeMounts,
+                    excludeFlying,
+                    excludeAirborneOrDead)) {
                 if (throttled) {
                     commandBuffer.tryRemoveComponent(ref, frozenType);
                     commandBuffer.tryRemoveComponent(ref, stepType);
@@ -332,13 +359,17 @@ public class AiTickThrottlerService {
 
             // If near enough, remove throttling
             if (intervalSec <= 0.0) {
-                if (throttled && (!frozen || unfreezeCount.incrementAndGet() <= maxUnfreezes)) {
+                if (!throttled) {
+                    return;
+                }
+                if (!frozen || unfreezeCount.incrementAndGet() <= maxUnfreezes) {
                     commandBuffer.tryRemoveComponent(ref, frozenType);
                     commandBuffer.tryRemoveComponent(ref, stepType);
                     commandBuffer.tryRemoveComponent(ref, tickThrottledType);
                     state.entries.remove(entityId);
+                    return;
                 }
-                return;
+                intervalSec = rawMid;
             }
 
             if (throttled && !frozen) {
@@ -367,15 +398,15 @@ public class AiTickThrottlerService {
             if (now >= entry.nextTickNanos) {
                 // Use pre-computed step for the matching tier
                 StepComponent step;
-                if (chunkDist <= midChunks) {
+                if (intervalSec == rawMid) {
                     step = midStep;
-                } else if (chunkDist <= farChunks) {
+                } else if (intervalSec == rawFar) {
                     step = farStep;
                 } else {
                     step = veryFarStep;
                 }
                 commandBuffer.putComponent(ref, stepType, step);
-                entry.nextTickNanos = now + intervalNanos;
+                entry.nextTickNanos = Math.max(entry.nextTickNanos + intervalNanos, now);
             }
         });
 
@@ -400,6 +431,7 @@ public class AiTickThrottlerService {
     private boolean isExcluded(
             int index,
             ArchetypeChunk<EntityStore> archetypeChunk,
+            CommandBuffer<EntityStore> commandBuffer,
             Set<String> excludedNpcTypes,
             boolean excludeMounts,
             boolean excludeFlying,
@@ -433,6 +465,25 @@ public class AiTickThrottlerService {
         if (!excludedNpcTypes.isEmpty()) {
             if (npcEntity != null && excludedNpcTypes.contains(npcEntity.getNPCTypeId())) {
                 return true;
+            }
+        }
+        if (combatType != null) {
+            CombatSupport combat = archetypeChunk.getComponent(index, combatType);
+            if (combat != null && combat.isExecutingAttack()) {
+                return true;
+            }
+        }
+        if (markedType != null && playerType != null) {
+            MarkedEntitySupport marked = archetypeChunk.getComponent(index, markedType);
+            if (marked != null) {
+                for (int i = 0; i < marked.getMarkedEntitySlotCount(); i++) {
+                    Ref<EntityStore> target = marked.getMarkedEntityRef(i);
+                    if (target != null
+                            && target.getStore() == commandBuffer.getStore()
+                            && commandBuffer.getArchetype(target).contains(playerType)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -506,6 +557,8 @@ public class AiTickThrottlerService {
             if (mountType == null) mountType = NPCMountComponent.getComponentType();
             if (movementStatesType == null) movementStatesType = MovementStatesComponent.getComponentType();
             if (deathType == null) deathType = DeathComponent.getComponentType();
+            if (combatType == null) combatType = CombatSupport.getComponentType();
+            if (markedType == null) markedType = MarkedEntitySupport.getComponentType();
 
             if (npcQuery == null) {
                 npcQuery = Query.and(npcType, transformType);

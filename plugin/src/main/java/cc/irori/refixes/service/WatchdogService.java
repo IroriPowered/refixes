@@ -264,7 +264,7 @@ public class WatchdogService {
                 dumpThreads(worldName);
 
                 World worldToRestart = Universe.get().getWorld(worldName);
-                if (worldToRestart != null && worldToRestart.getWorldConfig().canSaveChunks()) {
+                if (worldToRestart != null) {
                     int saveTimeout =
                             WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.RESTART_SAVE_TIMEOUT_MS);
                     if (!trySaveWorldWithTimeout(worldToRestart, saveTimeout)) {
@@ -351,8 +351,10 @@ public class WatchdogService {
                                         || HytaleServer.get().isShuttingDown()) {
                                     throw new IllegalStateException("World began stopping before the watchdog save");
                                 }
-                                return ChunkSavingSystems.saveChunksInWorld(
-                                        world.getChunkStore().getStore(), world);
+                                return world.getWorldConfig().canSaveChunks()
+                                        ? ChunkSavingSystems.saveChunksInWorld(
+                                                world.getChunkStore().getStore(), world)
+                                        : CompletableFuture.<Void>completedFuture(null);
                             },
                             world)
                     .thenCompose(future -> future);

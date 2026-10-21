@@ -7,6 +7,7 @@ import cc.irori.refixes.util.Logs;
 import cc.irori.refixes.util.TpsUtil;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.server.core.HytaleServerConfig;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -50,6 +51,29 @@ public class PerPlayerHotRadiusService {
 
     public void setIdlePlayerService(IdlePlayerService idlePlayerService) {
         this.idlePlayerService = idlePlayerService;
+    }
+
+    public static void restoreSavedViewRadius() {
+        Integer radius = readRestore();
+        if (radius != null) {
+            restoreViewRadius(radius);
+        }
+    }
+
+    private static void restoreViewRadius(int radius) {
+        try {
+            HytaleServerConfig config = HytaleServer.get().getConfig();
+            if (config.getMaxViewRadius() != radius) {
+                config.setMaxViewRadius(radius);
+            }
+            if (HytaleServer.get().isShuttingDown()) {
+                return;
+            }
+            HytaleServerConfig.save(config).join();
+            deleteRestore();
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log("Failed to restore max view radius to %d", radius);
+        }
     }
 
     public synchronized void registerService() {
@@ -282,13 +306,7 @@ public class PerPlayerHotRadiusService {
             if (initialMaxViewRadius < 0) {
                 return;
             }
-            try {
-                if (HytaleServer.get().getConfig().getMaxViewRadius() != initialMaxViewRadius) {
-                    HytaleServer.get().getConfig().setMaxViewRadius(initialMaxViewRadius);
-                }
-            } catch (Exception ignored) {
-            }
-            deleteRestore();
+            restoreViewRadius(initialMaxViewRadius);
             initialMaxViewRadius = -1;
         }
     }
@@ -360,8 +378,13 @@ public class PerPlayerHotRadiusService {
             }
             String content = Files.readString(VIEW_RADIUS_RESTORE_FILE, StandardCharsets.UTF_8)
                     .trim();
-            return content.isEmpty() ? null : Integer.parseInt(content);
+            int radius = Integer.parseInt(content);
+            if (radius <= 0 || radius > HytaleServerConfig.MAX_VIEW_RADIUS_LIMIT) {
+                throw new IllegalArgumentException("Saved view radius is outside the server limits");
+            }
+            return radius;
         } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log("Failed to read saved max view radius");
             return null;
         }
     }

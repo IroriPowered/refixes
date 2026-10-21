@@ -2,6 +2,7 @@ package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.WorldPolicySaveJoin;
+import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.universe.world.World;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +33,7 @@ public abstract class MixinWorldShutdown {
                                                     "Lcom/hypixel/hytale/server/core/universe/world/World;acceptingTasks:Ljava/util/concurrent/atomic/AtomicBoolean;")))
     private Object refixes$timeoutConfigSave(CompletableFuture<?> future) {
         int timeout = EarlyOptions.SHUTDOWN_SAVE_TIMEOUT_SECONDS.get();
-        if (timeout <= 0) return future.join();
+        if (timeout <= 0 || !HytaleServer.get().isShuttingDown()) return future.join();
         return WorldPolicySaveJoin.await(future, timeout, TimeUnit.SECONDS, "World config save");
     }
 }

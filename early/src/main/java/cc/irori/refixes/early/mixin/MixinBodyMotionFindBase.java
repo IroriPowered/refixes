@@ -36,6 +36,7 @@ public class MixinBodyMotionFindBase {
                                     "Lcom/hypixel/hytale/server/npc/corecomponents/movement/BodyMotionFindBase;shouldDeferPathComputation(Lcom/hypixel/hytale/server/npc/movement/controllers/MotionController;Lorg/joml/Vector3d;Lcom/hypixel/hytale/component/ComponentAccessor;)Z"))
     private boolean refixes$budgetNewPathSearch(
             boolean original,
+            @Local(argsOnly = true) Ref<EntityStore> ref,
             @Local(argsOnly = true) ExecutionSupport executionSupport,
             @Local(argsOnly = true) ComponentAccessor<EntityStore> componentAccessor) {
         if (original) {
@@ -44,7 +45,7 @@ public class MixinBodyMotionFindBase {
         if (refixes$isBudgetExempt(executionSupport)) {
             return false;
         }
-        return !PathfindingBudget.tryConsume(componentAccessor);
+        return !PathfindingBudget.tryConsume(componentAccessor, ref);
     }
 
     @WrapOperation(
@@ -64,7 +65,7 @@ public class MixinBodyMotionFindBase {
             MotionController activeMotionController,
             ComponentAccessor<EntityStore> componentAccessor,
             Operation<Boolean> original) {
-        if (refixes$isBudgetExempt(executionSupport) || PathfindingBudget.tryConsume(componentAccessor)) {
+        if (refixes$isBudgetExempt(executionSupport) || PathfindingBudget.tryConsume(componentAccessor, ref)) {
             return original.call(instance, ref, position, executionSupport, activeMotionController, componentAccessor);
         }
         return false;
@@ -86,7 +87,7 @@ public class MixinBodyMotionFindBase {
             Operation<Boolean> original,
             @Local(argsOnly = true) ExecutionSupport executionSupport) {
         if (refixes$isBudgetExempt(executionSupport)
-                || PathfindingBudget.tryConsumeNodes(componentAccessor, this.nodesPerTick)) {
+                || PathfindingBudget.tryConsumeNodes(componentAccessor, ref, this.nodesPerTick)) {
             return original.call(instance, ref, activeMotionController, componentAccessor);
         }
         return true;

@@ -25,14 +25,14 @@ These settings require their corresponding Mixin patches.
 | `PathfindingTotalNodesLimit` | `400` | Maximum expanded nodes per search. Requires `Mixins.Tuning.PathfindingLimits`. |
 | `PathfindingMaxNewSearchesPerTick` | `8` | Maximum new searches per tick. Requires `Mixins.Experimental.PathfindingBudget`. |
 | `PathfindingMaxNodeExpansionsPerTick` | `600` | Maximum A* expansions per tick across searches. Requires `Mixins.Experimental.PathfindingBudget`. |
-| `ShutdownSaveTimeoutSeconds` | `10` | Save timeout in seconds, unlimited at `0` or below. Requires `Mixins.Recovery.ShutdownSaveTimeout`. |
+| `ShutdownSaveTimeoutSeconds` | `10` | Server shutdown save timeout in seconds, unlimited at `0` or below. Requires `Mixins.Recovery.ShutdownSaveTimeout`. |
 
 ## Cylinder Visibility
 Section: `Early.CylinderVisibility`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `HeightMultiplier` | `2.0` | Vertical half height as a view radius multiplier. Requires `Mixins.Tuning.CylinderVisibility`. |
+| `HeightMultiplier` | `2.0` | Vertical height as a view radius multiplier. Requires `Mixins.Tuning.CylinderVisibility`. |
 
 ## KD Tree Optimization
 Section: `Early.KDTreeOptimization`
@@ -68,7 +68,7 @@ Section: `Runtime.Correctness`
 ## Entity Despawn Timer
 Section: `Runtime.Tuning.EntityDespawnTimer`
 
-Runs when either timer option is enabled and also repairs null timers. Existing lifetimes are kept unless overridden. Missing timers normally mean permanent entities.
+Runs when either timer option is enabled. Existing lifetimes are kept unless overridden. Missing timers normally mean permanent entities.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -81,12 +81,12 @@ Runs when either timer option is enabled and also repairs null timers. Existing 
 ## AI Tick Throttler
 Section: `Runtime.Tuning.AiTickThrottler`
 
-Throttles distant NPCs by pausing movement and gravity between steps. Respects unmarked freezes and the global freeze. Later freezes on marked NPCs cannot be distinguished. Saved cleanup is under `Runtime.Compatibility.TickThrottledCleanup`.
+Throttles distant NPCs by pausing movement and gravity between steps. Attacking NPCs and NPCs targeting players stay active. Native NPC freeze commands are preserved with early patches. Freezes from other plugins can still overlap.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `Enabled` | `false` | Enable the service. |
-| `UpdateIntervalMs` | `150` | Milliseconds between scans. |
+| `UpdateIntervalMs` | `150` | Milliseconds between scans. Keep below the shortest tick interval. |
 | `MaxCycleMs` | `30` | Budget for new freezes in milliseconds. `0` disables it. Does not cap cleanup or due steps. |
 | `ScanShards` | `1` | Spread new freezes across scans. Check existing freezes every scan. |
 | `NearChunks` | `2` | Full tick rate within this distance, about 64 blocks. |
@@ -108,7 +108,7 @@ Throttles distant NPCs by pausing movement and gravity between steps. Respects u
 ## Per Player Hot Radius
 Section: `Runtime.Tuning.PerPlayerHotRadius`
 
-Adjusts ticking chunk radii using each world's TPS. Healthy worlds use `MaxRadius`. The optional memory guard lowers view radius under heap pressure.
+Adjusts ticking chunk radii using each world's TPS. Healthy worlds use `MaxRadius`. The optional memory guard lowers view radius under heap pressure. Saved view radius is restored at startup.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -145,6 +145,8 @@ Reduces inactive players' ticking and view radii.
 ## Idle World Pause
 Section: `Runtime.Tuning.IdleWorldPause`
 
+With early patches, stopping the service restores its pauses and preserves later manual pauses.
+
 | Key | Default | Description |
 |-----|---------|-------------|
 | `Enabled` | `false` | Pause worlds without players. |
@@ -166,6 +168,7 @@ Requires `Mixins.Features.SharedInstances`. Explicit names and instance keys tak
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ExcludedPrefixes` | `[]` | Instance prefixes excluded from sharing. |
+| `ResetOnEmpty` | `false` | Deletes shared worlds when their empty condition removes them after a visit this run. |
 
 # Compatibility
 Section: `Runtime.Compatibility`
@@ -177,7 +180,7 @@ Section: `Runtime.Compatibility`
 ## Saved Throttler Cleanup
 Section: `Runtime.Compatibility.TickThrottledCleanup`
 
-Runs on saved entity load, even with throttling disabled. Released NPCs run until the next throttler scan. Markers cannot distinguish later admin freezes.
+Runs on saved entity load, even with throttling disabled. Released NPCs run until the next throttler scan. Native NPC freeze commands remove the throttler marker when early patches are active.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -201,13 +204,13 @@ Reports world stalls and crashes. Recovery actions keep monitoring active even i
 # Watchdog Recovery
 Section: `Runtime.Recovery.Watchdog`
 
-Restart requires stopped store threads and a successful save.
+Restart checks saving or responsiveness and requires stopped store threads.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ShutdownOnDefaultWorldCrash` | `true` | Shut down after a default world crash or watchdog alert. |
-| `AutoRestartWorlds` | `false` | Restart eligible failed worlds after a successful save. |
+| `AutoRestartWorlds` | `false` | Restart eligible failed worlds after a save or responsiveness check. |
 | `HaltOnShutdownTimeout` | `false` | Force process exit after the shutdown timeout. |
 | `ShutdownTimeoutMs` | `60000` | Milliseconds before forced exit, when enabled. |
-| `RestartSaveTimeoutMs` | `15000` | Save timeout before restart. Failure cancels restart. |
+| `RestartSaveTimeoutMs` | `15000` | Save or responsiveness timeout before restart. Failure cancels restart. |
 | `AutoRestartingWorldFilter` | `[]` | Empty excludes instances, plus the default world when `ShutdownOnDefaultWorldCrash` is enabled. |

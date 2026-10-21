@@ -49,6 +49,7 @@ import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -94,6 +95,7 @@ public class Refixes extends JavaPlugin {
         if (Early.isEnabled()) EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.setSupplier(() -> false);
         config.load().join();
         config.save().join();
+        PerPlayerHotRadiusService.restoreSavedViewRadius();
 
         if (Early.isEnabled()) {
             if (!EarlyOptions.hasMixinSelection()) {
@@ -111,6 +113,11 @@ public class Refixes extends JavaPlugin {
                 LOGGER.atSevere().withCause(e).log(
                         "Failed to pass config values to Refixes-Early, ensure that you have the same version of Refixes and Refixes-Early installed.");
             }
+        }
+        if (SharedInstanceConfig.get().getValue(SharedInstanceConfig.RESET_ON_EMPTY)
+                && !(Early.isEnabled() && EarlyOptions.isMixinEnabled("MixinInstancesPlugin"))) {
+            throw new IllegalStateException(
+                    "Runtime.Features.SharedInstances.ResetOnEmpty requires Mixins.Features.SharedInstances");
         }
 
         registerComponents();
@@ -150,7 +157,8 @@ public class Refixes extends JavaPlugin {
     protected void shutdown() {
         if (Early.isEnabled()) EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.setSupplier(() -> false);
         UnknownBlockCleaner.shutdown();
-        if (chunkLoaderService != null) chunkLoaderService.shutdown();
+        if (chunkLoaderService != null)
+            chunkLoaderService.shutdown(HytaleServer.get().isShuttingDown());
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.unregisterService();
         }
@@ -196,6 +204,8 @@ public class Refixes extends JavaPlugin {
 
         EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.setSupplier(
                 () -> sharedInstanceConfig.getValue(SharedInstanceConfig.EXCLUDED_PREFIXES));
+        EarlyOptions.SHARED_INSTANCES_RESET_ON_EMPTY.setSupplier(
+                () -> sharedInstanceConfig.getValue(SharedInstanceConfig.RESET_ON_EMPTY));
 
         EarlyOptions.PATHFINDING_MAX_PATH_LENGTH.setSupplier(
                 () -> config.getValue(EarlyConfig.PATHFINDING_MAX_PATH_LENGTH));

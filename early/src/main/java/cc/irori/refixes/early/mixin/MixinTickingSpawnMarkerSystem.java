@@ -3,6 +3,7 @@ package cc.irori.refixes.early.mixin;
 import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.entity.reference.InvalidatablePersistentRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.SpawnMarkerReference;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -50,17 +51,21 @@ public class MixinTickingSpawnMarkerSystem {
         if (!spawnReference.tickMarkerLostTimeoutCounter(dt)) {
             return;
         }
-        Ref<EntityStore> markerRef = spawnReference.getReference().getEntity(commandBuffer);
-        if (markerRef != null) {
-            SpawnMarkerEntity marker = markerRef.isValid() && markerRef.getStore() == commandBuffer.getStore()
-                    ? commandBuffer.getComponent(markerRef, markerTypeComponentType)
-                    : null;
-            if (marker != null) {
-                spawnReference.refreshTimeoutCounter();
-                marker.refreshTimeout();
-                return;
-            }
-        } else if (StateSupport.get(archetypeChunk.getReferenceTo(index), commandBuffer)
+        InvalidatablePersistentRef reference = spawnReference.getReference();
+        Ref<EntityStore> markerRef = reference.getEntity(commandBuffer);
+        if (markerRef != null && markerRef.getStore() != commandBuffer.getStore()) {
+            reference.setUuid(reference.getUuid());
+            markerRef = reference.getEntity(commandBuffer);
+        }
+        SpawnMarkerEntity marker = markerRef != null && markerRef.isValid()
+                ? commandBuffer.getComponent(markerRef, markerTypeComponentType)
+                : null;
+        if (marker != null) {
+            spawnReference.refreshTimeoutCounter();
+            marker.refreshTimeout();
+            return;
+        }
+        if (StateSupport.get(archetypeChunk.getReferenceTo(index), commandBuffer)
                 .isInBusyState()) {
             spawnReference.refreshTimeoutCounter();
             return;

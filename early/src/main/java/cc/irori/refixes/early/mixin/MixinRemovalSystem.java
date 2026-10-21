@@ -5,8 +5,10 @@ import com.hypixel.hytale.builtin.instances.removal.InstanceDataResource;
 import com.hypixel.hytale.builtin.instances.removal.RemovalSystem;
 import com.hypixel.hytale.builtin.portals.resources.PortalWorld;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
+import java.util.concurrent.CompletableFuture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,6 +21,12 @@ public class MixinRemovalSystem {
     private static void refixes$overrideWorldRemoval(Store<ChunkStore> store, CallbackInfoReturnable<Boolean> cir) {
         World world = store.getExternalData().getWorld();
         if (!world.getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
+            return;
+        }
+
+        CompletableFuture<Void> ready = Universe.get().getUniverseReady();
+        if (ready == null || !ready.isDone()) {
+            cir.setReturnValue(false);
             return;
         }
 

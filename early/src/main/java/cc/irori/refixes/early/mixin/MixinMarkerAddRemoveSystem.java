@@ -7,7 +7,9 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.entity.reference.InvalidatablePersistentRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.components.SpawnMarkerReference;
 import com.hypixel.hytale.server.npc.systems.SpawnReferenceSystems;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -34,6 +36,7 @@ public abstract class MixinMarkerAddRemoveSystem {
             original.call(ref, reason, store, commandBuffer);
             return;
         }
+        refixes$dropForeignMarker(ref, store);
         refixes$WRAPPING.set(true);
         try {
             original.call(ref, reason, store, commandBuffer);
@@ -56,6 +59,7 @@ public abstract class MixinMarkerAddRemoveSystem {
             original.call(ref, reason, store, commandBuffer);
             return;
         }
+        refixes$dropForeignMarker(ref, store);
         refixes$WRAPPING.set(true);
         try {
             original.call(ref, reason, store, commandBuffer);
@@ -64,6 +68,19 @@ public abstract class MixinMarkerAddRemoveSystem {
                     "MarkerAddRemoveSystem#onEntityRemove(): Unhandled exception while removing NPC references");
         } finally {
             refixes$WRAPPING.set(false);
+        }
+    }
+
+    @Unique
+    private static void refixes$dropForeignMarker(Ref<EntityStore> ref, Store<EntityStore> store) {
+        SpawnMarkerReference spawnReference = store.getComponent(ref, SpawnMarkerReference.getComponentType());
+        if (spawnReference == null) {
+            return;
+        }
+        InvalidatablePersistentRef reference = spawnReference.getReference();
+        Ref<EntityStore> markerRef = reference.getEntity(store);
+        if (markerRef != null && markerRef.getStore() != store) {
+            reference.setUuid(reference.getUuid());
         }
     }
 }

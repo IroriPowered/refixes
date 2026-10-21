@@ -1,6 +1,6 @@
 Patch switches live in `mods/IroriPowered_Refixes/Refixes.json`. Restart after editing. Missing or invalid values use defaults. Malformed JSON stops startup. See [Configuration](Configuration) for runtime settings.
 
-Use the paths below. Old paths are not migrated and are removed on save.
+Use the paths below. Old paths under `Mixins` are not migrated and are removed on save.
 
 # Correctness
 Section: `Mixins.Correctness`
@@ -10,10 +10,11 @@ Fixes that preserve intended server behavior.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `MountPlugin` | `true` | Guards invalid rider references. |
+| `QuicheChannel` | `true` | Releases queued packets and buffers when QUICHE streams close. |
 | `TrackedPlacementOnAddRemove` | `true` | Logs and skips missing tracked placements or block names during removal. |
 | `WorldNullGuard` | `true` | Returns an empty player list before the entity store is available. |
 | `WorldEventSaving` | `true` | Saves world events in order. |
-| `WorldTransfer` | `true` | Cancels stale player transfer retries. |
+| `WorldTransfer` | `true` | Protects player transfers during world removal. |
 | `ParallelTaskLifecycle` | `true` | Fixes parallel task reuse. |
 | `ChunkStoreSectionBackoffDeadlock` | `true` | Avoids deadlock when section loading fails under the chunk store write lock. |
 | `DespawnSystem` | `true` | Skips despawn timers with no instant. |
@@ -21,7 +22,7 @@ Fixes that preserve intended server behavior.
 | `EntityViewer` | `true` | Skips updates and removals for entities outside the viewer's visible set. |
 | `NPCKillsEntitySystem` | `true` | Returns null for an invalid NPC killer reference. |
 | `PortalDeviceSummonPage` | `true` | Prevents duplicate shared instance return portals and handles missing spawn transforms. |
-| `RemovalSystem` | `true` | Keeps shared portal worlds until their lifetime expires. |
+| `RemovalSystem` | `true` | Defers shared world removal during startup and respects portal lifetimes. |
 | `SetMemoriesCapacityInteraction` | `true` | Handles missing player memories components. |
 | `StateSupport` | `true` | Prunes invalid or foreign-store player references from NPC interaction state. |
 | `UUIDSystem` | `true` | Skips removal steps when the UUID component is missing. |
@@ -40,6 +41,7 @@ Stable optimizations, enabled by default.
 | `SpawnManagerRecalc` | `true` | Combines pending spawn recalculations. |
 | `RepulsionTicker` | `true` | Reuses entity repulsion buffers. |
 | `SkipEmptyLightSections` | `true` | Skips empty light sections. |
+| `FluidDiscovery` | `true` | Scans fluid cells during initialization. |
 
 # Tuning
 Section: `Mixins.Tuning`
@@ -48,7 +50,7 @@ Optional changes to visibility, streaming, waiting and pathfinding limits.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `CylinderVisibility` | `false` | Uses cylindrical entity visibility. See `Early.CylinderVisibility`. |
+| `CylinderVisibility` | `false` | Uses cylindrical visibility and can show more entities. See `Early.CylinderVisibility`. |
 | `ChunkStreaming` | `false` | Applies the `Early` chunk streaming limits. |
 | `TickWait` | `false` | Reduces spinning between ticks. |
 | `PathfindingLimits` | `false` | Applies configured pathfinding limits. |
@@ -62,8 +64,8 @@ Optional world behavior and the storage accessors used by existing shared worlds
 |-----|---------|-------------|
 | `OriginRetention` | `false` | Keeps the origin column loaded when `Early.VanillaKeepSpawnLoaded` is enabled. |
 | `SharedInstances` | `false` | Shares instance worlds between players. Can change consumable dungeon behavior. |
-| `SharedInstanceStorage` | `true` | Enables shared instance storage access. |
-| `WorldPauseCommand` | `false` | Allows `/pause` in empty multiplayer worlds. |
+| `SharedInstanceStorage` | `true` | Preserves shared instance storage. |
+| `WorldPauseCommand` | `false` | Allows `/world pause` in empty multiplayer worlds. |
 
 # Recovery
 Section: `Mixins.Recovery`
@@ -72,7 +74,7 @@ Optional recovery that can discard data or skip failed work.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ShutdownSaveTimeout` | `false` | Limits save waits to `Early.ShutdownSaveTimeoutSeconds`. |
+| `ShutdownSaveTimeout` | `false` | Limits server shutdown save waits to `Early.ShutdownSaveTimeoutSeconds`. |
 | `TickSurvival` | `false` | Skips failed tick work. Rethrows save exceptions after three failures in five minutes. |
 | `CorruptSectionReset` | `false` | Resets corrupt sections after successful quarantine. |
 | `MotionControllerBase` | `false` | Resets nonfinite NPC motion to zero. |
@@ -80,8 +82,8 @@ Optional recovery that can discard data or skip failed work.
 | `InvalidSavedHolders` | `false` | Skips broken saved entity records and saves the repaired chunk. |
 | `InvalidCollisionData` | `false` | Rejects invalid positions and nonfinite, empty or inverted hitboxes. |
 | `InteractionChain` | `false` | Tolerates interaction sync offset gaps. |
-| `MarkerAddRemoveSystem` | `false` | Skips failed spawn marker load and removal callbacks. |
-| `TickingSpawnMarkerSystem` | `false` | Despawns NPCs whose spawn marker tick uses an incorrect store reference. |
+| `MarkerAddRemoveSystem` | `false` | Clears foreign spawn marker references and skips failed callbacks. |
+| `TickingSpawnMarkerSystem` | `false` | Repairs foreign spawn marker references before orphan checks. |
 | `WorldMapTracker` | `false` | Guards null references during map image unloading. |
 | `WorldSpawningSystem` | `false` | Returns no chunk when random spawn selection fails. |
 | `DuplicateComponentReferences` | `false` | Logs and ignores duplicate block component references and holders. |
@@ -135,6 +137,6 @@ Independent parallel experiments. Both are disabled by default.
 
 `Mixins.Experimental.Parallel.CollectVisible` requires `Mixins.Correctness.ParallelTaskLifecycle`. `Mixins.Features.SharedInstances` requires `Mixins.Features.SharedInstanceStorage`. Disabling a required patch stops startup.
 
-Container cleaning, fluid cleaning and world restart enable their internal accessors automatically.
+Runtime features select their required internal patches at startup. Restart after changing these settings.
 
 `Runtime.Compatibility.ExistingSharedInstances` requires `Mixins.Features.SharedInstanceStorage`. Update Hyinit and Refixes together for combined JARs.

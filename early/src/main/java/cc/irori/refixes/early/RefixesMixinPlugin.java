@@ -40,6 +40,12 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Optimizations", "SpawnManagerRecalc", true, "MixinWorldSpawnManager", "MixinWorldSpawnLifecycle"),
             toggle("Optimizations", "RepulsionTicker", true, "MixinRepulsionTicker"),
             toggle("Optimizations", "SkipEmptyLightSections", true, "MixinFloodLightCalculation"),
+            toggle(
+                    "Optimizations",
+                    "FluidDiscovery",
+                    true,
+                    "MixinFluidPluginDiscovery",
+                    "MixinFluidSectionPaletteAccess"),
             toggle("Diagnostics", "SkipSystemMetrics", false, "MixinStoreSystemMetrics"),
             toggle("Diagnostics", "HytaleServer", true, "MixinHytaleServer"),
             toggle("Diagnostics", "SpawnMarkerBlockStateHeartbeat", true, "MixinSpawnMarkerBlockStateHeartbeat"),
@@ -48,8 +54,23 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Tuning", "TickWait", false, "MixinTickSleep"),
             toggle("Tuning", "PathfindingLimits", false, "MixinAStarLimits"),
             toggle("Features", "OriginRetention", false, "MixinChunkUnloadingSystem"),
-            toggle("Features", "SharedInstances", false, "MixinInstancesPlugin"),
-            toggle("Features", "SharedInstanceStorage", true, "MixinChunkGridAccess", "MixinChunkStoreAccess"),
+            toggle(
+                    "Features",
+                    "SharedInstances",
+                    false,
+                    "MixinInstancesPlugin",
+                    "MixinSharedInstanceResetWorld",
+                    "MixinSharedInstanceResetRemoval",
+                    "MixinSharedInstanceResetUniverse"),
+            toggle(
+                    "Features",
+                    "SharedInstanceStorage",
+                    true,
+                    "MixinChunkGridAccess",
+                    "MixinChunkStoreAccess",
+                    "MixinSharedInstanceWorld",
+                    "MixinSharedInstanceStartup",
+                    "MixinSharedInstanceRemoval"),
             toggle("Features", "WorldPauseCommand", false, "MixinWorldPauseCommand"),
             toggle("Recovery", "ShutdownSaveTimeout", false, "MixinStoreShutdown", "MixinWorldShutdown"),
             toggle("Recovery", "TickSurvival", false, "MixinStoreTickGuard"),
@@ -59,6 +80,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Recovery", "InvalidSavedHolders", false, "MixinEntityChunkLoadingSystem"),
             toggle("Recovery", "InvalidCollisionData", false, "MixinCollisionModule"),
             toggle("Correctness", "MountPlugin", true, "MixinMountPlugin"),
+            toggle("Correctness", "QuicheChannel", true, "MixinQuicheChannel"),
             toggle("Recovery", "InteractionChain", false, "MixinInteractionChain"),
             toggle("Recovery", "MarkerAddRemoveSystem", false, "MixinMarkerAddRemoveSystem"),
             toggle("Recovery", "TickingSpawnMarkerSystem", false, "MixinTickingSpawnMarkerSystem"),
@@ -75,7 +97,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Compatibility", "WorldConfig", true, "MixinWorldConfig"),
             toggle("Correctness", "WorldNullGuard", true, "MixinWorld"),
             toggle("Correctness", "WorldEventSaving", true, "MixinGlobalWorldEventManager"),
-            toggle("Correctness", "WorldTransfer", true, "MixinWorldTransfer"),
+            toggle("Correctness", "WorldTransfer", true, "MixinWorldTransfer", "MixinPlayerTeleport"),
             toggle(
                     "Correctness",
                     "ParallelTaskLifecycle",
@@ -110,8 +132,12 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "MixinBodyMotionFindBase",
                     "MixinWorldPathfindingBudget"));
 
-    private static final Set<String> DEPENDENCY_MIXINS =
-            Set.of("MixinBlockComponentSectionAccess", "MixinFluidSection", "MixinTickingThreadAccess");
+    private static final Set<String> DEPENDENCY_MIXINS = Set.of(
+            "MixinBlockComponentSectionAccess",
+            "MixinFluidSection",
+            "MixinTickingThreadAccess",
+            "MixinNPCFreezeOwnership",
+            "MixinWorldPauseOwner");
     private static final Set<String> ALL_MIXINS = allMixins();
 
     private String mixinPackage;
@@ -154,6 +180,10 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             enabled.add("MixinFluidSection");
         if (getBoolean(runtimeConfig, "Runtime", "Recovery", "Watchdog", "AutoRestartWorlds"))
             enabled.add("MixinTickingThreadAccess");
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "AiTickThrottler", "Enabled"))
+            enabled.add("MixinNPCFreezeOwnership");
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "IdleWorldPause", "Enabled"))
+            enabled.add("MixinWorldPauseOwner");
         Set<String> selected = Set.copyOf(enabled);
         writeConfig(config);
         enabledMixins = selected;

@@ -4,9 +4,11 @@ import cc.irori.refixes.early.accessor.ChunkGridAccess;
 import cc.irori.refixes.early.accessor.ChunkStoreAccess;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
+import com.hypixel.hytale.builtin.instances.removal.InstanceDataResource;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.function.consumer.TriIntConsumer;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.metrics.MetricProvider;
@@ -21,6 +23,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.heightmap.TreeHeightmap;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockComponentSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
+import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
 import com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -54,6 +57,10 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
         plugin.getEventRegistry().registerGlobal(StartWorldEvent.class, event -> {
             if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
             SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
+            InstanceDataResource instanceData =
+                    event.getWorld().getChunkStore().getStore().getResource(InstanceDataResource.getResourceType());
+            instanceData.setHadPlayer(false);
+            instanceData.setWorldTimeoutTimer(null);
             ChunkStore chunks = event.getWorld().getChunkStore();
             if (chunks.getSaver() instanceof SharedInstanceStorage) return;
             if (!(chunks.getSaver() instanceof IChunkSaver.Cubic cubic)
@@ -64,6 +71,10 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
             SharedInstanceStorage storage = new SharedInstanceStorage(cubic, chunks.getStore());
             gridAccess.refixes$setLoader(storage.new Loader(loader));
             storeAccess.refixes$setSaver(storage);
+        });
+        plugin.getEventRegistry().registerGlobal(EventPriority.LAST, RemoveWorldEvent.class, event -> {
+            if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
+            SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
         });
     }
 

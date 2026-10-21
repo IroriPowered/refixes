@@ -161,7 +161,7 @@ public class ChunkLoaderService {
         state.clear();
     }
 
-    public void shutdown() {
+    public void shutdown(boolean serverStopping) {
         synchronized (this) {
             if (stopped) return;
             for (var entry : worlds.entrySet()) {
@@ -171,7 +171,7 @@ public class ChunkLoaderService {
             for (World world : List.copyOf(worlds.keySet())) unloadWorld(world);
         }
         try {
-            persistence.close();
+            persistence.close(serverStopping ? TimeUnit.SECONDS.toNanos(30) : Long.MAX_VALUE);
         } catch (IOException e) {
             LOGGER.atSevere().withCause(e).log("Failed to flush chunk loader registrations");
         }
