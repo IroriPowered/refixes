@@ -323,9 +323,13 @@ def main():
         classes = runtime_root / "probe-classes"
         classes.mkdir()
         classpath = os.pathsep.join(map(str, [hyinit, refixes, server]))
-        sources = sorted((Path(__file__).resolve().parent / "local-verification").glob("*.java"))
-        if not sources:
-            raise VerificationError("Missing scripts/local-verification Java helpers")
+        helper_directory = Path(__file__).resolve().parent / "local-verification"
+        sources = [file_required(helper_directory / (name + ".java"), "Verification helper") for name in (
+            "CompatibilityProbe", "MixinCompatibilityMain", "MixinCompatibilityServer", "MixinCompatibilitySetup",
+            "SectionBackoffDeadlockRepro", "SharedInstanceStorageRegression", "NativePatchRegression",
+            "BeaconNativeRegression", "CommandBufferRemovalRegression", "EntityGuardRegression",
+            "NettySetupPacingRegression",
+        )]
         current_log = logs / "compile-probe.log"
         result["phases"]["compile-probe"] = run([
             javac, "-J-Xmx256m", "-J-XX:ActiveProcessorCount=2", "--release", "25", "-proc:none",

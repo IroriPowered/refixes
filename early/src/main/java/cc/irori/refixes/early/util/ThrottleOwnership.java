@@ -1,6 +1,5 @@
 package cc.irori.refixes.early.util;
 
-import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -27,12 +26,6 @@ public final class ThrottleOwnership {
                 store.getRegistry().getUnknownComponentType();
         if (store.getArchetype(ref).contains(unknownType)) {
             store.getComponent(ref, unknownType).getUnknownComponents().remove(MARKER_ID);
-        }
-    }
-
-    public static void claim(CommandBuffer<EntityStore> commandBuffer, Ref<EntityStore> ref, ComponentType<?, ?> type) {
-        if (type == Frozen.getComponentType()) {
-            commandBuffer.run(store -> claim(store, ref, type));
         }
     }
 }

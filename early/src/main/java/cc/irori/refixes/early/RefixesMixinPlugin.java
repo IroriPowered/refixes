@@ -4,10 +4,10 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.io.IOException;
 import java.io.Reader;
-import java.io.Writer;
+import java.net.JarURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -16,12 +16,15 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.jar.Attributes;
+import org.spongepowered.asm.launch.MixinInitialisationError;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 
 public class RefixesMixinPlugin implements IMixinConfigPlugin {
 
     private static final Path CONFIG_PATH = Paths.get("mods", "IroriPowered_Refixes", "Refixes.json");
     private static final Path RUNTIME_CONFIG_PATH = CONFIG_PATH.resolveSibling("config.json");
+    private static final String ALLOW_UNSUPPORTED_SERVER_VERSION = "AllowUnsupportedServerVersion";
     private static final List<String> CATEGORIES = List.of(
             "Correctness",
             "Optimizations",
@@ -32,20 +35,43 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             "Diagnostics",
             "Experimental");
 
-    private record MixinToggle(String[] jsonPath, boolean defaultEnabled, List<String> mixins) {}
+    private static final String SUPPORTED_SERVER_VERSION = "0\\.7\\.\\d+";
+
+    private record MixinToggle(
+            String[] jsonPath,
+            boolean defaultEnabled,
+            List<String> mixins,
+            boolean runtimeDependency,
+            List<String> uses) {}
 
     private static final List<MixinToggle> TOGGLES = List.of(
             toggle("Optimizations", "CollisionConfig", true, "MixinCollisionConfig"),
-            toggle("Optimizations", "KDTree", true, "MixinKDTree"),
+            toggle("Optimizations", "KDTree", false, "MixinKDTree"),
             toggle("Optimizations", "SpawnManagerRecalc", true, "MixinWorldSpawnManager", "MixinWorldSpawnLifecycle"),
             toggle("Optimizations", "RepulsionTicker", true, "MixinRepulsionTicker"),
             toggle("Optimizations", "SkipEmptyLightSections", true, "MixinFloodLightCalculation"),
+            toggle("Optimizations", "RocksDbCompression", false, "MixinRocksDbCompression"),
             toggle(
                     "Optimizations",
                     "FluidDiscovery",
                     true,
                     "MixinFluidPluginDiscovery",
                     "MixinFluidSectionPaletteAccess"),
+            toggle(
+                    "Optimizations",
+                    "SoundHeaderValidation",
+                    true,
+                    "MixinSoundFileValidators",
+                    "MixinSoundEventLayer",
+                    "MixinCommonAssetBlobAccess",
+                    "MixinOggVorbisInfoCacheAccess",
+                    "MixinOggVorbisInfoAccess"),
+            toggle(
+                    "Optimizations",
+                    "AssetPartSnapshotSharing",
+                    true,
+                    "MixinPacketHandlerAssetParts",
+                    "MixinCachedPacketAccess"),
             toggle("Diagnostics", "SkipSystemMetrics", false, "MixinStoreSystemMetrics"),
             toggle("Diagnostics", "HytaleServer", true, "MixinHytaleServer"),
             toggle("Diagnostics", "SpawnMarkerBlockStateHeartbeat", true, "MixinSpawnMarkerBlockStateHeartbeat"),
@@ -73,18 +99,74 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "MixinSharedInstanceRemoval"),
             toggle("Features", "WorldPauseCommand", false, "MixinWorldPauseCommand"),
             toggle("Recovery", "ShutdownSaveTimeout", false, "MixinStoreShutdown", "MixinWorldShutdown"),
-            toggle("Recovery", "TickSurvival", false, "MixinStoreTickGuard"),
-            toggle("Recovery", "CorruptSectionReset", false, "MixinBlockSectionSafety"),
+            toggle("Recovery", "TickSurvival", false, "MixinStoreTickGuard", "MixinCommandBufferAccess"),
+            toggle("Recovery", "CorruptSectionReset", false, "MixinBlockSectionSafety", "MixinBlockSectionQuarantine"),
             toggle("Recovery", "MotionControllerBase", false, "MixinMotionControllerBase"),
             toggle("Recovery", "TurnOffTeleportersSystem", false, "MixinTurnOffTeleportersSystem"),
             toggle("Recovery", "InvalidSavedHolders", false, "MixinEntityChunkLoadingSystem"),
+            toggle(
+                    "Recovery",
+                    "UnresolvedNPCRoles",
+                    false,
+                    "MixinNPCSectionActivation",
+                    "MixinNPCRoleActivation",
+                    "MixinUnresolvedNPCRoleChange",
+                    "MixinRoleChangeRequestAccess",
+                    "MixinRoleChangeFlagAccess",
+                    "MixinBuilderDependencyAccess",
+                    "MixinBuilderValidationReferences"),
             toggle("Recovery", "InvalidCollisionData", false, "MixinCollisionModule"),
             toggle("Correctness", "MountPlugin", true, "MixinMountPlugin"),
-            toggle("Correctness", "QuicheChannel", true, "MixinQuicheChannel"),
+            toggle(
+                    "Correctness",
+                    "PacketAdapters",
+                    true,
+                    "MixinPacketHandlerInbound",
+                    "MixinPlayerChannelHandlerInbound"),
+            toggle("Correctness", "RocksDbFlush", true, "MixinRocksDbFlush", "MixinRocksDbSaverFlush"),
+            toggle("Correctness", "WorldGenReload", true, "MixinWorldGenReload"),
+            toggle(
+                    "Correctness",
+                    "OutgoingQueueLimits",
+                    true,
+                    "MixinQuicheChannel",
+                    "MixinQuicheConnection",
+                    "MixinNettyChannelConnection"),
+            toggle(
+                    "Correctness",
+                    "SetupPacing",
+                    true,
+                    "MixinSetupAssetPacing",
+                    "MixinSetupStagePacing",
+                    "MixinSetupConfigPacing"),
+            toggle(
+                    "Correctness",
+                    "QuicCloseRetention",
+                    true,
+                    "MixinQuicChannelClose",
+                    "MixinQuicConnectionAccess",
+                    "MixinQuicTimeoutAccess"),
+            toggle(
+                    "Correctness",
+                    "ChunkSectionFences",
+                    true,
+                    "MixinChunkTrackerSectionFence",
+                    "MixinChunkTrackerQueryReentry",
+                    "MixinReplicateSnapshotFence",
+                    "MixinFluidReplicateLoadFence",
+                    "MixinFluidReplicateSnapshotFence",
+                    "MixinTrackedColumnSectionFence",
+                    "MixinChunkTrackerNotificationResync",
+                    "MixinBlockChunkNotificationPacket",
+                    "MixinEnvironmentNotificationPacket",
+                    "MixinWorldNotificationHandler",
+                    "MixinPacketHandlerSectionFence"),
+            toggle("Correctness", "WorldMapPacing", true, "MixinWorldMapPacing"),
             toggle("Recovery", "InteractionChain", false, "MixinInteractionChain"),
-            toggle("Recovery", "MarkerAddRemoveSystem", false, "MixinMarkerAddRemoveSystem"),
-            toggle("Recovery", "TickingSpawnMarkerSystem", false, "MixinTickingSpawnMarkerSystem"),
+            toggle("Correctness", "MarkerAddRemoveSystem", true, "MixinMarkerAddRemoveSystem"),
+            toggle("Correctness", "TickingSpawnMarkerSystem", true, "MixinTickingSpawnMarkerSystem"),
             toggle("Recovery", "WorldMapTracker", false, "MixinWorldMapTracker"),
+            toggle("Correctness", "WorldMapCache", true, "MixinWorldMapManager"),
             toggle("Recovery", "WorldSpawningSystem", false, "MixinWorldSpawningSystem"),
             toggle("Recovery", "DuplicateComponentReferences", false, "MixinBlockComponentChunk"),
             toggle("Correctness", "TrackedPlacementOnAddRemove", true, "MixinTrackedPlacementOnAddRemove"),
@@ -95,9 +177,63 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Compatibility", "UpdateDownloadCommand", true, "MixinUpdateDownloadCommand"),
             toggle("Compatibility", "UpdateModule", true, "MixinUpdateModule"),
             toggle("Compatibility", "WorldConfig", true, "MixinWorldConfig"),
+            runtimeToggle("PlayerRadius", "MixinChunkTrackerRadiusWrites", "MixinPlayerRadiusWrites"),
+            runtimeToggle("ServerViewRadius", "MixinServerViewRadius"),
+            runtimeToggle(
+                    "AiTickThrottler",
+                    "MixinThrottleFreezeSave",
+                    "MixinFrozenOwnership",
+                    "MixinMotionControllerAccess"),
+            runtimeToggle("IdleWorldPause", "MixinWorldPauseOwner"),
+            runtimeToggle("UnknownBlockCleaner", "MixinBlockComponentSectionAccess", "MixinFluidSection"),
+            runtimeToggle("Watchdog", "MixinTickingThreadAccess"),
+            toggle("Correctness", "WindowManager", true, "MixinWindowManager", "MixinWindowAccess"),
             toggle("Correctness", "WorldNullGuard", true, "MixinWorld"),
+            toggle(
+                    "Correctness",
+                    "ConfigLoad",
+                    true,
+                    "MixinConfig",
+                    "MixinPluginConfigWrites",
+                    "MixinPluginManagerConfigWrites"),
+            toggle("Correctness", "PluginPreload", true, "MixinPluginManagerPreload", "MixinPluginBaseShutdownAccess"),
+            toggle("Correctness", "PluginLoaderCache", true, "MixinPluginManagerLoaderCache"),
             toggle("Correctness", "WorldEventSaving", true, "MixinGlobalWorldEventManager"),
-            toggle("Correctness", "WorldTransfer", true, "MixinWorldTransfer", "MixinPlayerTeleport"),
+            toggle(
+                    "Correctness",
+                    "WorldTransfer",
+                    true,
+                    "MixinWorldTransfer",
+                    "MixinPlayerTeleport",
+                    "MixinCubicEntityTransfer",
+                    "MixinEntityTransferAdmission",
+                    "MixinUniverseResetOwnership",
+                    "MixinPlayerResetCommand",
+                    "MixinCubicTransferSaver",
+                    "MixinCubicTransferSection",
+                    "MixinCubicTransferMove",
+                    "MixinCubicTransferColumn",
+                    "MixinCubicTransferTickingColumn",
+                    "MixinCubicTransferRemoval",
+                    "MixinCubicTransferShutdown"),
+            toggle("Correctness", "WorldReopenGuard", true, "MixinUniverseRetirement", "MixinUniverseTransferCleanup"),
+            toggle(
+                    "Correctness",
+                    "StorageOrdering",
+                    true,
+                    "MixinSaveCompletionWorld",
+                    "MixinSaveCompletionTicking",
+                    "MixinSaveCompletionChunk",
+                    "MixinSaveCompletionSection",
+                    "MixinSaveCompletionEntity",
+                    "MixinSaveCompletionRocksDb",
+                    "MixinIndexedColumnSaveOrder",
+                    "MixinIndexedCacheLifetime",
+                    "MixinIndexedLoaderLifetime",
+                    "MixinIndexedProviderLifetime",
+                    "MixinWorldTransferCleanup",
+                    "MixinRocksDbColumnSaveOrder"),
+            toggle("Correctness", "TransferCombatClock", true, "MixinTransferCombatClock"),
             toggle(
                     "Correctness",
                     "ParallelTaskLifecycle",
@@ -115,6 +251,9 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Correctness", "DespawnSystem", true, "MixinDespawnSystem"),
             toggle("Correctness", "CommandBuffer", true, "MixinCommandBuffer"),
             toggle("Correctness", "EntityViewer", true, "MixinEntityViewer"),
+            toggle("Correctness", "EntityModule", true, "MixinEntityModule"),
+            toggle("Correctness", "EffectConditionClock", true, "MixinLivingEntityEffectSystem"),
+            toggle("Correctness", "AssetInheritance", true, "MixinAssetStoreInheritance"),
             toggle("Correctness", "NPCKillsEntitySystem", true, "MixinNPCKillsEntitySystem"),
             toggle("Correctness", "PortalDeviceSummonPage", true, "MixinPortalDeviceSummonPage"),
             toggle("Correctness", "RemovalSystem", true, "MixinRemovalSystem", "MixinPortalWorldAccessor"),
@@ -123,21 +262,85 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Correctness", "UUIDSystem", true, "MixinUUIDSystem"),
             toggle("Correctness", "DeployableOwnerComponent", true, "MixinDeployableOwnerComponent"),
             toggle("Correctness", "TeleportToPlayerCommand", true, "MixinTeleportToPlayerCommand"),
+            toggle("Correctness", "TeleportInstanceInteraction", true, "MixinTeleportInstanceInteraction"),
+            toggle("Correctness", "TickingThreadStop", true, "MixinTickingThreadStop"),
+            using(
+                    toggle("Correctness", "TickingThreadStart", true, "MixinTickingThreadStart"),
+                    "MixinTickingThreadRunAccess"),
+            toggle("Correctness", "SerializableArchetype", true, "MixinSerializableArchetype"),
+            using(
+                    toggle(
+                            "Correctness",
+                            "WorldOwnership",
+                            true,
+                            "MixinUniverseWorldOwnership",
+                            "MixinWorldOwnership",
+                            "MixinPortalInvalidDestinationSystem"),
+                    "MixinTickingThreadAccess"),
+            toggle(
+                    "Correctness",
+                    "WorldRetirement",
+                    false,
+                    "MixinWorldRetirement",
+                    "MixinInstancesPluginRetirement",
+                    "MixinCreativeHubPluginRetirement"),
             toggle("Experimental", "Parallel", "CollectVisible", false, "MixinCollectVisibleParallel"),
-            toggle("Experimental", "Parallel", "SpatialCollection", false, "MixinSpatialSystem"),
             toggle(
                     "Experimental",
                     "PathfindingBudget",
                     false,
                     "MixinBodyMotionFindBase",
-                    "MixinWorldPathfindingBudget"));
+                    "MixinWorldPathfindingBudget"),
+            toggle(
+                    "Correctness",
+                    "StoredFlockSaving",
+                    true,
+                    "MixinSpawnMarkerTicking",
+                    "MixinSpawnMarkerSpawnSaving",
+                    "MixinSpawnReferenceSaving"),
+            toggle("Correctness", "FluidChangeSaving", true, "MixinFluidChangeSaving"),
+            toggle("Correctness", "FluidRelightSection", true, "MixinFluidRelightSection"),
+            toggle("Correctness", "ServerConfigSaveChain", true, "MixinServerConfigSaveChain"),
+            using(
+                    toggle("Correctness", "TickingThreadAbandon", true, "MixinTickingThreadAbandon"),
+                    "MixinTickingThreadRunAccess"),
+            toggle("Correctness", "WorldTaskQueueClose", true, "MixinWorldTaskQueueClose"),
+            toggle("Correctness", "ServerShutdownWatchdog", true, "MixinServerShutdownWatchdog"),
+            toggle("Correctness", "WorldMapTickingStop", true, "MixinWorldMapTickingStop"),
+            toggle("Correctness", "UniverseDeletedCleanup", true, "MixinUniverseDeletedCleanup"),
+            toggle("Correctness", "MountMovementTeleport", true, "MixinMountMovementTeleport"),
+            toggle("Correctness", "CommonAssetHashCleanup", true, "MixinCommonAssetHashCleanup"),
+            toggle("Correctness", "ObjectiveEntityRemoval", true, "MixinSpawnEntityTransactionRecord"),
+            toggle("Correctness", "FluidDropSection", true, "MixinFluidTickerDropSection"),
+            toggle("Correctness", "SoundChannelEncoding", true, "MixinSoundFileEncoding"),
+            toggle("Correctness", "MessageSelect", true, "MixinMessageSelect"),
+            toggle("Correctness", "ServerManagerShutdown", true, "MixinServerManagerShutdown"),
+            toggle(
+                    "Correctness",
+                    "EntitySectionLoad",
+                    true,
+                    "MixinEntitySectionLoad",
+                    "MixinEntitySectionLoadSpawn",
+                    "MixinTransformSectionLoad"),
+            using(
+                    toggle("Correctness", "PrefabPasteLoaded", true, "MixinPrefabPasteLoaded"),
+                    "MixinPrefabPendingPasteAccess"),
+            toggle(
+                    "Correctness",
+                    "MapMarkerLocking",
+                    true,
+                    "MixinMapMarkerLocking",
+                    "MixinMapMarkerLocking$Provider",
+                    "MixinMapMarkerLocking$Reveal"),
+            toggle("Correctness", "PortalDeviceWorldClose", true, "MixinPortalDeviceWorldClose"),
+            toggle("Correctness", "RocksDbColumnRemoval", true, "MixinRocksDbColumnRemoval"),
+            toggle(
+                    "Correctness",
+                    "RocksDbScanBounds",
+                    true,
+                    "MixinRocksDbScanBounds",
+                    "MixinRocksDbBlockComponentScanBounds"));
 
-    private static final Set<String> DEPENDENCY_MIXINS = Set.of(
-            "MixinBlockComponentSectionAccess",
-            "MixinFluidSection",
-            "MixinTickingThreadAccess",
-            "MixinNPCFreezeOwnership",
-            "MixinWorldPauseOwner");
     private static final Set<String> ALL_MIXINS = allMixins();
 
     private String mixinPackage;
@@ -145,18 +348,36 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
     private volatile boolean initialized;
 
     private static MixinToggle toggle(String category, String key, boolean defaultEnabled, String... mixins) {
-        return new MixinToggle(new String[] {"Mixins", category, key}, defaultEnabled, List.of(mixins));
+        return new MixinToggle(
+                new String[] {"Mixins", category, key}, defaultEnabled, List.of(mixins), false, List.of());
     }
 
     private static MixinToggle toggle(
             String category, String group, String key, boolean defaultEnabled, String... mixins) {
-        return new MixinToggle(new String[] {"Mixins", category, group, key}, defaultEnabled, List.of(mixins));
+        return new MixinToggle(
+                new String[] {"Mixins", category, group, key}, defaultEnabled, List.of(mixins), false, List.of());
+    }
+
+    private static MixinToggle runtimeToggle(String key, String... mixins) {
+        return new MixinToggle(new String[] {"Mixins", "Compatibility", key}, true, List.of(mixins), true, List.of());
+    }
+
+    private static MixinToggle using(MixinToggle toggle, String... accessors) {
+        return new MixinToggle(
+                toggle.jsonPath, toggle.defaultEnabled, toggle.mixins, toggle.runtimeDependency, List.of(accessors));
     }
 
     private static Set<String> allMixins() {
-        Set<String> mixins = new HashSet<>(DEPENDENCY_MIXINS);
-        for (MixinToggle toggle : TOGGLES) mixins.addAll(toggle.mixins);
+        Set<String> mixins = new HashSet<>();
+        for (MixinToggle toggle : TOGGLES) {
+            mixins.addAll(toggle.mixins);
+            mixins.addAll(toggle.uses);
+        }
         return Set.copyOf(mixins);
+    }
+
+    private static String path(MixinToggle toggle) {
+        return String.join(".", toggle.jsonPath);
     }
 
     @Override
@@ -164,34 +385,107 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         initialized = false;
         enabledMixins = Collections.emptySet();
         EarlyOptions.clearMixinSelection();
-        requireFabricMixinSupport(RefixesMixinPlugin.class.getClassLoader());
         this.mixinPackage = mixinPackage;
+        try {
+            load();
+        } catch (IllegalStateException failure) {
+            throw new MixinInitialisationError("[Refixes] " + failure.getMessage(), failure);
+        }
+    }
+
+    private void load() {
+        String serverVersion = readServerVersion();
         JsonObject config = readConfig(CONFIG_PATH);
+        boolean unsupportedServerVersion = serverVersion == null || !serverVersion.matches(SUPPORTED_SERVER_VERSION);
+        if (unsupportedServerVersion && !getBoolean(config, ALLOW_UNSUPPORTED_SERVER_VERSION)) {
+            EarlyOptions.setMixinSelection(Set.of());
+            initialized = true;
+            System.out.println("[Refixes] Early mixins disabled for Hytale "
+                    + (serverVersion == null ? "unknown" : serverVersion)
+                    + ". Refixes supports Hytale 0.7.7. Update Refixes for this server version.");
+            return;
+        }
+        requireFabricMixinSupport(RefixesMixinPlugin.class.getClassLoader());
         JsonObject runtimeConfig = readConfig(RUNTIME_CONFIG_PATH);
+        Set<String> currentToggles = new HashSet<>();
+        for (MixinToggle toggle : TOGGLES) currentToggles.add(path(toggle));
+        List<String> migrated = ConfigMigration.migrateMixins(config, currentToggles);
+        List<String> runtimeMigrated = ConfigMigration.migrateRuntime(runtimeConfig);
+        for (String line : migrated) System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
+        for (String line : runtimeMigrated)
+            System.out.println("[Refixes] " + RUNTIME_CONFIG_PATH.getFileName() + ": " + line);
+        try {
+            EarlyOptions.initializeOutgoingQueueLimits(runtimeConfig);
+        } catch (IllegalStateException failure) {
+            throw new IllegalStateException(RUNTIME_CONFIG_PATH + ": " + failure.getMessage(), failure);
+        }
+        Set<String> required = runtimeDependencies(runtimeConfig);
         Set<String> enabled = new HashSet<>();
         for (MixinToggle toggle : TOGGLES) {
-            if (toggleEnabled(config, toggle)) enabled.addAll(toggle.mixins);
+            if (!toggleEnabled(config, toggle)) continue;
+            for (String mixin : toggle.mixins) {
+                if (!toggle.runtimeDependency || required.contains(mixin)) enabled.add(mixin);
+            }
+            enabled.addAll(toggle.uses);
         }
         validateDependencies(config, enabled);
-        boolean cleaner = getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "Enabled");
-        if (cleaner && getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "ScanContainers"))
-            enabled.add("MixinBlockComponentSectionAccess");
-        if (cleaner && getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "ScanFluids"))
-            enabled.add("MixinFluidSection");
-        if (getBoolean(runtimeConfig, "Runtime", "Recovery", "Watchdog", "AutoRestartWorlds"))
-            enabled.add("MixinTickingThreadAccess");
-        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "AiTickThrottler", "Enabled"))
-            enabled.add("MixinNPCFreezeOwnership");
-        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "IdleWorldPause", "Enabled"))
-            enabled.add("MixinWorldPauseOwner");
         Set<String> selected = Set.copyOf(enabled);
-        writeConfig(config);
         enabledMixins = selected;
         EarlyOptions.setMixinSelection(selected);
         initialized = true;
+        if (unsupportedServerVersion) {
+            System.out.println("[Refixes] Version gate overridden for Hytale "
+                    + (serverVersion == null ? "unknown" : serverVersion)
+                    + ". Applying configured mixins.");
+        }
+        writeConfig(CONFIG_PATH, serializeMixins(config));
+        if (!runtimeMigrated.isEmpty()) writeConfig(RUNTIME_CONFIG_PATH, runtimeConfig);
         System.out.println("[Refixes] === Early mixin patches ===");
         for (String mixin : ALL_MIXINS.stream().sorted().toList())
             System.out.println("[Refixes]   - " + (selected.contains(mixin) ? "[x] " : "[ ] ") + mixin);
+    }
+
+    private static String readServerVersion() {
+        try {
+            var resource = RefixesMixinPlugin.class.getClassLoader().getResource("com/hypixel/hytale/Main.class");
+            if (resource == null || !(resource.openConnection() instanceof JarURLConnection connection)) return null;
+            connection.setUseCaches(false);
+            try (var jar = connection.getJarFile()) {
+                var manifest = jar.getManifest();
+                if (manifest == null) return null;
+                String version = manifest.getMainAttributes().getValue(Attributes.Name.IMPLEMENTATION_VERSION);
+                return version == null ? null : version.trim();
+            }
+        } catch (IOException | SecurityException failure) {
+            return null;
+        }
+    }
+
+    private static Set<String> runtimeDependencies(JsonObject runtimeConfig) {
+        Set<String> required = new HashSet<>();
+        boolean cleaner = getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "Enabled");
+        if (cleaner && getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "ScanContainers"))
+            required.add("MixinBlockComponentSectionAccess");
+        if (cleaner && getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "ScanFluids"))
+            required.add("MixinFluidSection");
+        if (getBoolean(runtimeConfig, "Runtime", "Recovery", "Watchdog", "AutoRestartWorlds"))
+            required.add("MixinTickingThreadAccess");
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "AiTickThrottler", "Enabled")) {
+            required.add("MixinThrottleFreezeSave");
+            required.add("MixinFrozenOwnership");
+            required.add("MixinMotionControllerAccess");
+        }
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "IdleWorldPause", "Enabled"))
+            required.add("MixinWorldPauseOwner");
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "PerPlayerHotRadius", "MemoryGuardEnabled"))
+            required.add("MixinServerViewRadius");
+        boolean idlePlayer = getBoolean(runtimeConfig, "Runtime", "Tuning", "IdlePlayerHandler", "Enabled");
+        if (idlePlayer
+                || !Boolean.FALSE.equals(
+                        getOptionalBoolean(runtimeConfig, "Runtime", "Tuning", "PerPlayerHotRadius", "Enabled")))
+            required.add("MixinChunkTrackerRadiusWrites");
+        if (idlePlayer) required.add("MixinPlayerRadiusWrites");
+        return required;
     }
 
     private static void validateDependencies(JsonObject config, Set<String> selected) {
@@ -202,6 +496,24 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                         "Mixins.Experimental.Parallel." + key,
                         "Mixins.Correctness.ParallelTaskLifecycle");
             }
+        }
+        if (selected.contains("MixinCubicTransferShutdown")) {
+            requireDependency(
+                    selected.contains("MixinSaveCompletionWorld"),
+                    "Mixins.Correctness.WorldTransfer",
+                    "Mixins.Correctness.StorageOrdering");
+        }
+        if (selected.contains("MixinWorldRetirement")) {
+            requireDependency(
+                    selected.contains("MixinUniverseRetirement"),
+                    "Mixins.Correctness.WorldRetirement",
+                    "Mixins.Correctness.WorldReopenGuard");
+        }
+        if (selected.contains("MixinQuicheChannel")) {
+            requireDependency(
+                    selected.contains("MixinSetupStagePacing"),
+                    "Mixins.Correctness.OutgoingQueueLimits",
+                    "Mixins.Correctness.SetupPacing");
         }
         if (selected.contains("MixinInstancesPlugin")) {
             requireDependency(
@@ -267,31 +579,36 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         }
     }
 
-    private static void writeConfig(JsonObject config) {
+    private static JsonObject serializeMixins(JsonObject config) {
+        JsonObject mixins = new JsonObject();
+        for (String category : CATEGORIES) mixins.add(category, new JsonObject());
+        for (MixinToggle toggle : TOGGLES)
+            setBoolean(
+                    mixins,
+                    java.util.Arrays.copyOfRange(toggle.jsonPath, 1, toggle.jsonPath.length),
+                    toggleEnabled(config, toggle));
+        config.addProperty(ALLOW_UNSUPPORTED_SERVER_VERSION, getBoolean(config, ALLOW_UNSUPPORTED_SERVER_VERSION));
+        config.add("Mixins", mixins);
+        return config;
+    }
+
+    private static void writeConfig(Path path, JsonObject config) {
+        String content = new GsonBuilder().setPrettyPrinting().create().toJson(config);
         try {
-            JsonObject mixins = new JsonObject();
-            for (String category : CATEGORIES) mixins.add(category, new JsonObject());
-            for (MixinToggle toggle : TOGGLES)
-                setBoolean(
-                        mixins,
-                        java.util.Arrays.copyOfRange(toggle.jsonPath, 1, toggle.jsonPath.length),
-                        toggleEnabled(config, toggle));
-            config.add("Mixins", mixins);
-            Files.createDirectories(CONFIG_PATH.getParent());
-            Path temporary = Files.createTempFile(CONFIG_PATH.getParent(), "Refixes", ".json.tmp");
+            if (Files.isRegularFile(path)
+                    && Files.readString(path, StandardCharsets.UTF_8).equals(content)) return;
+            Files.createDirectories(path.getParent());
+            Path temporary =
+                    Files.createTempFile(path.getParent(), path.getFileName().toString(), ".tmp");
             try {
-                try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
-                    new GsonBuilder().setPrettyPrinting().create().toJson(config, writer);
-                }
-                Files.move(temporary, CONFIG_PATH, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.writeString(temporary, content, StandardCharsets.UTF_8);
+                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } finally {
                 Files.deleteIfExists(temporary);
             }
-        } catch (AtomicMoveNotSupportedException failure) {
-            throw new IllegalStateException("Atomic config replacement is unsupported for " + CONFIG_PATH, failure);
-        } catch (Exception failure) {
-            throw new IllegalStateException(
-                    "Failed to write Refixes config at " + CONFIG_PATH + ": " + failure.getMessage(), failure);
+        } catch (IOException | RuntimeException failure) {
+            System.out.println("[Refixes] WARNING: could not update " + path + " (" + failure
+                    + "). The selected patches are applied; the file keeps its previous content.");
         }
     }
 

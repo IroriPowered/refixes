@@ -1,22 +1,29 @@
 package cc.irori.refixes.early.util;
 
+import cc.irori.refixes.early.duck.EntityAdmission;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.event.events.player.DrainPlayerFromWorldEvent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.SpawnUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import java.awt.Color;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 public final class WorldTransferRecovery {
     private static final Map<PlayerRef, Transfer> TRANSFERS = new ConcurrentHashMap<>();
     private static final Map<PlayerRef, Admission> ADMISSIONS = new ConcurrentHashMap<>();
+    private static final int MAX_ADMISSION_ATTEMPTS = 4;
+    private static final long ADMISSION_TIMEOUT_SECONDS = 60L;
 
     private WorldTransferRecovery() {}
 
@@ -37,6 +44,11 @@ public final class WorldTransferRecovery {
 
     public static CompletableFuture<PlayerRef> admit(
             World world, PlayerRef player, Supplier<CompletableFuture<PlayerRef>> nativeAttach) {
+        return admit(world, player, nativeAttach, MAX_ADMISSION_ATTEMPTS);
+    }
+
+    private static CompletableFuture<PlayerRef> admit(
+            World world, PlayerRef player, Supplier<CompletableFuture<PlayerRef>> nativeAttach, int attempts) {
         Holder<EntityStore> holder = player.getHolder();
         Admission admission = new Admission(world, holder);
         Transfer transfer = TRANSFERS.get(player);
@@ -50,10 +62,34 @@ public final class WorldTransferRecovery {
             CompletableFuture<PlayerRef> future = nativeAttach.get();
             if (future != null) {
                 CompletableFuture<PlayerRef> result = new CompletableFuture<>();
-                future.whenComplete((added, failure) -> {
+                future.orTimeout(ADMISSION_TIMEOUT_SECONDS, TimeUnit.SECONDS).whenComplete((added, failure) -> {
                     ADMISSIONS.remove(player, admission);
-                    if (failure == null) result.complete(added);
-                    else result.completeExceptionally(failure);
+                    if (failure == null) {
+                        result.complete(added);
+                        return;
+                    }
+                    boolean handed = false;
+                    try {
+                        if (isSuperseded(failure) && attempts > 1 && canReadmit(world, player, holder)) {
+                            readmit(world, player, nativeAttach, attempts - 1, result);
+                            handed = true;
+                        } else if (isClosedDuringAdmission(failure) && canRescue(world, player)) {
+                            rescue(world, player, failure, result);
+                            handed = true;
+                        } else if ((isSuperseded(failure)
+                                        || isClosedDuringAdmission(failure)
+                                        || failure instanceof TimeoutException)
+                                && player.getReference() == null
+                                && !isTransferring(player)
+                                && player.getPacketHandler().stillActive()) {
+                            player.getPacketHandler()
+                                    .disconnect(Message.translation("server.general.disconnect.exceptionJoiningWorld"));
+                        }
+                    } catch (Throwable cleanup) {
+                        if (cleanup != failure) failure.addSuppressed(cleanup);
+                    } finally {
+                        if (!handed) result.completeExceptionally(failure);
+                    }
                 });
                 return result;
             }
@@ -65,11 +101,144 @@ public final class WorldTransferRecovery {
         }
     }
 
+    private static boolean canReadmit(World world, PlayerRef player, Holder<EntityStore> previous) {
+        Holder<EntityStore> current = player.getHolder();
+        return current != null
+                && current != previous
+                && player.getReference() == null
+                && world.isAlive()
+                && player.getPacketHandler().stillActive();
+    }
+
+    private static void readmit(
+            World world,
+            PlayerRef player,
+            Supplier<CompletableFuture<PlayerRef>> nativeAttach,
+            int attempts,
+            CompletableFuture<PlayerRef> result) {
+        CompletableFuture<PlayerRef> retry;
+        try {
+            retry = admit(world, player, nativeAttach, attempts);
+        } catch (Throwable failure) {
+            retry = CompletableFuture.failedFuture(failure);
+        }
+        if (retry == null) {
+            result.complete(null);
+            return;
+        }
+        retry.whenComplete((added, failure) -> {
+            if (failure == null) result.complete(added);
+            else result.completeExceptionally(failure);
+        });
+    }
+
+    private static boolean canRescue(World world, PlayerRef player) {
+        World fallback = Universe.get().getDefaultWorld();
+        return fallback != null
+                && fallback != world
+                && fallback.isAlive()
+                && player.getReference() == null
+                && player.getHolder() != null
+                && !isTransferring(player)
+                && player.getPacketHandler().stillActive();
+    }
+
+    private static void rescue(World world, PlayerRef player, Throwable failure, CompletableFuture<PlayerRef> result) {
+        Holder<EntityStore> holder = player.getHolder();
+        CompletableFuture<PlayerRef> attached;
+        try {
+            attached = HytaleServer.get()
+                    .getEventBus()
+                    .<String, DrainPlayerFromWorldEvent>dispatchForAsync(
+                            DrainPlayerFromWorldEvent.class, world.getName())
+                    .dispatch(new DrainPlayerFromWorldEvent(
+                            holder,
+                            world,
+                            Universe.get().getDefaultWorld(),
+                            null,
+                            removalMessage(world),
+                            world.getFailureException() != null))
+                    .thenCompose(event -> {
+                        Message message = event.getMessage();
+                        if (message != null) player.sendMessage(message);
+                        World destination = event.getDestinationWorld();
+                        if (destination == null || !((EntityAdmission) destination).refixes$acceptsEntities()) {
+                            return CompletableFuture.<PlayerRef>failedFuture(failure);
+                        }
+                        CompletableFuture<PlayerRef> added = destination.addPlayer(player, event.getTransform());
+                        return added != null ? added : CompletableFuture.completedFuture(null);
+                    });
+        } catch (Throwable error) {
+            attached = CompletableFuture.failedFuture(error);
+        }
+        attached.whenComplete((added, error) -> {
+            try {
+                if (error == null && added != null) {
+                    result.complete(added);
+                    return;
+                }
+                if (error != null && error != failure) failure.addSuppressed(error);
+                if (player.getReference() == null
+                        && player.getHolder() == holder
+                        && !isTransferring(player)
+                        && player.getPacketHandler().stillActive()) {
+                    player.getPacketHandler()
+                            .disconnect(Message.translation("server.general.disconnect.exceptionJoiningWorld"));
+                }
+            } catch (Throwable cleanup) {
+                if (cleanup != failure) failure.addSuppressed(cleanup);
+            } finally {
+                if (!result.isDone()) result.completeExceptionally(failure);
+            }
+        });
+    }
+
+    private static Message removalMessage(World world) {
+        Message message;
+        if (world.getFailureException() == null) {
+            message = Message.translation("server.universe.worldRemoved");
+        } else if (world.getPossibleFailureCause() == null) {
+            message = Message.translation("server.universe.worldCrash.unknown");
+        } else {
+            message = Message.translation("server.universe.worldCrash.mod")
+                    .param("mod", world.getPossibleFailureCause().toString());
+        }
+        return message.color(Color.RED);
+    }
+
+    public static IllegalStateException closedDuringAdmission() {
+        return new ClosedDuringAdmission();
+    }
+
+    public static boolean isClosedDuringAdmission(Throwable failure) {
+        return hasCause(failure, ClosedDuringAdmission.class);
+    }
+
+    public static boolean isSuperseded(Throwable failure) {
+        return hasCause(failure, HolderSuperseded.class);
+    }
+
+    private static boolean hasCause(Throwable failure, Class<? extends Throwable> type) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (type.isInstance(cause)) return true;
+            if (cause.getCause() == cause) break;
+        }
+        return false;
+    }
+
     public static void checkAdmission(World world, PlayerRef player) {
         Admission admission = ADMISSIONS.get(player);
+        Holder<EntityStore> current = player.getHolder();
+        if (admission != null
+                && admission.world == world
+                && admission.holder != current
+                && current != null
+                && player.getReference() == null) {
+            throw new HolderSuperseded();
+        }
         if (admission == null
                 || admission.world != world
-                || admission.holder != player.getHolder()
+                || admission.holder != current
                 || player.getReference() != null) {
             throw new IllegalStateException("Player admission ownership changed");
         }
@@ -106,6 +275,18 @@ public final class WorldTransferRecovery {
     }
 
     private record Admission(World world, Holder<EntityStore> holder) {}
+
+    private static final class HolderSuperseded extends IllegalStateException {
+        HolderSuperseded() {
+            super("Player admission ownership changed");
+        }
+    }
+
+    private static final class ClosedDuringAdmission extends IllegalStateException {
+        ClosedDuringAdmission() {
+            super("Destination world is shutting down");
+        }
+    }
 
     private static final class Transfer {
         final PlayerRef player;

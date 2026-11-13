@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.util.RetiredWorlds;
 import cc.irori.refixes.early.util.WorldPolicySaveJoin;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -34,6 +35,8 @@ public abstract class MixinWorldShutdown {
     private Object refixes$timeoutConfigSave(CompletableFuture<?> future) {
         int timeout = EarlyOptions.SHUTDOWN_SAVE_TIMEOUT_SECONDS.get();
         if (timeout <= 0 || !HytaleServer.get().isShuttingDown()) return future.join();
-        return WorldPolicySaveJoin.await(future, timeout, TimeUnit.SECONDS, "World config save");
+        Object result = WorldPolicySaveJoin.await(future, timeout, TimeUnit.SECONDS, "World config save");
+        if (!future.isDone()) RetiredWorlds.retain((World) (Object) this, future);
+        return result;
     }
 }

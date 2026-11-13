@@ -7,6 +7,7 @@ import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
@@ -35,6 +36,8 @@ public class SharedInstanceBootUnloader {
 
     public void registerEvents(JavaPlugin plugin) {
         plugin.getEventRegistry().register(AllWorldsLoadedEvent.class, event -> onAllWorldsLoaded());
+        plugin.getEventRegistry()
+                .registerGlobal(AddPlayerToWorldEvent.class, event -> bootWorlds.remove(event.getWorld(), false));
         plugin.getEventRegistry()
                 .registerAsyncGlobal(
                         EventPriority.LAST,

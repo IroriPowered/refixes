@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.Options;
+import com.hypixel.hytale.server.core.auth.AuthConfig;
 import com.hypixel.hytale.server.core.auth.EncryptedAuthCredentialStoreProvider;
 import com.hypixel.hytale.server.core.auth.IAuthCredentialStore;
 import com.hypixel.hytale.server.core.auth.ServerAuthManager;
@@ -13,6 +14,8 @@ import com.hypixel.hytale.server.core.auth.SessionServiceClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +26,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -134,8 +138,15 @@ public abstract class MixinServerAuthManager {
         }
 
         String profileUuid = refixes$readToken(RefixesOptions.PROFILE_UUID, "HYTALE_PROFILE_UUID");
+        UUID uuid = null;
         if (profileUuid != null && !profileUuid.isEmpty()) {
-            UUID uuid = UUID.fromString(profileUuid);
+            try {
+                uuid = UUID.fromString(profileUuid.trim());
+            } catch (IllegalArgumentException e) {
+                refixes$LOGGER.atWarning().log("Ignoring invalid profile UUID: %s", profileUuid);
+            }
+        }
+        if (uuid != null) {
             if (store != null && store.getProfile() == null) {
                 store.setProfile(uuid);
             }
@@ -152,7 +163,28 @@ public abstract class MixinServerAuthManager {
 
     @Inject(method = "initializeCredentialStore", at = @At("TAIL"))
     private void refixes$seedOAuthTokens(CallbackInfo ci) {
+        IAuthCredentialStore store = credentialStore.get();
+        IAuthCredentialStore.OAuthTokens existing = store != null ? store.getTokens() : null;
+        if (existing != null && existing.isValid()) {
+            if (refixes$hasConfiguredTokens()) {
+                refixes$LOGGER.atInfo().log("Credential store already has OAuth tokens; ignoring CLI/env tokens");
+            }
+            return;
+        }
         refixes$seedOAuthTokensImpl();
+    }
+
+    @Unique
+    private static boolean refixes$hasConfiguredTokens() {
+        OptionSet optionSet = Options.getOptionSet();
+        if (optionSet != null
+                && (optionSet.has(RefixesOptions.OAUTH_ACCESS_TOKEN)
+                        || optionSet.has(RefixesOptions.OAUTH_REFRESH_TOKEN))) {
+            return true;
+        }
+        String access = System.getenv("HYTALE_SERVER_OAUTH_ACCESS_TOKEN");
+        String refresh = System.getenv("HYTALE_SERVER_OAUTH_REFRESH_TOKEN");
+        return (access != null && !access.isEmpty()) || (refresh != null && !refresh.isEmpty());
     }
 
     @Shadow
@@ -166,6 +198,20 @@ public abstract class MixinServerAuthManager {
     @Shadow
     private Instant getEffectiveExpiry(SessionServiceClient.GameSessionResponse response) {
         return null;
+    }
+
+    @ModifyArg(
+            method = "createGameSession",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/server/core/auth/SessionServiceClient;createGameSession(Ljava/lang/String;Ljava/util/UUID;)Lcom/hypixel/hytale/server/core/auth/SessionServiceClient$GameSessionResponse;",
+                            ordinal = 1),
+            index = 0,
+            require = 1)
+    private String refixes$useRefreshedAccessToken(String accessToken) {
+        return credentialStore.get().getTokens().accessToken();
     }
 
     @Inject(method = "refreshGameSessionViaOAuth", at = @At("HEAD"), cancellable = true)
@@ -221,6 +267,7 @@ public abstract class MixinServerAuthManager {
             setExpiryAndScheduleRefresh(effectiveExpiry);
         }
 
+        refixes$syncTokensToEntrypoint();
         refixes$LOGGER.atInfo().log("Game session refreshed via OAuth for external session");
         cir.setReturnValue(true);
     }
@@ -234,6 +281,14 @@ public abstract class MixinServerAuthManager {
 
     @Inject(method = "refreshOAuthTokens(Z)Z", at = @At("RETURN"))
     private void refixes$syncTokensAfterRefresh(boolean force, CallbackInfoReturnable<Boolean> cir) {
+        if (getAuthMode() == ServerAuthManager.AuthMode.EXTERNAL_SESSION && cir.getReturnValue() == Boolean.TRUE) {
+            refixes$syncTokensToEntrypoint();
+        }
+    }
+
+    @Inject(method = "refreshGameSession", at = @At("RETURN"), require = 1)
+    private void refixes$syncTokensAfterSessionRefresh(
+            String currentSessionToken, CallbackInfoReturnable<Boolean> cir) {
         if (getAuthMode() == ServerAuthManager.AuthMode.EXTERNAL_SESSION && cir.getReturnValue() == Boolean.TRUE) {
             refixes$syncTokensToEntrypoint();
         }
@@ -356,10 +411,31 @@ public abstract class MixinServerAuthManager {
                 }
             }
 
-            Files.writeString(authFile, refixes$GSON.toJson(json));
+            refixes$writeAtomically(authFile, refixes$GSON.toJson(json));
             refixes$LOGGER.atInfo().log("Synced OAuth tokens to external auth file");
         } catch (Exception e) {
             refixes$LOGGER.atWarning().log("Failed to sync tokens to external auth file: %s", e.getMessage());
+        }
+    }
+
+    @Unique
+    private static void refixes$writeAtomically(Path target, String content) throws java.io.IOException {
+        Path directory = target.toAbsolutePath().getParent();
+        Path temporary = Files.createTempFile(directory, refixes$AUTH_FILE, ".tmp");
+        try {
+            PosixFileAttributeView source = Files.getFileAttributeView(target, PosixFileAttributeView.class);
+            PosixFileAttributeView copy = Files.getFileAttributeView(temporary, PosixFileAttributeView.class);
+            if (source != null && copy != null) {
+                copy.setPermissions(source.readAttributes().permissions());
+            }
+            Files.writeString(temporary, content);
+            try {
+                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
         }
     }
 
@@ -369,7 +445,7 @@ public abstract class MixinServerAuthManager {
         String currentSessionToken = getSessionToken();
         if (currentSessionToken != null && !currentSessionToken.isEmpty()) {
             if (sessionServiceClient == null) {
-                sessionServiceClient = new SessionServiceClient("https://sessions.hytale.com");
+                sessionServiceClient = new SessionServiceClient(AuthConfig.SESSION_SERVICE_URL);
             }
             sessionServiceClient.terminateSession(currentSessionToken);
             refixes$LOGGER.atInfo().log("Requested session termination on shutdown");

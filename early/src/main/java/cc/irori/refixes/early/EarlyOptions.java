@@ -1,5 +1,6 @@
 package cc.irori.refixes.early;
 
+import com.google.gson.JsonObject;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -13,6 +14,7 @@ public final class EarlyOptions {
     private record MixinSelection(String encoded, Set<String> mixins) {}
 
     private static volatile MixinSelection selection = new MixinSelection(null, Set.of());
+    private static volatile OutgoingQueueLimits outgoingQueueLimits;
 
     /* Cylinder Visibility */
     public static final Value<Double> CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER = new Value<>(2.0);
@@ -38,6 +40,15 @@ public final class EarlyOptions {
     public static final Value<Integer> SHUTDOWN_SAVE_TIMEOUT_SECONDS = new Value<>(10);
 
     private EarlyOptions() {}
+
+    static synchronized void initializeOutgoingQueueLimits(JsonObject config) {
+        if (outgoingQueueLimits == null) outgoingQueueLimits = OutgoingQueueLimits.fromConfig(config);
+    }
+
+    public static OutgoingQueueLimits outgoingQueueLimits() {
+        OutgoingQueueLimits limits = outgoingQueueLimits;
+        return limits != null ? limits : OutgoingQueueLimits.DEFAULT;
+    }
 
     public static void setAvailable(boolean available) {
         EarlyOptions.available = available;
@@ -90,10 +101,6 @@ public final class EarlyOptions {
 
         public void setSupplier(Supplier<T> supplier) {
             this.supplier = supplier;
-        }
-
-        public boolean isSet() {
-            return supplier != null;
         }
 
         // Falls back to the default when no supplier was wired (e.g. classloader split

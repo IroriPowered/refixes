@@ -39,6 +39,13 @@ public final class RecoveryPolicy {
         return quarantined;
     }
 
+    public static Path label(Path quarantined, String world, int x, int y, int z) throws IOException {
+        String name = quarantined.getFileName().toString();
+        String labelled = "block-section-" + world.replaceAll("[^A-Za-z0-9._-]", "_") + "-" + x + "." + y + "." + z
+                + "-" + name.substring("block-section-".length());
+        return Files.move(quarantined, quarantined.resolveSibling(labelled), StandardCopyOption.ATOMIC_MOVE);
+    }
+
     public static Path blockSectionQuarantineDirectory() {
         return Path.of("mods", "IroriPowered_Refixes", "quarantine", "block-sections");
     }

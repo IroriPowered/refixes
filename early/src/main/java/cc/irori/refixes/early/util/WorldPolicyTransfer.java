@@ -6,7 +6,6 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -19,8 +18,8 @@ import java.util.function.Supplier;
 
 public final class WorldPolicyTransfer {
     private static final Map<PlayerRef, Pending> PENDING = new IdentityHashMap<>();
-    private static final Map<WorldKey, Boolean> CLOSED_WORLDS = new HashMap<>();
-    private static final ReferenceQueue<World> STALE_WORLDS = new ReferenceQueue<>();
+    private static final Map<WorldPolicyKey, Boolean> CLOSED_WORLDS = new HashMap<>();
+    private static final ReferenceQueue<Object> STALE_WORLDS = new ReferenceQueue<>();
 
     private WorldPolicyTransfer() {}
 
@@ -72,7 +71,7 @@ public final class WorldPolicyTransfer {
         List<Pending> cancelled;
         synchronized (PENDING) {
             removeStaleWorlds();
-            CLOSED_WORLDS.put(new WorldKey(world, STALE_WORLDS), Boolean.TRUE);
+            CLOSED_WORLDS.put(new WorldPolicyKey(world, STALE_WORLDS), Boolean.TRUE);
             cancelled = PENDING.values().stream()
                     .filter(pending -> pending.source == world || pending.destination == world)
                     .toList();
@@ -82,33 +81,12 @@ public final class WorldPolicyTransfer {
 
     private static boolean isClosed(World world) {
         removeStaleWorlds();
-        return CLOSED_WORLDS.containsKey(new WorldKey(world, null));
+        return CLOSED_WORLDS.containsKey(new WorldPolicyKey(world, null));
     }
 
     private static void removeStaleWorlds() {
-        WorldKey stale;
-        while ((stale = (WorldKey) STALE_WORLDS.poll()) != null) CLOSED_WORLDS.remove(stale);
-    }
-
-    private static final class WorldKey extends WeakReference<World> {
-        private final int hash;
-
-        WorldKey(World world, ReferenceQueue<World> queue) {
-            super(world, queue);
-            this.hash = System.identityHashCode(world);
-        }
-
-        @Override
-        public int hashCode() {
-            return this.hash;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            World world = get();
-            return other instanceof WorldKey key && world != null && world == key.get();
-        }
+        WorldPolicyKey stale;
+        while ((stale = (WorldPolicyKey) STALE_WORLDS.poll()) != null) CLOSED_WORLDS.remove(stale);
     }
 
     private static final class Pending {

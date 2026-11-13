@@ -21,8 +21,13 @@ public class IdleWorldPauseService {
     private static final HytaleLogger LOGGER = Logs.logger();
 
     private volatile Object owner;
+    private volatile ChunkLoaderService chunkLoaderService;
     private ScheduledFuture<?> task;
     private AutoCloseable pausedGauge;
+
+    public void setChunkLoaderService(ChunkLoaderService chunkLoaderService) {
+        this.chunkLoaderService = chunkLoaderService;
+    }
 
     public void registerService() {
         owner = new Object();
@@ -67,19 +72,29 @@ public class IdleWorldPauseService {
         }
         Map<String, World> worldsByName = Universe.get().getWorlds();
         Object generation = owner;
-        boolean owned = Early.isEnabled();
+        if (!Early.hasMixins("MixinWorldPauseOwner")) return;
+        ChunkLoaderService chunkLoaders = chunkLoaderService;
         for (World world : worldsByName.values()) {
             if (excluded.contains(world.getName().toLowerCase(Locale.ROOT))) {
                 continue;
             }
+            if (chunkLoaders != null && chunkLoaders.hasKeptChunks(world.getName())) {
+                if (generation != null) Owned.resume(world, generation);
+                continue;
+            }
             if (world.isStarted() && world.getPlayerCount() == 0 && !world.isPaused()) {
-                world.execute(() -> {
-                    if (generation != null && generation == owner && world.getPlayerCount() == 0 && !world.isPaused()) {
-                        if (owned) Owned.pause(world, generation);
-                        else world.setPaused(true);
-                        HyboxBridge.event("IdleWorldPause", "paused world '" + world.getName() + "'");
-                    }
-                });
+                try {
+                    world.execute(() -> {
+                        if (generation != null
+                                && generation == owner
+                                && world.getPlayerCount() == 0
+                                && !world.isPaused()) {
+                            Owned.pause(world, generation);
+                            HyboxBridge.event("IdleWorldPause", "paused world '" + world.getName() + "'");
+                        }
+                    });
+                } catch (RuntimeException ignored) {
+                }
             }
         }
     }
@@ -98,9 +113,18 @@ public class IdleWorldPauseService {
             }
         }
 
+        private static void resume(World world, Object generation) {
+            if (!(world instanceof WorldPauseOwnerAccess access)) return;
+            try {
+                world.execute(() -> {
+                    if (access.refixes$isPausedBy(generation)) access.refixes$setPaused(false, null);
+                });
+            } catch (RuntimeException ignored) {
+            }
+        }
+
         private static void pause(World world, Object generation) {
             if (world instanceof WorldPauseOwnerAccess access) access.refixes$setPaused(true, generation);
-            else world.setPaused(true);
         }
     }
 

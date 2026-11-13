@@ -21,7 +21,6 @@ public abstract class MixinWorldSpawnManager {
     private static void refixes$coalesceEnvRecalc(CallbackInfo ci) {
         ci.cancel();
         Universe.get().getWorlds().forEach((name, world) -> {
-            if (!world.getWorldConfig().isSpawningNPC()) return;
             WorldPolicyTaskCoalescer.submit(world, world, () -> onEnvironmentChanged(world));
         });
     }

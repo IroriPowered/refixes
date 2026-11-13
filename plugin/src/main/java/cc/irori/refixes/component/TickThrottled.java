@@ -5,7 +5,8 @@ import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import org.jspecify.annotations.Nullable;
+import com.hypixel.hytale.server.npc.components.StepComponent;
+import javax.annotation.Nullable;
 
 public class TickThrottled implements Component<EntityStore> {
 
@@ -14,7 +15,17 @@ public class TickThrottled implements Component<EntityStore> {
 
     private static final TickThrottled INSTANCE = new TickThrottled();
 
-    private TickThrottled() {}
+    private static final TickThrottled RELEASING = new TickThrottled();
+
+    private final StepComponent pendingStep;
+
+    private TickThrottled() {
+        this(null);
+    }
+
+    private TickThrottled(StepComponent pendingStep) {
+        this.pendingStep = pendingStep;
+    }
 
     public static ComponentType<EntityStore, TickThrottled> getComponentType() {
         return Refixes.get().getTickThrottledComponent();
@@ -24,8 +35,28 @@ public class TickThrottled implements Component<EntityStore> {
         return INSTANCE;
     }
 
+    public static TickThrottled withPendingStep(StepComponent step) {
+        return new TickThrottled(step);
+    }
+
+    public static TickThrottled releasing() {
+        return RELEASING;
+    }
+
+    public boolean isReleasing() {
+        return this == RELEASING;
+    }
+
+    public boolean isLive() {
+        return this == INSTANCE || this == RELEASING || pendingStep != null;
+    }
+
+    public @Nullable StepComponent getPendingStep() {
+        return pendingStep;
+    }
+
     @Override
     public @Nullable Component<EntityStore> clone() {
-        return get();
+        return this;
     }
 }

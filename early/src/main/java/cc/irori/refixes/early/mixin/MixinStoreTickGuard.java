@@ -1,17 +1,27 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.accessor.CommandBufferAccess;
 import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.common.plugin.PluginIdentifier;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.system.tick.ArchetypeTickingSystem;
 import com.hypixel.hytale.component.system.tick.TickableSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.sugar.Share;
+import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Store.class)
 public abstract class MixinStoreTickGuard {
@@ -56,10 +66,56 @@ public abstract class MixinStoreTickGuard {
         }
     }
 
+    @ModifyExpressionValue(
+            method = "tick(Lcom/hypixel/hytale/component/system/tick/ArchetypeTickingSystem;FI)V",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/component/Store;takeCommandBuffer()Lcom/hypixel/hytale/component/CommandBuffer;"),
+            require = 1)
+    private CommandBuffer<?> refixes$trackCommandBuffer(
+            CommandBuffer<?> buffer, @Share("buffer") LocalRef<CommandBuffer<?>> pending) {
+        pending.set(buffer);
+        return buffer;
+    }
+
+    @Inject(
+            method = "tick(Lcom/hypixel/hytale/component/system/tick/ArchetypeTickingSystem;FI)V",
+            at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/component/CommandBuffer;consume()V"),
+            require = 1)
+    private void refixes$commandBufferConsumed(CallbackInfo ci, @Share("buffer") LocalRef<CommandBuffer<?>> pending) {
+        pending.set(null);
+    }
+
+    @WrapMethod(method = "tick(Lcom/hypixel/hytale/component/system/tick/ArchetypeTickingSystem;FI)V", require = 1)
+    @SuppressWarnings("rawtypes")
+    private void refixes$consumeAfterFailure(
+            ArchetypeTickingSystem system,
+            float dt,
+            int systemIndex,
+            Operation<Void> original,
+            @Share("buffer") LocalRef<CommandBuffer<?>> pending) {
+        try {
+            original.call(system, dt, systemIndex);
+        } catch (Exception t) {
+            CommandBuffer<?> buffer = pending.get();
+            if (buffer != null) {
+                pending.set(null);
+                try {
+                    ((CommandBufferAccess) buffer).refixes$consume();
+                } catch (Exception consumeFailure) {
+                    t.addSuppressed(consumeFailure);
+                }
+            }
+            throw t;
+        }
+    }
+
     @Unique
     private static boolean refixes$isPersistenceSystem(TickableSystem system) {
         String name = system.getClass().getName();
-        return name.contains("Saving") || name.contains("Save");
+        return name.contains("Saving") || name.contains("Save") || name.endsWith(".WorldEventStorageSystem");
     }
 
     // Returns true if the save has failed too many times within the window (caller should rethrow to crash).
@@ -115,7 +171,8 @@ public abstract class MixinStoreTickGuard {
         refixes$LOGGER.at(Level.SEVERE).withCause(t).log(
                 "%s",
                 "Refixes TickSurvival: system " + name + " threw" + suffix
-                        + "; aborted this system's tick after partial execution; no rollback was performed."
+                        + "; aborted this system's tick after partial execution; commands it queued before"
+                        + " the failure were applied and no rollback was performed."
                         + " Fix the system or disable Mixins.Recovery.TickSurvival.");
     }
 }

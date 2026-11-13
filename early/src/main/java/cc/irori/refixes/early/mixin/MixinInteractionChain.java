@@ -24,12 +24,10 @@ public class MixinInteractionChain {
      */
     @Overwrite
     public void updateSyncPosition(int index) {
-        if (index > tempSyncDataOffset) {
+        if (index >= tempSyncDataOffset) {
             tempSyncData
                     .subList(0, Math.min(index + 1 - tempSyncDataOffset, tempSyncData.size()))
                     .clear();
-        }
-        if (index >= tempSyncDataOffset) {
             tempSyncDataOffset = index + 1;
         }
     }

@@ -16,10 +16,10 @@ jobs:
           distribution: "temurin"
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
-      - name: Create bundle
-        run: ./gradlew bundle
+      - name: Build single JAR
+        run: ./gradlew singleJar
       - name: Capture build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Artifacts
-          path: bundle/*.zip
+          path: build/bundle/refixes-*.jar

@@ -94,6 +94,52 @@ public final class SharedInstanceStorageRegression {
         if (!queue.isEmpty()) {
             throw new AssertionError("Caller completionExecutor queue must still be undrained");
         }
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void> saved = (CompletableFuture<Void>) saveSection.invoke(
+                storage, 0, 0, 0, null, null, caller, onIo);
+        if (!saved.isDone() || saved.isCompletedExceptionally() || backend.saveCalls.get() != 2) {
+            throw new AssertionError("Successful first write must remain saved without another backend write");
+        }
+        if (callbacks.get() != before + 3) {
+            throw new AssertionError("A skipped successful write still owes one inline callback");
+        }
+
+        int beforeFailure = callbacks.get();
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void> asynchronousFailure = (CompletableFuture<Void>) saveSection.invoke(
+                storage, 0, -17, 0, null, null, caller, onIo);
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void> failedDuplicate = (CompletableFuture<Void>) saveSection.invoke(
+                storage, 0, -17, 0, null, null, caller, onIo);
+        if (backend.saveCalls.get() != 3 || asynchronousFailure.isDone() || failedDuplicate.isDone()) {
+            throw new AssertionError("A different cubic Y must issue one pending backend write");
+        }
+        backend.raw.get().completeExceptionally(new IllegalStateException("asynchronous-backend-fail"));
+        if (!asynchronousFailure.isCompletedExceptionally() || !failedDuplicate.isCompletedExceptionally()) {
+            throw new AssertionError("An asynchronous backend failure must fail every deduplicated caller");
+        }
+        if (callbacks.get() != beforeFailure + 2 || !queue.isEmpty()) {
+            throw new AssertionError("Each failed caller must receive exactly one inline IO callback");
+        }
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void> asynchronousRetry = (CompletableFuture<Void>) saveSection.invoke(
+                storage, 0, -17, 0, null, null, caller, onIo);
+        if (backend.saveCalls.get() != 4 || asynchronousRetry.isDone()) {
+            throw new AssertionError("An asynchronous failure must release its first-write reservation for retry");
+        }
+        backend.raw.get().complete(null);
+        if (!asynchronousRetry.isDone() || asynchronousRetry.isCompletedExceptionally()) {
+            throw new AssertionError("Retry must settle from the new successful backend write");
+        }
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void> savedRetry = (CompletableFuture<Void>) saveSection.invoke(
+                storage, 0, -17, 0, null, null, caller, onIo);
+        if (!savedRetry.isDone() || savedRetry.isCompletedExceptionally() || backend.saveCalls.get() != 4) {
+            throw new AssertionError("The successful retry must establish permanent first-write semantics");
+        }
+        if (callbacks.get() != beforeFailure + 4 || !queue.isEmpty()) {
+            throw new AssertionError("Retry and skipped retry must each receive exactly one inline callback");
+        }
         System.out.println("[LocalVerify] SharedInstanceStorage saveSection callback regression PASS");
     }
     public static void runWithRegistry(Store<ChunkStore> chunkStore) throws Exception {

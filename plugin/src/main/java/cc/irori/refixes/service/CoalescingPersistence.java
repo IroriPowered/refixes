@@ -94,7 +94,7 @@ final class CoalescingPersistence<T> implements AutoCloseable {
                     writing = null;
                     failed.remove(key);
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 synchronized (this) {
                     writing = null;
                     failure = e instanceof IOException io ? io : new IOException(e);
@@ -141,14 +141,12 @@ final class CoalescingPersistence<T> implements AutoCloseable {
         }
         if (interrupted) Thread.currentThread().interrupt();
         synchronized (this) {
-            if (worker.isAlive()) {
-                Set<String> unflushed = new LinkedHashSet<>();
-                if (writing != null) unflushed.add(writing);
-                unflushed.addAll(pending.keySet());
-                unflushed.addAll(failed.keySet());
-                throw new IOException("Timed out flushing worlds: " + unflushed, failure);
-            }
-            if (!failed.isEmpty()) throw new IOException("Failed to flush worlds: " + failed.keySet(), failure);
+            Set<String> unflushed = new LinkedHashSet<>();
+            if (writing != null) unflushed.add(writing);
+            unflushed.addAll(pending.keySet());
+            unflushed.addAll(failed.keySet());
+            if (worker.isAlive()) throw new IOException("Timed out flushing worlds: " + unflushed, failure);
+            if (!unflushed.isEmpty()) throw new IOException("Failed to flush worlds: " + unflushed, failure);
         }
     }
 }

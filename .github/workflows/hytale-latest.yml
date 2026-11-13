@@ -1,0 +1,83 @@
+name: Newest Hytale
+on:
+  schedule:
+    - cron: "0 20 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HYINIT_VERSION: "0.3.0"
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          java-version: "25"
+          distribution: "temurin"
+      - name: Download pinned and newest Hytale
+        id: server
+        run: |
+          pinned=$(sed -n 's/^hytale_server_version *= *//p' gradle.properties)
+          case "$pinned" in *-pre*) repository=pre-release ;; *) repository=release ;; esac
+          base="https://maven.hytale.com/$repository/com/hypixel/hytale/Server"
+          newest=$(curl -fsSL "$base/maven-metadata.xml" | sed -n 's:.*<latest>\(.*\)</latest>.*:\1:p')
+          test -n "$pinned" && test -n "$newest"
+          curl -fsSL -o "$RUNNER_TEMP/Server-pinned.jar" "$base/$pinned/Server-$pinned.jar"
+          curl -fsSL -o "$RUNNER_TEMP/Server-newest.jar" "$base/$newest/Server-$newest.jar"
+          printf 'pinned=%s\nnewest=%s\n' "$pinned" "$newest" >> "$GITHUB_OUTPUT"
+          echo "Testing Refixes built for Hytale $pinned against the newest $repository, Hytale $newest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Download Hyinit ${{ env.HYINIT_VERSION }}
+        run: >-
+          curl -fsSL -o "$RUNNER_TEMP/Hyinit.jar"
+          "https://github.com/IroriPowered/hyinit/releases/download/$HYINIT_VERSION/Hyinit-$HYINIT_VERSION.jar"
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: Build single JAR for Hytale ${{ steps.server.outputs.pinned }}
+        id: build
+        run: ./gradlew singleJar && cp build/bundle/refixes-*.jar "$RUNNER_TEMP/Refixes.jar"
+      - name: Patches apply on Hytale ${{ steps.server.outputs.newest }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: >-
+          python3 scripts/verify-local.py --skip-build --java-home "$JAVA_HOME"
+          --server-jar "$RUNNER_TEMP/Server-newest.jar" --hyinit-jar "$RUNNER_TEMP/Hyinit.jar"
+          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify-local"
+      - name: Regressions on Hytale ${{ steps.server.outputs.newest }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: >-
+          python3 scripts/verify-regressions.py --java-home "$JAVA_HOME"
+          --server-jar "$RUNNER_TEMP/Server-newest.jar" --hyinit-jar "$RUNNER_TEMP/Hyinit.jar"
+          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify-regressions"
+      - name: Queue limits on Hytale ${{ steps.server.outputs.newest }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: >-
+          python3 scripts/verify-queue-limits.py --java-home "$JAVA_HOME"
+          --server-jar "$RUNNER_TEMP/Server-newest.jar" --hyinit-jar "$RUNNER_TEMP/Hyinit.jar"
+          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify-queue-limits"
+      - name: Compiles against Hytale ${{ steps.server.outputs.newest }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: ./gradlew singleJar -PhytaleServerJar="$RUNNER_TEMP/Server-newest.jar"
+      - name: Patched methods unchanged since Hytale ${{ steps.server.outputs.pinned }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: >-
+          python3 scripts/verify-target-drift.py --java-home "$JAVA_HOME"
+          --baseline-server-jar "$RUNNER_TEMP/Server-pinned.jar" --server-jar "$RUNNER_TEMP/Server-newest.jar"
+          --hyinit-jar "$RUNNER_TEMP/Hyinit.jar" --refixes-jar "$RUNNER_TEMP/Refixes.jar"
+          --output-dir "$RUNNER_TEMP/verify-target-drift"
+      - name: Capture verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Verification-${{ steps.server.outputs.newest }}
+          path: |
+            ${{ runner.temp }}/verify-*
+            !${{ runner.temp }}/verify-*/**/HytaleServer.jar
+          if-no-files-found: ignore

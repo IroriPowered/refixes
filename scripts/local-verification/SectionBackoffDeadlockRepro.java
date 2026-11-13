@@ -168,6 +168,8 @@ public final class SectionBackoffDeadlockRepro {
 
     static World setupPhaseWorld() throws Exception {
         World world = allocate(World.class);
+        // Unsafe allocation bypasses the 0.7 TickingThread constructor. Associate
+        // this fixture with the thread that drains its queue, preserving native assertions.
         setDeclared(TickingThread.class, world, "currentRun", new AtomicReference<>());
         Method setThread = TickingThread.class.getDeclaredMethod("setThread", Thread.class);
         setThread.setAccessible(true);

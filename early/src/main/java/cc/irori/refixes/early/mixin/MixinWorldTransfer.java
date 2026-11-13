@@ -1,15 +1,18 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.duck.EntityAdmission;
 import cc.irori.refixes.early.util.WorldPolicyTransfer;
 import cc.irori.refixes.early.util.WorldTransferRecovery;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.logger.sentry.SkipSentryException;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.io.PacketHandler;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.SpawnUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
@@ -28,7 +31,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(World.class)
-public abstract class MixinWorldTransfer {
+public abstract class MixinWorldTransfer implements EntityAdmission {
     @Unique
     private final Object refixes$admission = new Object();
 
@@ -66,12 +69,10 @@ public abstract class MixinWorldTransfer {
                         || !playerRef.getPacketHandler().stillActive()) {
                     return original.call(playerRef, transform, clearWorldOverride, fadeInOutOverride);
                 }
-                return WorldTransferRecovery.admit((World) (Object) this, playerRef, () -> {
-                    playerRef
-                            .getPacketHandler()
-                            .disconnect(Message.translation("server.general.disconnect.exceptionJoiningWorld"));
-                    return CompletableFuture.failedFuture(refixes$closed());
-                });
+                return WorldTransferRecovery.admit(
+                        (World) (Object) this,
+                        playerRef,
+                        () -> CompletableFuture.failedFuture(WorldTransferRecovery.closedDuringAdmission()));
             }
             return CompletableFuture.failedFuture(refixes$closed());
         }
@@ -89,6 +90,32 @@ public abstract class MixinWorldTransfer {
                         (World) (Object) this,
                         playerRef,
                         () -> original.call(playerRef, transform, clearWorldOverride, fadeInOutOverride)));
+    }
+
+    @WrapOperation(
+            method =
+                    "addPlayer(Lcom/hypixel/hytale/server/core/universe/PlayerRef;Lcom/hypixel/hytale/math/vector/Transform;Ljava/lang/Boolean;Ljava/lang/Boolean;)Ljava/util/concurrent/CompletableFuture;",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/server/core/universe/world/World;addPositionedPlayer(Lcom/hypixel/hytale/server/core/universe/PlayerRef;Lcom/hypixel/hytale/component/Holder;Lcom/hypixel/hytale/server/core/io/PacketHandler;Lcom/hypixel/hytale/server/core/modules/entity/component/TransformComponent;Lcom/hypixel/hytale/math/vector/Transform;Ljava/lang/Boolean;Ljava/lang/Boolean;)Ljava/util/concurrent/CompletableFuture;"),
+            require = 1,
+            allow = 1)
+    private CompletableFuture<PlayerRef> refixes$positionWithoutTransform(
+            World world,
+            PlayerRef player,
+            Holder<EntityStore> holder,
+            PacketHandler handler,
+            TransformComponent current,
+            Transform transform,
+            Boolean clearWorld,
+            Boolean fadeInOut,
+            Operation<CompletableFuture<PlayerRef>> original) {
+        if (current == null && transform != null && !refixes$closing) {
+            current = SpawnUtil.applyFirstSpawnTransform(holder, transform);
+        }
+        return original.call(world, player, holder, handler, current, transform, clearWorld, fadeInOut);
     }
 
     @Inject(method = "addPositionedPlayer", at = @At("HEAD"), cancellable = true)
@@ -119,7 +146,7 @@ public abstract class MixinWorldTransfer {
             boolean broadcast,
             Operation<PlayerRef> original) {
         synchronized (refixes$admission) {
-            if (refixes$closing) throw refixes$closed();
+            if (refixes$closing) throw WorldTransferRecovery.closedDuringAdmission();
             WorldTransferRecovery.checkAdmission((World) (Object) this, playerRef);
             return original.call(player, playerRef, packetHandler, joinMessage, broadcast);
         }
@@ -141,7 +168,7 @@ public abstract class MixinWorldTransfer {
             Operation<CompletableFuture<PlayerRef>> original) {
         Executor admission = task -> {
             synchronized (refixes$queue) {
-                if (refixes$closing) throw refixes$closed();
+                if (refixes$closing) throw WorldTransferRecovery.closedDuringAdmission();
                 executor.execute(task);
             }
         };
@@ -163,10 +190,32 @@ public abstract class MixinWorldTransfer {
             Operation<CompletableFuture<PlayerRef>> original,
             @Local(argsOnly = true) PlayerRef player) {
         Function<Throwable, PlayerRef> handler = error -> {
-            if (WorldTransferRecovery.manages((World) (Object) this, player)) throw new CompletionException(error);
+            if (WorldTransferRecovery.manages((World) (Object) this, player)
+                    || WorldTransferRecovery.hasOtherOwner((World) (Object) this, player)
+                    || WorldTransferRecovery.isSuperseded(error)
+                    || WorldTransferRecovery.isClosedDuringAdmission(error)) throw new CompletionException(error);
             return failure.apply(error);
         };
         return original.call(joined, handler);
+    }
+
+    @Override
+    public boolean refixes$acceptsEntities() {
+        return !refixes$closing;
+    }
+
+    @Override
+    public boolean refixes$admitEntity(Runnable offer) {
+        synchronized (refixes$queue) {
+            if (refixes$closing) return false;
+            try {
+                offer.run();
+            } catch (SkipSentryException rejected) {
+                if (!(rejected.getCause() instanceof IllegalThreadStateException)) throw rejected;
+                return false;
+            }
+            return true;
+        }
     }
 
     @Unique

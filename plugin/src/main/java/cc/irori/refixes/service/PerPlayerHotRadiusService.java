@@ -2,9 +2,13 @@ package cc.irori.refixes.service;
 
 import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
+import cc.irori.refixes.early.accessor.ServerViewRadiusAccess;
+import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.HeapPressureMonitor;
 import cc.irori.refixes.util.Logs;
+import cc.irori.refixes.util.PlayerRadiusRevisions;
 import cc.irori.refixes.util.TpsUtil;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.HytaleServerConfig;
@@ -12,6 +16,7 @@ import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,12 +35,14 @@ public class PerPlayerHotRadiusService {
     private static final HytaleLogger LOGGER = Logs.logger();
 
     private static final int MEMORY_VIEW_INCREASE_STEP = 1;
+    private static final int RADIUS_INCREASE_STEP = 1;
     private static final Path VIEW_RADIUS_RESTORE_FILE =
             Paths.get("mods", "IroriPowered_Refixes", "viewradius-restore");
 
     private ScheduledFuture<?> task;
     private boolean registered;
-    private final Map<ChunkTracker, Integer> originalHotRadii = new HashMap<>();
+    private final Map<ChunkTracker, ManagedRadius> managedRadii = new HashMap<>();
+    private final Map<World, Integer> worldTargets = new HashMap<>();
     private volatile int currentTargetRadius;
     private volatile IdlePlayerService idlePlayerService;
     private AutoCloseable radiusGauge;
@@ -43,6 +50,8 @@ public class PerPlayerHotRadiusService {
     private final Object memoryLock = new Object();
     private HeapPressureMonitor heapMonitor;
     private int initialMaxViewRadius = -1;
+    private int appliedMaxViewRadius = -1;
+    private long viewRadiusRevision = -1;
     private long lastViewAdjustmentMs = 0L;
 
     public PerPlayerHotRadiusService() {
@@ -66,27 +75,38 @@ public class PerPlayerHotRadiusService {
             if (config.getMaxViewRadius() != radius) {
                 config.setMaxViewRadius(radius);
             }
-            if (HytaleServer.get().isShuttingDown()) {
-                return;
-            }
-            HytaleServerConfig.save(config).join();
-            deleteRestore();
+            saveRestoredViewRadius(config);
         } catch (Exception e) {
             LOGGER.atWarning().withCause(e).log("Failed to restore max view radius to %d", radius);
         }
+    }
+
+    private static void saveRestoredViewRadius(HytaleServerConfig config) {
+        if (HytaleServer.get().isShuttingDown()) {
+            return;
+        }
+        HytaleServerConfig.save(config).join();
+        deleteRestore();
     }
 
     public synchronized void registerService() {
         if (registered) {
             return;
         }
+        if (task != null) {
+            task.cancel(false);
+        }
         registered = true;
-        if (PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.MEMORY_GUARD_ENABLED)) {
+        if (PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.MEMORY_GUARD_ENABLED)
+                && Early.hasMixins("MixinServerViewRadius")) {
             try {
                 initMemoryGuard();
             } catch (Exception e) {
                 LOGGER.atWarning().withCause(e).log("Failed to initialize memory view-radius guard");
             }
+        } else if (PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.MEMORY_GUARD_ENABLED)) {
+            LOGGER.atWarning().log(
+                    "Memory view-radius guard is inactive without Mixins.Compatibility.ServerViewRadius");
         }
 
         int interval =
@@ -127,32 +147,73 @@ public class PerPlayerHotRadiusService {
             }
             radiusGauge = null;
         }
-        IdlePlayerService idleService = idlePlayerService;
-        for (World world : Universe.get().getWorlds().values()) {
-            for (PlayerRef playerRef : world.getPlayerRefs()) {
-                if (playerRef == null) {
-                    continue;
-                }
-                Integer originalRadius = originalHotRadii.get(playerRef.getChunkTracker());
-                if (originalRadius == null) {
-                    continue;
-                }
-                try {
-                    world.execute(() -> {
-                        if (idleService != null) {
-                            idleService.restoreHotRadius(playerRef, originalRadius);
-                        } else {
-                            playerRef.getChunkTracker().setMaxHotLoadedRadius(originalRadius);
+        worldTargets.clear();
+        restoreMemoryGuard();
+        restoreHotRadii();
+        if (!managedRadii.isEmpty() && !HytaleServer.get().isShuttingDown()) {
+            task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(this::restoreHotRadii, 1, 1, TimeUnit.SECONDS);
+        }
+    }
+
+    private synchronized void restoreHotRadii() {
+        if (registered) {
+            return;
+        }
+        Set<ChunkTracker> onlineTrackers = new HashSet<>();
+        for (PlayerRef playerRef : Universe.get().getPlayers()) {
+            ChunkTracker tracker = playerRef.getChunkTracker();
+            onlineTrackers.add(tracker);
+            ManagedRadius managed = managedRadii.get(tracker);
+            if (managed == null) {
+                continue;
+            }
+            if (managed.applied == managed.original) {
+                managedRadii.remove(tracker, managed);
+                continue;
+            }
+            var reference = playerRef.getReference();
+            if (reference == null || !reference.isValid() || managed.pendingRestore == reference) {
+                continue;
+            }
+            World world = reference.getStore().getExternalData().getWorld();
+            managed.pendingRestore = reference;
+            try {
+                world.execute(() -> {
+                    synchronized (PerPlayerHotRadiusService.this) {
+                        if (managed.pendingRestore != reference) {
+                            return;
                         }
-                    });
-                } catch (RuntimeException e) {
-                    LOGGER.atWarning().withCause(e).log(
-                            "Failed to queue hot-radius restoration for player %s", playerRef.getUuid());
-                }
+                        managed.pendingRestore = null;
+                        if (registered || managedRadii.get(tracker) != managed) {
+                            return;
+                        }
+                        if (playerRef.getReference() != reference || !reference.isValid()) {
+                            return;
+                        }
+                        IdlePlayerService idleService = idlePlayerService;
+                        if (idleService != null) {
+                            idleService.restoreHotRadius(
+                                    playerRef, managed.original, managed.applied, managed.revision);
+                        } else {
+                            synchronized (tracker) {
+                                if (tracker.getMaxHotLoadedRadius() == managed.applied
+                                        && PlayerRadiusRevisions.hot(tracker) == managed.revision) {
+                                    tracker.setMaxHotLoadedRadius(managed.original);
+                                }
+                            }
+                        }
+                        managedRadii.remove(tracker, managed);
+                    }
+                });
+            } catch (RuntimeException e) {
+                managed.pendingRestore = null;
             }
         }
-        originalHotRadii.clear();
-        restoreMemoryGuard();
+        managedRadii.keySet().retainAll(onlineTrackers);
+        if (managedRadii.isEmpty() && task != null) {
+            task.cancel(false);
+            task = null;
+        }
     }
 
     private synchronized void checkAndAdjust() {
@@ -165,8 +226,9 @@ public class PerPlayerHotRadiusService {
                 onlineTrackers.add(playerRef.getChunkTracker());
             }
         }
-        originalHotRadii.keySet().retainAll(onlineTrackers);
+        managedRadii.keySet().retainAll(onlineTrackers);
         IdlePlayerService idleService = idlePlayerService;
+        Set<World> activeWorlds = new HashSet<>();
 
         int lowestTarget = Integer.MAX_VALUE;
         float lowestTps = 0f;
@@ -176,8 +238,14 @@ public class PerPlayerHotRadiusService {
             if (world.getPlayerRefs().isEmpty()) {
                 continue;
             }
+            activeWorlds.add(world);
             float worldTps = (float) TpsUtil.getWorldTps(world);
             int target = calculateTargetRadius(worldTps, (float) TpsUtil.getTargetTps(world));
+            Integer previous = worldTargets.get(world);
+            if (previous != null && target > previous) {
+                target = previous + RADIUS_INCREASE_STEP;
+            }
+            worldTargets.put(world, target);
             int applied = applyToWorld(world, target, idleService);
             if (target < lowestTarget) {
                 lowestTarget = target;
@@ -185,6 +253,7 @@ public class PerPlayerHotRadiusService {
                 appliedAtLowest = applied;
             }
         }
+        worldTargets.keySet().retainAll(activeWorlds);
 
         if (lowestTarget == Integer.MAX_VALUE) {
             return;
@@ -252,6 +321,12 @@ public class PerPlayerHotRadiusService {
                         return;
                     }
                     for (PlayerRef playerRef : snapshot) {
+                        var reference = playerRef.getReference();
+                        if (reference == null
+                                || !reference.isValid()
+                                || reference.getStore().getExternalData().getWorld() != world) {
+                            continue;
+                        }
                         if (idleService == null || !idleService.isIdle(playerRef.getUuid())) {
                             updateHotRadius(playerRef, targetRadius);
                         }
@@ -266,28 +341,63 @@ public class PerPlayerHotRadiusService {
 
     private boolean updateHotRadius(PlayerRef playerRef, int radius) {
         ChunkTracker tracker = playerRef.getChunkTracker();
-        int currentRadius = tracker.getMaxHotLoadedRadius();
-        if (currentRadius == radius) {
-            return false;
+        synchronized (tracker) {
+            int currentRadius = tracker.getMaxHotLoadedRadius();
+            long revision = PlayerRadiusRevisions.hot(tracker);
+            ManagedRadius managed = managedRadii.get(tracker);
+            if (managed == null) {
+                managed =
+                        new ManagedRadius(currentRadius, currentRadius != ChunkTracker.MAX_HOT_LOADED_RADIUS, revision);
+                managedRadii.put(tracker, managed);
+            } else if (currentRadius != managed.applied || revision != managed.revision) {
+                managed.original = currentRadius;
+                managed.capped = true;
+            }
+            int desired = managed.capped ? Math.min(radius, managed.original) : radius;
+            managed.applied = desired;
+            if (currentRadius == desired) {
+                managed.revision = revision;
+                return false;
+            }
+            tracker.setMaxHotLoadedRadius(desired);
+            managed.revision = PlayerRadiusRevisions.hot(tracker);
+            return true;
         }
-        originalHotRadii.putIfAbsent(tracker, currentRadius);
-        tracker.setMaxHotLoadedRadius(radius);
-        return true;
+    }
+
+    private static final class ManagedRadius {
+        int original;
+        int applied;
+        boolean capped;
+        long revision;
+        Ref<EntityStore> pendingRestore;
+
+        ManagedRadius(int original, boolean capped, long revision) {
+            this.original = original;
+            this.applied = original;
+            this.capped = capped;
+            this.revision = revision;
+        }
     }
 
     private void initMemoryGuard() {
         synchronized (memoryLock) {
-            int engineValue = HytaleServer.get().getConfig().getMaxViewRadius();
-            Integer restored = readRestore();
-            if (restored != null) {
-                // Leftover file means an unclean shutdown; it holds the true (pre-reduction) baseline.
-                initialMaxViewRadius = restored;
-                if (engineValue != restored) {
-                    HytaleServer.get().getConfig().setMaxViewRadius(restored);
+            HytaleServerConfig config = HytaleServer.get().getConfig();
+            synchronized (config) {
+                int engineValue = config.getMaxViewRadius();
+                Integer restored = readRestore();
+                if (restored != null) {
+                    // Leftover file means an unclean shutdown; it holds the true (pre-reduction) baseline.
+                    initialMaxViewRadius = restored;
+                    if (engineValue != restored) {
+                        config.setMaxViewRadius(restored);
+                    }
+                } else {
+                    initialMaxViewRadius = engineValue;
+                    writeRestore(engineValue);
                 }
-            } else {
-                initialMaxViewRadius = engineValue;
-                writeRestore(engineValue);
+                appliedMaxViewRadius = config.getMaxViewRadius();
+                viewRadiusRevision = memoryViewRadiusRevision(config);
             }
             lastViewAdjustmentMs = System.currentTimeMillis();
 
@@ -306,8 +416,23 @@ public class PerPlayerHotRadiusService {
             if (initialMaxViewRadius < 0) {
                 return;
             }
-            restoreViewRadius(initialMaxViewRadius);
-            initialMaxViewRadius = -1;
+            int restored = initialMaxViewRadius;
+            try {
+                HytaleServerConfig config = HytaleServer.get().getConfig();
+                synchronized (config) {
+                    currentMemoryViewRadius(config);
+                    restored = initialMaxViewRadius;
+                    if (config.getMaxViewRadius() != restored) {
+                        config.setMaxViewRadius(restored);
+                    }
+                    initialMaxViewRadius = -1;
+                }
+                saveRestoredViewRadius(config);
+            } catch (Exception e) {
+                LOGGER.atWarning().withCause(e).log("Failed to restore max view radius to %d", restored);
+            } finally {
+                initialMaxViewRadius = -1;
+            }
         }
     }
 
@@ -316,27 +441,30 @@ public class PerPlayerHotRadiusService {
             if (initialMaxViewRadius < 0) {
                 return;
             }
-            PerPlayerHotRadiusConfig config = PerPlayerHotRadiusConfig.get();
-            int minView = Math.min(
-                    initialMaxViewRadius,
-                    Math.max(1, config.getValue(PerPlayerHotRadiusConfig.MEMORY_MIN_VIEW_RADIUS)));
-            double decreaseFactor = config.getValue(PerPlayerHotRadiusConfig.MEMORY_VIEW_DECREASE_FACTOR);
-            long minStepMs = Math.max(1000L, config.getValue(PerPlayerHotRadiusConfig.CHECK_INTERVAL_MS));
+            HytaleServerConfig serverConfig = HytaleServer.get().getConfig();
+            synchronized (serverConfig) {
+                int current = currentMemoryViewRadius(serverConfig);
+                PerPlayerHotRadiusConfig config = PerPlayerHotRadiusConfig.get();
+                int minView = Math.min(
+                        initialMaxViewRadius,
+                        Math.max(1, config.getValue(PerPlayerHotRadiusConfig.MEMORY_MIN_VIEW_RADIUS)));
+                double decreaseFactor = config.getValue(PerPlayerHotRadiusConfig.MEMORY_VIEW_DECREASE_FACTOR);
+                long minStepMs = Math.max(1000L, config.getValue(PerPlayerHotRadiusConfig.CHECK_INTERVAL_MS));
 
-            long now = System.currentTimeMillis();
-            // Throttle the descent to at most one step per interval, even during a GC storm.
-            if (now - lastViewAdjustmentMs < minStepMs) {
-                return;
-            }
-            int current = HytaleServer.get().getConfig().getMaxViewRadius();
-            int target = Math.max(minView, (int) Math.floor(decreaseFactor * current));
-            if (target < current) {
-                HytaleServer.get().getConfig().setMaxViewRadius(target);
-                LOGGER.atWarning().log("Memory pressure: reducing max view radius %d -> %d", current, target);
-                HyboxBridge.event(
-                        "PerPlayerHotRadius",
-                        String.format(java.util.Locale.ROOT, "memory view radius %d to %d", current, target));
-                lastViewAdjustmentMs = now;
+                long now = System.currentTimeMillis();
+                // Throttle the descent to at most one step per interval, even during a GC storm.
+                if (now - lastViewAdjustmentMs < minStepMs) {
+                    return;
+                }
+                int target = Math.max(minView, (int) Math.floor(decreaseFactor * current));
+                if (target < current) {
+                    setMemoryViewRadius(serverConfig, target);
+                    LOGGER.atWarning().log("Memory pressure: reducing max view radius %d -> %d", current, target);
+                    HyboxBridge.event(
+                            "PerPlayerHotRadius",
+                            String.format(java.util.Locale.ROOT, "memory view radius %d to %d", current, target));
+                    lastViewAdjustmentMs = now;
+                }
             }
         }
     }
@@ -346,28 +474,59 @@ public class PerPlayerHotRadiusService {
             if (initialMaxViewRadius < 0) {
                 return;
             }
-            int current = HytaleServer.get().getConfig().getMaxViewRadius();
-            if (current >= initialMaxViewRadius) {
-                return;
-            }
-            PerPlayerHotRadiusConfig config = PerPlayerHotRadiusConfig.get();
-            double threshold = config.getValue(PerPlayerHotRadiusConfig.MEMORY_HEAP_THRESHOLD);
-            long recoveryWaitMs =
-                    Math.max(1000L, config.getValue(PerPlayerHotRadiusConfig.MEMORY_RECOVERY_WAIT_SECONDS) * 1000L);
+            HytaleServerConfig serverConfig = HytaleServer.get().getConfig();
+            synchronized (serverConfig) {
+                int current = currentMemoryViewRadius(serverConfig);
+                if (current >= initialMaxViewRadius) {
+                    return;
+                }
+                PerPlayerHotRadiusConfig config = PerPlayerHotRadiusConfig.get();
+                double threshold = config.getValue(PerPlayerHotRadiusConfig.MEMORY_HEAP_THRESHOLD);
+                long recoveryWaitMs =
+                        Math.max(1000L, config.getValue(PerPlayerHotRadiusConfig.MEMORY_RECOVERY_WAIT_SECONDS) * 1000L);
 
-            long now = System.currentTimeMillis();
-            if (now - lastViewAdjustmentMs < recoveryWaitMs) {
-                return;
+                long now = System.currentTimeMillis();
+                if (now - lastViewAdjustmentMs < recoveryWaitMs) {
+                    return;
+                }
+                if (heapMonitor != null && heapMonitor.currentAfterGcRatio() >= threshold) {
+                    return;
+                }
+                int target = Math.min(current + MEMORY_VIEW_INCREASE_STEP, initialMaxViewRadius);
+                if (target > current) {
+                    setMemoryViewRadius(serverConfig, target);
+                    LOGGER.atInfo().log("Memory recovered: increasing max view radius %d -> %d", current, target);
+                    lastViewAdjustmentMs = now;
+                }
             }
-            if (heapMonitor != null && heapMonitor.currentAfterGcRatio() >= threshold) {
-                return;
-            }
-            int target = Math.min(current + MEMORY_VIEW_INCREASE_STEP, initialMaxViewRadius);
-            if (target > current) {
-                HytaleServer.get().getConfig().setMaxViewRadius(target);
-                LOGGER.atInfo().log("Memory recovered: increasing max view radius %d -> %d", current, target);
-                lastViewAdjustmentMs = now;
-            }
+        }
+    }
+
+    private int currentMemoryViewRadius(HytaleServerConfig config) {
+        int current = config.getMaxViewRadius();
+        long revision = memoryViewRadiusRevision(config);
+        if (current != appliedMaxViewRadius || revision != viewRadiusRevision) {
+            initialMaxViewRadius = current;
+            appliedMaxViewRadius = current;
+            viewRadiusRevision = revision;
+            writeRestore(current);
+        }
+        return current;
+    }
+
+    private void setMemoryViewRadius(HytaleServerConfig config, int radius) {
+        config.setMaxViewRadius(radius);
+        appliedMaxViewRadius = config.getMaxViewRadius();
+        viewRadiusRevision = memoryViewRadiusRevision(config);
+    }
+
+    private static long memoryViewRadiusRevision(HytaleServerConfig config) {
+        return Early.isEnabled() ? RadiusWrites.revision(config) : -1;
+    }
+
+    private static final class RadiusWrites {
+        private static long revision(HytaleServerConfig config) {
+            return config instanceof ServerViewRadiusAccess access ? access.refixes$getViewRadiusRevision() : -1;
         }
     }
 

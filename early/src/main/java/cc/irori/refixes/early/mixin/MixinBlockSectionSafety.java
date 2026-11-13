@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.duck.QuarantinedSection;
 import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.RecoveryPolicy;
 import com.hypixel.hytale.codec.ExtraInfo;
@@ -9,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightDat
 import com.hypixel.hytale.server.core.universe.world.chunk.section.palette.EmptySectionPalette;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import java.nio.file.Path;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -18,13 +20,13 @@ import org.spongepowered.asm.mixin.Unique;
  * The section is reset only after the corrupt data is quarantined.
  */
 @Mixin(BlockSection.class)
-public abstract class MixinBlockSectionSafety {
+public abstract class MixinBlockSectionSafety implements QuarantinedSection {
 
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
     @Unique
-    private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
+    private Path refixes$quarantine;
 
     @Shadow
     private com.hypixel.hytale.server.core.universe.world.chunk.section.palette.AbstractSectionPalette chunkSection;
@@ -56,18 +58,23 @@ public abstract class MixinBlockSectionSafety {
     @Shadow
     public abstract void invalidate();
 
+    @Override
+    public Path refixes$takeQuarantine() {
+        Path quarantine = refixes$quarantine;
+        refixes$quarantine = null;
+        return quarantine;
+    }
+
     @WrapMethod(method = "deserialize([BLcom/hypixel/hytale/codec/ExtraInfo;)V")
     private void refixes$safeDeserialize(byte[] bytes, ExtraInfo extraInfo, Operation<Void> original) {
-        if (refixes$WRAPPING.get()) {
-            original.call(bytes, extraInfo);
-            return;
-        }
-        refixes$WRAPPING.set(true);
         try {
             original.call(bytes, extraInfo);
         } catch (Exception failure) {
+            if (refixes$isUnsupportedVersion(failure)) {
+                throw failure;
+            }
             try {
-                java.nio.file.Path quarantine =
+                Path quarantine =
                         RecoveryPolicy.quarantineThen(bytes, RecoveryPolicy.blockSectionQuarantineDirectory(), () -> {
                             chunkSection = EmptySectionPalette.INSTANCE;
                             fillerSection = EmptySectionPalette.INSTANCE;
@@ -80,6 +87,7 @@ public abstract class MixinBlockSectionSafety {
                             globalChangeCounter = 0;
                             invalidate();
                         });
+                refixes$quarantine = quarantine;
                 refixes$LOGGER.atWarning().withCause(failure).log(
                         "BlockSection#deserialize(): Corrupt data reset to empty after quarantine at %s", quarantine);
             } catch (Exception quarantineFailure) {
@@ -88,8 +96,13 @@ public abstract class MixinBlockSectionSafety {
                         "BlockSection#deserialize(): Quarantine failed. Corrupt section was not reset");
                 throw failure;
             }
-        } finally {
-            refixes$WRAPPING.set(false);
         }
+    }
+
+    @Unique
+    private static boolean refixes$isUnsupportedVersion(Exception failure) {
+        return failure instanceof IllegalArgumentException
+                && failure.getMessage() != null
+                && failure.getMessage().startsWith("Version not supported");
     }
 }

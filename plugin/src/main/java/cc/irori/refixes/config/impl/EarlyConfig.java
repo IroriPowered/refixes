@@ -3,6 +3,7 @@ package cc.irori.refixes.config.impl;
 import cc.irori.refixes.config.Configuration;
 import cc.irori.refixes.config.ConfigurationKey;
 import cc.irori.refixes.config.field.ConfigField;
+import cc.irori.refixes.early.OutgoingQueueLimits;
 
 public class EarlyConfig extends Configuration<EarlyConfig> {
 
@@ -34,6 +35,11 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
     public static final ConfigurationKey<EarlyConfig, Integer> SHUTDOWN_SAVE_TIMEOUT_SECONDS =
             new ConfigurationKey<>("ShutdownSaveTimeoutSeconds", ConfigField.INTEGER, 10);
 
+    public static final ConfigurationKey<EarlyConfig, Long> OUTGOING_QUEUE_MAX_BYTES =
+            new ConfigurationKey<>("OutgoingQueueMaxBytes", ConfigField.LONG, OutgoingQueueLimits.DEFAULT.maxBytes());
+    public static final ConfigurationKey<EarlyConfig, Integer> OUTGOING_QUEUE_MAX_PACKETS = new ConfigurationKey<>(
+            "OutgoingQueueMaxPackets", ConfigField.INTEGER, OutgoingQueueLimits.DEFAULT.maxPackets());
+
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
     public EarlyConfig() {
@@ -49,7 +55,9 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 PATHFINDING_TOTAL_NODES_LIMIT,
                 PATHFINDING_MAX_NEW_SEARCHES_PER_TICK,
                 PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK,
-                SHUTDOWN_SAVE_TIMEOUT_SECONDS);
+                SHUTDOWN_SAVE_TIMEOUT_SECONDS,
+                OUTGOING_QUEUE_MAX_BYTES,
+                OUTGOING_QUEUE_MAX_PACKETS);
     }
 
     public static EarlyConfig get() {

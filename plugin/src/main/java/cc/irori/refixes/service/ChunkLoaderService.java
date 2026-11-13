@@ -123,6 +123,11 @@ public class ChunkLoaderService {
         return Map.copyOf(labels);
     }
 
+    public synchronized boolean hasKeptChunks(String worldName) {
+        Map<Long, ChunkData> chunks = keptChunksByWorld.get(worldName);
+        return chunks != null && !chunks.isEmpty();
+    }
+
     public synchronized Long findChunkByLabel(String worldName, String label) {
         Map<Long, ChunkData> chunks = keptChunksByWorld.get(worldName);
         if (chunks != null) {
@@ -339,6 +344,10 @@ public class ChunkLoaderService {
                         : null;
                 hold.column.set(column);
                 if (column == null) hold.columnRef = null;
+                else {
+                    column.resetActiveTimer();
+                    store.tryRemoveComponent(hold.columnRef, ChunkStore.REGISTRY.getNonTickingComponentType());
+                }
             }
             for (var entry : List.copyOf(hold.sections.entrySet())) {
                 SectionHold owned = entry.getValue();

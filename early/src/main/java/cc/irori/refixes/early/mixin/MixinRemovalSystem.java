@@ -42,9 +42,24 @@ public class MixinRemovalSystem {
             double seconds = portalWorld.getRemainingSeconds(world);
             PortalWorld.setRemainingSeconds(world, seconds, false);
         }
+    }
+
+    @Inject(method = "shouldRemoveWorld(Lcom/hypixel/hytale/component/Store;)Z", at = @At("RETURN"), cancellable = true)
+    private static void refixes$keepWhileTimeRemains(Store<ChunkStore> store, CallbackInfoReturnable<Boolean> cir) {
+        if (!Boolean.TRUE.equals(cir.getReturnValue())) {
+            return;
+        }
+        World world = store.getExternalData().getWorld();
+        if (!world.getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
+            return;
+        }
+
+        PortalWorld portalWorld = world.getEntityStore().getStore().getResource(PortalWorld.getResourceType());
+        if (((MixinPortalWorldAccessor) portalWorld).getWorldRemovalCondition() == null) {
+            return;
+        }
 
         if (portalWorld.getRemainingSeconds(world) > 0.0d) {
-            cir.cancel();
             cir.setReturnValue(false);
         }
     }

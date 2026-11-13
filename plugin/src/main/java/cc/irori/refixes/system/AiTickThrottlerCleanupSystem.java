@@ -19,21 +19,26 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
     @Override
     public void onEntityAdded(
-            @NonNull Ref<EntityStore> ref,
-            @NonNull AddReason addReason,
-            @NonNull Store<EntityStore> store,
-            @NonNull CommandBuffer<EntityStore> commandBuffer) {
+            @Nonnull Ref<EntityStore> ref,
+            @Nonnull AddReason addReason,
+            @Nonnull Store<EntityStore> store,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         if (addReason != AddReason.LOAD) {
             return;
         }
 
         TickThrottledCleanupConfig cfg = TickThrottledCleanupConfig.get();
+        ComponentType<EntityStore, TickThrottled> liveType = TickThrottled.getComponentType();
+        TickThrottled current = liveType == null ? null : commandBuffer.getComponent(ref, liveType);
+        if (current != null && current.isLive()) {
+            return;
+        }
 
         if (cfg.getValue(TickThrottledCleanupConfig.CLEANUP_FROZEN_ENTITIES)) {
             ComponentType<EntityStore, TickThrottled> tickThrottledType = TickThrottled.getComponentType();
@@ -82,10 +87,10 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
 
     @Override
     public void onEntityRemove(
-            @NonNull Ref<EntityStore> ref,
-            @NonNull RemoveReason removeReason,
-            @NonNull Store<EntityStore> store,
-            @NonNull CommandBuffer<EntityStore> commandBuffer) {
+            @Nonnull Ref<EntityStore> ref,
+            @Nonnull RemoveReason removeReason,
+            @Nonnull Store<EntityStore> store,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         // no-op
     }
 

@@ -1,9 +1,11 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.util.RetiredWorlds;
 import cc.irori.refixes.early.util.WorldPolicySaveJoin;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.server.core.universe.world.WorldProvider;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,6 +21,10 @@ public class MixinStoreShutdown {
     private Object refixes$joinWithTimeout(CompletableFuture<?> future) {
         int timeoutSeconds = EarlyOptions.SHUTDOWN_SAVE_TIMEOUT_SECONDS.get();
         if (timeoutSeconds <= 0 || !HytaleServer.get().isShuttingDown()) return future.join();
-        return WorldPolicySaveJoin.await(future, timeoutSeconds, TimeUnit.SECONDS, "Store resource save");
+        Object result = WorldPolicySaveJoin.await(future, timeoutSeconds, TimeUnit.SECONDS, "Store resource save");
+        if (!future.isDone() && ((Store<?>) (Object) this).getExternalData() instanceof WorldProvider provider) {
+            RetiredWorlds.retain(provider.getWorld(), future);
+        }
+        return result;
     }
 }

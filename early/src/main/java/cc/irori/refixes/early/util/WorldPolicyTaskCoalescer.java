@@ -1,14 +1,13 @@
 package cc.irori.refixes.early.util;
 
 import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
 public final class WorldPolicyTaskCoalescer {
     private static final ReferenceQueue<Object> STALE = new ReferenceQueue<>();
-    private static final Map<WorldKey, Object> PENDING = new HashMap<>();
+    private static final Map<WorldPolicyKey, Object> PENDING = new HashMap<>();
     private static final Object CLOSED = new Object();
 
     private WorldPolicyTaskCoalescer() {}
@@ -16,12 +15,12 @@ public final class WorldPolicyTaskCoalescer {
     public static void close(Object key) {
         synchronized (PENDING) {
             expunge();
-            PENDING.put(new WorldKey(key, STALE), CLOSED);
+            PENDING.put(new WorldPolicyKey(key, STALE), CLOSED);
         }
     }
 
     public static boolean submit(Object key, Executor owner, Runnable accepted) {
-        WorldKey worldKey = new WorldKey(key, STALE);
+        WorldPolicyKey worldKey = new WorldPolicyKey(key, STALE);
         Object generation = new Object();
         synchronized (PENDING) {
             expunge();
@@ -46,28 +45,7 @@ public final class WorldPolicyTaskCoalescer {
     }
 
     private static void expunge() {
-        WorldKey stale;
-        while ((stale = (WorldKey) STALE.poll()) != null) PENDING.remove(stale);
-    }
-
-    private static final class WorldKey extends WeakReference<Object> {
-        private final int hash;
-
-        WorldKey(Object referent, ReferenceQueue<Object> queue) {
-            super(referent, queue);
-            this.hash = System.identityHashCode(referent);
-        }
-
-        @Override
-        public int hashCode() {
-            return this.hash;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            Object referent = this.get();
-            return other instanceof WorldKey key && referent != null && referent == key.get();
-        }
+        WorldPolicyKey stale;
+        while ((stale = (WorldPolicyKey) STALE.poll()) != null) PENDING.remove(stale);
     }
 }

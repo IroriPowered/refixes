@@ -1,11 +1,14 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.util.WorldPolicySaveJoin;
 import com.hypixel.hytale.builtin.adventure.worldevents.GlobalWorldEventManager;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,6 +25,19 @@ public abstract class MixinGlobalWorldEventManager {
         synchronized (this) {
             original.call();
         }
+    }
+
+    @WrapMethod(method = "shutdown")
+    private void refixes$finishPendingSave(Operation<Void> original) {
+        original.call();
+        CompletableFuture<?> pending;
+        synchronized (this) {
+            pending = refixes$saveTail;
+        }
+        int timeout = EarlyOptions.SHUTDOWN_SAVE_TIMEOUT_SECONDS.get();
+        if (timeout <= 0) return;
+        WorldPolicySaveJoin.await(
+                pending.handle((ignored, failure) -> null), timeout, TimeUnit.SECONDS, "World events save");
     }
 
     @WrapOperation(

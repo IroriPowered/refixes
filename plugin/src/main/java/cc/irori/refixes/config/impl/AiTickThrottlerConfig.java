@@ -35,6 +35,8 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
             new ConfigurationKey<>("VeryFarTickSeconds", ConfigField.FLOAT, 1.0f);
     public static final ConfigurationKey<AiTickThrottlerConfig, Float> MIN_TICK_SECONDS =
             new ConfigurationKey<>("MinTickSeconds", ConfigField.FLOAT, 0.05f);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Float> MAX_STEP_SECONDS =
+            new ConfigurationKey<>("MaxStepSeconds", ConfigField.FLOAT, 1.0f);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> ACTIVATION_HYSTERESIS_CHUNKS =
             new ConfigurationKey<>("ActivationHysteresisChunks", ConfigField.INTEGER, 0);
@@ -69,6 +71,7 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 FAR_TICK_SECONDS,
                 VERY_FAR_TICK_SECONDS,
                 MIN_TICK_SECONDS,
+                MAX_STEP_SECONDS,
                 ACTIVATION_HYSTERESIS_CHUNKS,
                 MAX_UNFREEZES_PER_TICK,
                 MAX_FREEZES_PER_TICK,

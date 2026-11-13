@@ -20,7 +20,7 @@ public abstract class MixinPlayerViewRadius {
 
     @Inject(method = "setClientViewRadius", at = @At("TAIL"))
     private void refixes$updateMinLoadedRadius(int viewRadius, CallbackInfo ci) {
-        if (!EarlyOptions.isAvailable()) {
+        if (!EarlyOptions.isAvailable() || this.playerRef == null) {
             return;
         }
 

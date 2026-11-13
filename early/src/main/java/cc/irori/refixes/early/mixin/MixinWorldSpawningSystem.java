@@ -11,6 +11,7 @@ import com.hypixel.hytale.server.spawning.world.component.WorldSpawnData;
 import com.hypixel.hytale.server.spawning.world.system.WorldSpawningSystem;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import java.util.concurrent.TimeUnit;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -20,9 +21,6 @@ public abstract class MixinWorldSpawningSystem {
     @Unique
     private static final HytaleLogger refixes$LOGGER = Logs.logger();
 
-    @Unique
-    private static final ThreadLocal<Boolean> refixes$WRAPPING = ThreadLocal.withInitial(() -> false);
-
     @WrapMethod(method = "pickRandomChunk")
     private Ref<ChunkStore> refixes$wrapPickRandomChunk(
             WorldEnvironmentSpawnData spawnData,
@@ -30,19 +28,12 @@ public abstract class MixinWorldSpawningSystem {
             WorldSpawnData worldSpawnData,
             Store<ChunkStore> store,
             Operation<Ref<ChunkStore>> original) {
-        if (refixes$WRAPPING.get()) {
-            // Run the original method
-            return original.call(spawnData, stat, worldSpawnData, store);
-        }
-
-        refixes$WRAPPING.set(true);
         try {
             return original.call(spawnData, stat, worldSpawnData, store);
         } catch (Exception e) {
-            refixes$LOGGER.atWarning().withCause(e).log("WorldSpawningSystem#pickRandomChunk(): Failed to run");
+            refixes$LOGGER.atWarning().atMostEvery(1, TimeUnit.MINUTES).withCause(e).log(
+                    "WorldSpawningSystem#pickRandomChunk(): Failed to run");
             return null;
-        } finally {
-            refixes$WRAPPING.set(false);
         }
     }
 }

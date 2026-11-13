@@ -115,6 +115,9 @@ public final class CompatibilityProbe {
         Path path = (Path) configField.get(null);
         Files.createDirectories(path.getParent());
         Files.writeString(path, JSON.toJson(root));
+        Files.writeString(path.resolveSibling("config.json"), """
+                {"Runtime":{"Recovery":{"UnknownBlockCleaner":{"Enabled":true,"ScanContainers":true,"ScanFluids":true},"Watchdog":{"AutoRestartWorlds":true}},"Tuning":{"AiTickThrottler":{"Enabled":true},"IdleWorldPause":{"Enabled":true},"PerPlayerHotRadius":{"Enabled":true,"MemoryGuardEnabled":true},"IdlePlayerHandler":{"Enabled":true}}}}
+                """);
     }
 
     public static void verify() {
@@ -164,13 +167,18 @@ public final class CompatibilityProbe {
             }
             verifyEarlyPluginLoading(loader);
             SharedInstanceStorageRegression.assertSaveSectionCallbacks();
+            NativePatchRegression.assertPatched();
+            com.hypixel.hytale.component.BeaconNativeRegression.assertNativeNullController();
+            com.hypixel.hytale.component.CommandBufferRemovalRegression.assertPatched();
+            NettySetupPacingRegression.assertPatched();
             JsonObject result = new JsonObject();
             result.addProperty("status", "passed");
             result.addProperty("mode", plan.get("mode").getAsString());
             result.addProperty("activeMixinTargetPairs", active);
             result.add("transformedTargets", transformed);
             result.addProperty("earlyPluginLoading", "registered dummy transformer removed by real loader");
-            result.addProperty("sharedInstanceStorage", "saveSection callbacks fire once inline; retry after backend throw");
+            result.addProperty("sharedInstanceStorage", "inline callbacks; in-flight deduplication; permanent first-write success; synchronous/asynchronous retry; cubic Y isolation");
+            result.addProperty("nettySetupPacing", "ordered setup bursts and batches, flush-driven drainage, close release, nonblocking event loop, hard caps and invalid-size diagnostics");
             result.addProperty("strictInjectionCounts", Boolean.getBoolean("mixin.debug.countInjections"));
             if (!result.get("strictInjectionCounts").getAsBoolean()) {
                 throw new AssertionError("Strict injection counting is required");
@@ -202,6 +210,7 @@ public final class CompatibilityProbe {
             if (plugins.size() != 1) {
                 throw new AssertionError("Expected exactly one Refixes runtime plugin at setup: " + plugins);
             }
+            verifySharedStorageAvailability(plugins.getFirst().getClass().getClassLoader());
             SectionBackoffDeadlockRepro.assertPatched(SectionBackoffDeadlockRepro.setupPhaseWorld());
             SharedInstanceStorageRegression.runWithRegistry(SectionBackoffDeadlockRepro.fixtureStore());
             JsonObject result = new JsonObject();
@@ -236,6 +245,7 @@ public final class CompatibilityProbe {
                     || plugins.getFirst().getState() != com.hypixel.hytale.server.core.plugin.PluginState.ENABLED) {
                 throw new AssertionError("Expected exactly one enabled Refixes runtime plugin: " + plugins);
             }
+            verifySharedStorageAvailability(plugins.getFirst().getClass().getClassLoader());
             JsonObject result = new JsonObject();
             result.addProperty("status", "booted");
             result.addProperty("refixesRuntimePlugin", plugins.getFirst().getIdentifier().toString());
@@ -250,12 +260,32 @@ public final class CompatibilityProbe {
             storageRegression.get(10, TimeUnit.SECONDS);
             result.addProperty("sharedInstanceUuidLessHolder", "stable UUID + transform after failed first save");
             result.addProperty("sectionBackoffDeadlock", "completed exceptionally on transformed ChunkStore");
+            EntityGuardRegression.run(world).forEach((name, outcome) -> result.addProperty("entityGuard." + name, outcome));
             Files.writeString(Path.of("boot-result.json"), JSON.toJson(result));
             System.out.println("[LocalVerify] Full boot and Refixes plugin enablement PASS");
         } catch (Throwable failure) {
             failure.printStackTrace();
             server.shutdownServer(com.hypixel.hytale.server.core.ShutdownReason.CRASH);
         }
+    }
+
+    private static void verifySharedStorageAvailability(ClassLoader pluginLoader) throws Exception {
+        ClassLoader serverLoader = com.hypixel.hytale.server.core.universe.world.World.class.getClassLoader();
+        if (!serverLoader.loadClass("com.hypixel.hytale.server.core.plugin.PluginClassLoader").isInstance(pluginLoader)) {
+            throw new AssertionError("Refixes main lost its native plugin classloader: " + pluginLoader);
+        }
+        Class<?> sharedOptions = Class.forName("cc.irori.refixes.early.EarlyOptions", true, serverLoader);
+        for (ClassLoader loader : List.of(pluginLoader, serverLoader)) {
+            Class<?> options = Class.forName("cc.irori.refixes.early.EarlyOptions", true, loader);
+            if (options != sharedOptions) {
+                throw new AssertionError("Early configuration has duplicate class identity in " + loader);
+            }
+            Object available = options.getField("SHARED_INSTANCES_STORAGE_AVAILABLE").get(null);
+            if (!Boolean.TRUE.equals(available.getClass().getMethod("get").invoke(available))) {
+                throw new AssertionError("Shared storage availability was not published to " + loader);
+            }
+        }
+        System.out.println("[LocalVerify] Shared storage availability across main and early classloaders PASS");
     }
 
     private static void verifyEarlyPluginLoading(ClassLoader serverLoader) throws Exception {
@@ -293,6 +323,7 @@ public final class CompatibilityProbe {
         return result;
     }
 
+    // Interface-only mixins (e.g. @Shadow + implements) leave no @MixinMerged method; prove the interfaces landed.
     private static boolean interfacesApplied(ClassLoader loader, String mixin, ClassNode target) throws Exception {
         try (InputStream in = loader.getResourceAsStream(mixin.replace('.', '/') + ".class")) {
             if (in == null) throw new AssertionError("Mixin class bytes not found: " + mixin);
