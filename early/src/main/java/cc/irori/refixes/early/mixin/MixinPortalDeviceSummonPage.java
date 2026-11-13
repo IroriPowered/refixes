@@ -45,7 +45,6 @@ public class MixinPortalDeviceSummonPage {
             return;
         }
 
-        // Reset only instance timers; do not revive a world with removal already scheduled.
         data.setTimeoutTimer(null);
         data.setIdleTimeoutTimer(null);
         data.setWorldTimeoutTimer(null);

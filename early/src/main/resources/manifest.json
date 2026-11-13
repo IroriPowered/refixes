@@ -2,7 +2,6 @@
     "Group": "IroriPowered",
     "Name": "Refixes-Early",
     "Version": "${version}",
-    "Website": "https://www.irori.cc/",
     "Description": "Mixin-based patches for Hytale.",
     "Authors": [
         {

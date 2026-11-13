@@ -1,411 +1,550 @@
 package cc.irori.refixes.early;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.io.IOException;
 import java.io.Reader;
-import java.io.Writer;
+import java.net.JarURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.objectweb.asm.tree.ClassNode;
+import java.util.jar.Attributes;
+import org.spongepowered.asm.launch.MixinInitialisationError;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
-import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 public class RefixesMixinPlugin implements IMixinConfigPlugin {
 
     private static final Path CONFIG_PATH = Paths.get("mods", "IroriPowered_Refixes", "Refixes.json");
+    private static final Path RUNTIME_CONFIG_PATH = CONFIG_PATH.resolveSibling("config.json");
+    private static final String ALLOW_UNSUPPORTED_SERVER_VERSION = "AllowUnsupportedServerVersion";
+    private static final List<String> CATEGORIES = List.of(
+            "Correctness",
+            "Optimizations",
+            "Tuning",
+            "Features",
+            "Recovery",
+            "Compatibility",
+            "Diagnostics",
+            "Experimental");
 
-    private record MixinToggle(String[] jsonPath, boolean enabledWhen, boolean defaultEnabled, List<String> mixins) {
-        MixinToggle(String[] jsonPath, boolean enabledWhen, List<String> mixins) {
-            this(jsonPath, enabledWhen, true, mixins);
-        }
-    }
+    private static final String SUPPORTED_SERVER_VERSION =
+            "0\\.8\\.0-pre\\.(?:[5-9]|[1-9]\\d+)(?:\\.\\d+)?|0\\.8\\.[1-9]\\d*-pre\\.\\d+(?:\\.\\d+)?|0\\.8\\.\\d+";
+
+    private record MixinToggle(
+            String[] jsonPath,
+            boolean defaultEnabled,
+            List<String> mixins,
+            boolean runtimeDependency,
+            List<String> uses) {}
 
     private static final List<MixinToggle> TOGGLES = List.of(
-            new MixinToggle(new String[] {"Mixins", "Optimizations", "FluidPlugin"}, true, List.of("MixinFluidPlugin")),
-            new MixinToggle(new String[] {"Mixins", "Optimizations", "BlockModule"}, true, List.of("MixinBlockModule")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "CollectVisible"}, true, List.of("MixinCollectVisible")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "CollisionConfig"}, true, List.of("MixinCollisionConfig")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "CollisionAirFastPath"},
+            toggle("Optimizations", "CollisionConfig", true, "MixinCollisionConfig"),
+            toggle("Optimizations", "KDTree", false, "MixinKDTree"),
+            toggle("Optimizations", "SpawnManagerRecalc", true, "MixinWorldSpawnManager", "MixinWorldSpawnLifecycle"),
+            toggle("Optimizations", "RepulsionTicker", true, "MixinRepulsionTicker"),
+            toggle("Optimizations", "SkipEmptyLightSections", true, "MixinFloodLightCalculation"),
+            toggle(
+                    "Optimizations",
+                    "AssetPartSnapshotSharing",
                     true,
-                    List.of("MixinCollisionAirFastPath")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "SkipSystemMetrics"},
-                    true,
+                    "MixinPacketHandlerAssetParts",
+                    "MixinCachedPacketAccess"),
+            toggle("Diagnostics", "SkipSystemMetrics", false, "MixinStoreSystemMetrics"),
+            toggle("Diagnostics", "HytaleServer", true, "MixinHytaleServer"),
+            toggle("Diagnostics", "SpawnMarkerBlockStateHeartbeat", true, "MixinSpawnMarkerBlockStateHeartbeat"),
+            toggle("Tuning", "CylinderVisibility", false, "MixinCollectVisible"),
+            toggle("Tuning", "ChunkStreaming", false, "MixinPlayerChunkTrackerSystems", "MixinPlayerViewRadius"),
+            toggle("Tuning", "TickWait", false, "MixinTickSleep"),
+            toggle("Tuning", "PathfindingLimits", false, "MixinAStarLimits"),
+            toggle("Features", "OriginRetention", false, "MixinChunkUnloadingSystem", "MixinSectionUnloadingSystem"),
+            toggle(
+                    "Features",
+                    "SharedInstances",
                     false,
-                    List.of("MixinStoreSystemMetrics")),
-            new MixinToggle(new String[] {"Mixins", "Optimizations", "KDTree"}, true, List.of("MixinKDTree")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "ChunkUnloadingSystem"},
+                    "MixinInstancesPlugin",
+                    "MixinSharedInstanceResetWorld",
+                    "MixinSharedInstanceResetRemoval",
+                    "MixinSharedInstanceResetUniverse"),
+            toggle(
+                    "Features",
+                    "SharedInstanceStorage",
                     true,
-                    List.of("MixinChunkUnloadingSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "PlayerChunkTrackerSystems"},
-                    true,
-                    List.of("MixinPlayerChunkTrackerSystems")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "SpawnManagerRecalc"},
-                    true,
-                    List.of("MixinWorldSpawnManager")),
-            new MixinToggle(new String[] {"Mixins", "Optimizations", "AStarBase"}, true, List.of("MixinAStarBase")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Optimizations", "RepulsionTicker"}, true, List.of("MixinRepulsionTicker")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "CollectVisible"},
-                    true,
+                    "MixinChunkGridAccess",
+                    "MixinChunkStoreAccess",
+                    "MixinSharedInstanceWorld",
+                    "MixinSharedInstanceStartup",
+                    "MixinSharedInstanceRemoval"),
+            toggle("Features", "WorldPauseCommand", false, "MixinWorldPauseCommand"),
+            toggle("Recovery", "ShutdownSaveTimeout", false, "MixinStoreShutdown", "MixinWorldShutdown"),
+            toggle("Recovery", "TickSurvival", false, "MixinStoreTickGuard", "MixinCommandBufferAccess"),
+            toggle("Recovery", "CorruptSectionReset", false, "MixinBlockSectionSafety", "MixinBlockSectionQuarantine"),
+            toggle("Recovery", "MotionControllerBase", false, "MixinMotionControllerBase"),
+            toggle("Recovery", "TurnOffTeleportersSystem", false, "MixinTurnOffTeleportersSystem"),
+            toggle("Recovery", "InvalidSavedHolders", false, "MixinEntityChunkLoadingSystem"),
+            toggle(
+                    "Recovery",
+                    "UnresolvedNPCRoles",
                     false,
-                    List.of("MixinCollectVisibleParallel")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "SpatialCollection"},
+                    "MixinNPCSectionActivation",
+                    "MixinNPCRoleActivation",
+                    "MixinUnresolvedNPCRoleChange",
+                    "MixinRoleChangeRequestAccess",
+                    "MixinRoleChangeFlagAccess",
+                    "MixinBuilderDependencyAccess",
+                    "MixinBuilderValidationReferences"),
+            toggle("Recovery", "InvalidCollisionData", false, "MixinCollisionModule"),
+            toggle("Correctness", "MountPlugin", true, "MixinMountPlugin"),
+            toggle(
+                    "Correctness",
+                    "OutgoingQueueLimits",
                     true,
+                    "MixinQuicheChannel",
+                    "MixinQuicheConnection",
+                    "MixinNettyChannelConnection"),
+            toggle(
+                    "Correctness",
+                    "SetupPacing",
+                    true,
+                    "MixinSetupAssetPacing",
+                    "MixinSetupStagePacing",
+                    "MixinSetupConfigPacing"),
+            toggle(
+                    "Correctness",
+                    "QuicCloseRetention",
+                    true,
+                    "MixinQuicChannelClose",
+                    "MixinQuicConnectionAccess",
+                    "MixinQuicTimeoutAccess"),
+            toggle(
+                    "Correctness",
+                    "ChunkSectionFences",
+                    true,
+                    "MixinChunkTrackerSectionFence",
+                    "MixinChunkTrackerQueryReentry",
+                    "MixinReplicateSnapshotFence",
+                    "MixinFluidReplicateLoadFence",
+                    "MixinFluidReplicateSnapshotFence",
+                    "MixinTrackedColumnSectionFence",
+                    "MixinChunkTrackerNotificationResync",
+                    "MixinBlockChunkNotificationPacket",
+                    "MixinEnvironmentNotificationPacket",
+                    "MixinWorldNotificationHandler",
+                    "MixinPacketHandlerSectionFence"),
+            toggle("Recovery", "InteractionChain", false, "MixinInteractionChain"),
+            toggle("Correctness", "MarkerAddRemoveSystem", true, "MixinMarkerAddRemoveSystem"),
+            toggle("Correctness", "TickingSpawnMarkerSystem", true, "MixinTickingSpawnMarkerSystem"),
+            toggle("Recovery", "WorldSpawningSystem", false, "MixinWorldSpawningSystem"),
+            toggle("Recovery", "DuplicateComponentReferences", false, "MixinBlockComponentChunk"),
+            toggle("Correctness", "TrackedPlacementOnAddRemove", true, "MixinTrackedPlacementOnAddRemove"),
+            toggle("Compatibility", "DisableLiveConfig", false, "MixinLiveConfigModule"),
+            toggle("Compatibility", "PageManager", true, "MixinPageManager"),
+            toggle("Compatibility", "ServerAuthManager", true, "MixinServerAuthManager", "MixinOptions"),
+            toggle("Compatibility", "UpdateCheckCommand", true, "MixinUpdateCheckCommand"),
+            toggle("Compatibility", "UpdateDownloadCommand", true, "MixinUpdateDownloadCommand"),
+            toggle("Compatibility", "UpdateModule", true, "MixinUpdateModule"),
+            toggle("Compatibility", "WorldConfig", true, "MixinWorldConfig"),
+            runtimeToggle("PlayerRadius", "MixinChunkTrackerRadiusWrites", "MixinPlayerRadiusWrites"),
+            runtimeToggle("ServerViewRadius", "MixinServerViewRadius"),
+            runtimeToggle(
+                    "AiTickThrottler",
+                    "MixinThrottleFreezeSave",
+                    "MixinFrozenOwnership",
+                    "MixinMotionControllerAccess"),
+            runtimeToggle("IdleWorldPause", "MixinWorldPauseOwner"),
+            runtimeToggle("UnknownBlockCleaner", "MixinBlockComponentSectionAccess", "MixinFluidSection"),
+            runtimeToggle("Watchdog", "MixinTickingThreadAccess"),
+            toggle("Correctness", "WindowManager", true, "MixinWindowManager", "MixinWindowAccess"),
+            toggle("Correctness", "WorldNullGuard", true, "MixinWorld"),
+            toggle(
+                    "Correctness",
+                    "ConfigLoad",
+                    true,
+                    "MixinConfig",
+                    "MixinPluginConfigWrites",
+                    "MixinPluginManagerConfigWrites"),
+            toggle("Correctness", "PluginPreload", true, "MixinPluginManagerPreload", "MixinPluginBaseShutdownAccess"),
+            toggle("Correctness", "PluginLoaderCache", true, "MixinPluginManagerLoaderCache"),
+            toggle(
+                    "Correctness",
+                    "WorldTransfer",
+                    true,
+                    "MixinWorldTransfer",
+                    "MixinPlayerTeleport",
+                    "MixinCubicEntityTransfer",
+                    "MixinEntityTransferAdmission",
+                    "MixinUniverseResetOwnership",
+                    "MixinPlayerResetCommand",
+                    "MixinCubicTransferSaver",
+                    "MixinCubicTransferSection",
+                    "MixinCubicTransferMove",
+                    "MixinCubicTransferColumn",
+                    "MixinCubicTransferTickingColumn",
+                    "MixinCubicTransferRemoval",
+                    "MixinCubicTransferShutdown"),
+            toggle(
+                    "Correctness",
+                    "StorageOrdering",
+                    true,
+                    "MixinSaveCompletionWorld",
+                    "MixinSaveCompletionTicking",
+                    "MixinSaveCompletionChunk",
+                    "MixinSaveCompletionSection",
+                    "MixinSaveCompletionEntity",
+                    "MixinSaveCompletionRocksDb",
+                    "MixinIndexedColumnSaveOrder",
+                    "MixinIndexedCacheLifetime",
+                    "MixinIndexedLoaderLifetime",
+                    "MixinIndexedProviderLifetime",
+                    "MixinWorldTransferCleanup",
+                    "MixinRocksDbColumnSaveOrder"),
+            toggle("Correctness", "TransferCombatClock", true, "MixinTransferCombatClock"),
+            toggle(
+                    "Correctness",
+                    "ParallelTaskLifecycle",
+                    true,
+                    "MixinParallelTask",
+                    "MixinParallelRangeTask",
+                    "MixinParallelRangeTask$SubTask",
+                    "MixinParallelTaskData"),
+            toggle(
+                    "Correctness",
+                    "ChunkStoreSectionBackoffDeadlock",
+                    true,
+                    "MixinChunkStoreSectionBackoffDeadlock",
+                    "MixinChunkStoreLoadStateFail"),
+            toggle("Correctness", "DespawnSystem", true, "MixinDespawnSystem"),
+            toggle("Correctness", "CommandBuffer", true, "MixinCommandBuffer"),
+            toggle("Correctness", "EntityViewer", true, "MixinEntityViewer"),
+            toggle("Correctness", "EffectConditionClock", true, "MixinLivingEntityEffectSystem"),
+            toggle("Correctness", "AssetInheritance", true, "MixinAssetStoreInheritance"),
+            toggle("Correctness", "NPCKillsEntitySystem", true, "MixinNPCKillsEntitySystem"),
+            toggle("Correctness", "PortalDeviceSummonPage", true, "MixinPortalDeviceSummonPage"),
+            toggle("Correctness", "RemovalSystem", true, "MixinRemovalSystem", "MixinPortalWorldAccessor"),
+            toggle("Correctness", "SetMemoriesCapacityInteraction", true, "MixinSetMemoriesCapacityInteraction"),
+            toggle("Correctness", "StateSupport", true, "MixinStateSupport"),
+            toggle("Correctness", "UUIDSystem", true, "MixinUUIDSystem"),
+            toggle("Correctness", "DeployableOwnerComponent", true, "MixinDeployableOwnerComponent"),
+            toggle("Correctness", "TeleportToPlayerCommand", true, "MixinTeleportToPlayerCommand"),
+            using(
+                    toggle("Correctness", "TickingThreadStart", true, "MixinTickingThreadStart"),
+                    "MixinTickingThreadRunAccess"),
+            using(
+                    toggle(
+                            "Correctness",
+                            "WorldOwnership",
+                            true,
+                            "MixinUniverseWorldOwnership",
+                            "MixinWorldOwnership",
+                            "MixinPortalInvalidDestinationSystem"),
+                    "MixinTickingThreadAccess"),
+            toggle("Experimental", "Parallel", "CollectVisible", false, "MixinCollectVisibleParallel"),
+            toggle(
+                    "Experimental",
+                    "PathfindingBudget",
                     false,
-                    List.of("MixinSpatialSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "AllSystems"},
-                    true,
-                    false,
-                    List.of("MixinEntityTickingSystem", "MixinItemPrePhysicsSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "Steering"},
-                    true,
-                    false,
-                    List.of("MixinSteeringSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "RelaxStoreAsserts"},
-                    true,
-                    false,
-                    List.of(
-                            "MixinStore",
-                            "MixinStoreProcessingCounter",
-                            "MixinAnimationUtils",
-                            "MixinDeployablesUtils",
-                            "MixinEntityTickingSystem$SystemTaskData")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "FluidReplicateChanges"},
-                    true,
-                    false,
-                    List.of("MixinFluidReplicateChanges")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "Parallel", "ChunkReplicateChanges"},
-                    true,
-                    false,
-                    List.of("MixinChunkReplicateChanges")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "ShutdownSaveTimeout"},
-                    true,
-                    false,
-                    List.of("MixinStoreShutdown")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "PathfindingBudget"},
-                    true,
-                    false,
-                    List.of("MixinBodyMotionFindBase")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "SkipEmptyLightSections"},
-                    true,
-                    false,
-                    List.of("MixinFloodLightCalculation")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "SharedInstances"},
-                    true,
-                    false,
-                    List.of("MixinInstancesPlugin")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "ConnectionBackpressure"},
-                    true,
-                    false,
-                    List.of("MixinNettyUtilBackpressure")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Experimental", "TickSurvival"},
-                    true,
-                    false,
-                    List.of("MixinStoreTickGuard")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "BlockSectionSafety"},
-                    true,
-                    List.of("MixinBlockSectionSafety")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "MotionControllerBase"},
-                    true,
-                    List.of("MixinMotionControllerBase")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "TurnOffTeleportersSystem"},
-                    true,
-                    List.of("MixinTurnOffTeleportersSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "EntityChunkLoadingSystem"},
-                    true,
-                    List.of("MixinEntityChunkLoadingSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "CollisionModule"}, true, List.of("MixinCollisionModule")),
-            new MixinToggle(new String[] {"Mixins", "Crashfixes", "PageManager"}, true, List.of("MixinPageManager")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "TeleportToPlayerCommand"},
-                    true,
-                    List.of("MixinTeleportToPlayerCommand")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "DeployableOwnerComponent"},
-                    true,
-                    List.of("MixinDeployableOwnerComponent")),
-            new MixinToggle(new String[] {"Mixins", "Crashfixes", "MountPlugin"}, true, List.of("MixinMountPlugin")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "ChunkStoreSectionBackoffDeadlock"},
-                    true,
-                    List.of("MixinChunkStoreSectionBackoffDeadlock", "MixinChunkStoreLoadStateFail")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Crashfixes", "DespawnSystem"}, true, List.of("MixinDespawnSystem")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "ArchetypeChunk"}, true, List.of("MixinArchetypeChunk")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "BeaconAddRemoveSystem"},
-                    true,
-                    List.of("MixinBeaconAddRemoveSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "BlockComponentChunk"},
-                    true,
-                    List.of("MixinBlockComponentChunk")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "BlockComponentSectionAccess"},
-                    true,
-                    List.of("MixinBlockComponentSectionAccess")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "CommandBuffer"}, true, List.of("MixinCommandBuffer")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "EntityViewer"}, true, List.of("MixinEntityViewer")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "FluidSection"}, true, List.of("MixinFluidSection")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "GamePacketHandler"}, true, List.of("MixinGamePacketHandler")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "HytaleServer"}, true, List.of("MixinHytaleServer")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "InteractionChain"}, true, List.of("MixinInteractionChain")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "MarkerAddRemoveSystem"},
-                    true,
-                    List.of("MixinMarkerAddRemoveSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "NPCKillsEntitySystem"},
-                    true,
-                    List.of("MixinNPCKillsEntitySystem")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "Options"}, true, List.of("MixinOptions")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "PlayerViewRadius"}, true, List.of("MixinPlayerViewRadius")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "PortalDeviceSummonPage"},
-                    true,
-                    List.of("MixinPortalDeviceSummonPage")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "PortalWorldAccessor"},
-                    true,
-                    List.of("MixinPortalWorldAccessor")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "PrefabListExtraRoots"},
-                    true,
-                    List.of("MixinAssetPrefabFileProvider", "MixinPrefabPage")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "RemovalSystem"}, true, List.of("MixinRemovalSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "ServerAuthManager"}, true, List.of("MixinServerAuthManager")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "SetMemoriesCapacityInteraction"},
-                    true,
-                    List.of("MixinSetMemoriesCapacityInteraction")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "SpawnMarkerBlockStateHeartbeat"},
-                    true,
-                    List.of("MixinSpawnMarkerBlockStateHeartbeat")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "StateSupport"}, true, List.of("MixinStateSupport")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "TickingSpawnMarkerSystem"},
-                    true,
-                    List.of("MixinTickingSpawnMarkerSystem")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "TickSleep"}, true, List.of("MixinTickSleep")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "TickingThread"}, true, List.of("MixinTickingThreadAccess")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "TickingThreadAssert"},
-                    true,
-                    List.of("MixinTickingThreadAssert")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "ChunkStoreAccess"},
-                    true,
-                    List.of("MixinChunkGridAccess", "MixinChunkStoreAccess")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "TrackedPlacementAccessor"},
-                    true,
-                    List.of("MixinTrackedPlacementAccessor")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "TrackedPlacementOnAddRemove"},
-                    true,
-                    List.of("MixinTrackedPlacementOnAddRemove")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "UUIDSystem"}, true, List.of("MixinUUIDSystem")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "UpdateCheckCommand"}, true, List.of("MixinUpdateCheckCommand")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "UpdateDownloadCommand"},
-                    true,
-                    List.of("MixinUpdateDownloadCommand")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "UpdateModule"}, true, List.of("MixinUpdateModule")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "WorldPauseCommand"}, true, List.of("MixinWorldPauseCommand")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "World"}, true, List.of("MixinWorld")),
-            new MixinToggle(new String[] {"Mixins", "Helpers", "WorldConfig"}, true, List.of("MixinWorldConfig")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "WorldMapTracker"}, true, List.of("MixinWorldMapTracker")),
-            new MixinToggle(
-                    new String[] {"Mixins", "Helpers", "WorldSpawningSystem"},
-                    true,
-                    List.of("MixinWorldSpawningSystem")),
-            new MixinToggle(
-                    new String[] {"HypixelServices", "LiveConfig"}, true, false, List.of("MixinLiveConfigModule")));
+                    "MixinBodyMotionFindBase",
+                    "MixinWorldPathfindingBudget"));
+
+    private static final Set<String> ALL_MIXINS = allMixins();
 
     private String mixinPackage;
-    private Set<String> disabledMixins = Collections.emptySet();
+    private volatile Set<String> enabledMixins = Collections.emptySet();
+    private volatile boolean initialized;
+
+    private static MixinToggle toggle(String category, String key, boolean defaultEnabled, String... mixins) {
+        return new MixinToggle(
+                new String[] {"Mixins", category, key}, defaultEnabled, List.of(mixins), false, List.of());
+    }
+
+    private static MixinToggle toggle(
+            String category, String group, String key, boolean defaultEnabled, String... mixins) {
+        return new MixinToggle(
+                new String[] {"Mixins", category, group, key}, defaultEnabled, List.of(mixins), false, List.of());
+    }
+
+    private static MixinToggle runtimeToggle(String key, String... mixins) {
+        return new MixinToggle(new String[] {"Mixins", "Compatibility", key}, true, List.of(mixins), true, List.of());
+    }
+
+    private static MixinToggle using(MixinToggle toggle, String... accessors) {
+        return new MixinToggle(
+                toggle.jsonPath, toggle.defaultEnabled, toggle.mixins, toggle.runtimeDependency, List.of(accessors));
+    }
+
+    private static Set<String> allMixins() {
+        Set<String> mixins = new HashSet<>();
+        for (MixinToggle toggle : TOGGLES) {
+            mixins.addAll(toggle.mixins);
+            mixins.addAll(toggle.uses);
+        }
+        return Set.copyOf(mixins);
+    }
+
+    private static String path(MixinToggle toggle) {
+        return String.join(".", toggle.jsonPath);
+    }
 
     @Override
     public void onLoad(String mixinPackage) {
+        initialized = false;
+        enabledMixins = Collections.emptySet();
+        EarlyOptions.clearMixinSelection();
         this.mixinPackage = mixinPackage;
-
-        JsonObject config = readConfig();
-        if (config == null) {
-            config = new JsonObject();
+        try {
+            load();
+        } catch (IllegalStateException failure) {
+            throw new MixinInitialisationError("[Refixes] " + failure.getMessage(), failure);
         }
+    }
 
-        Set<String> disabled = new HashSet<>();
+    private void load() {
+        String serverVersion = readServerVersion();
+        JsonObject config = readConfig(CONFIG_PATH);
+        boolean unsupportedServerVersion = serverVersion == null || !serverVersion.matches(SUPPORTED_SERVER_VERSION);
+        if (unsupportedServerVersion && !getBoolean(config, ALLOW_UNSUPPORTED_SERVER_VERSION)) {
+            EarlyOptions.setMixinSelection(Set.of());
+            initialized = true;
+            System.out.println("[Refixes] Early mixins disabled for Hytale "
+                    + (serverVersion == null ? "unknown" : serverVersion)
+                    + ". Refixes supports Hytale 0.8.0-pre.5 and later 0.8 versions."
+                    + " Update Refixes for this server version.");
+            return;
+        }
+        requireFabricMixinSupport(RefixesMixinPlugin.class.getClassLoader());
+        JsonObject runtimeConfig = readConfig(RUNTIME_CONFIG_PATH);
+        Set<String> currentToggles = new HashSet<>();
+        for (MixinToggle toggle : TOGGLES) currentToggles.add(path(toggle));
+        List<String> migrated = ConfigMigration.migrateMixins(config, currentToggles);
+        List<String> runtimeMigrated = ConfigMigration.migrateRuntime(runtimeConfig);
+        for (String line : migrated) System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
+        for (String line : runtimeMigrated)
+            System.out.println("[Refixes] " + RUNTIME_CONFIG_PATH.getFileName() + ": " + line);
+        try {
+            EarlyOptions.initializeOutgoingQueueLimits(runtimeConfig);
+        } catch (IllegalStateException failure) {
+            throw new IllegalStateException(RUNTIME_CONFIG_PATH + ": " + failure.getMessage(), failure);
+        }
+        Set<String> required = runtimeDependencies(runtimeConfig);
+        Set<String> enabled = new HashSet<>();
         for (MixinToggle toggle : TOGGLES) {
-            Boolean value = getBoolean(config, toggle.jsonPath);
-            boolean enabled = value == null ? toggle.defaultEnabled : (value == toggle.enabledWhen);
-            if (!enabled) {
-                disabled.addAll(toggle.mixins);
-            }
-            setBoolean(config, toggle.jsonPath, enabled == toggle.enabledWhen);
-        }
-
-        boolean parallelAllSystems = !disabled.contains("MixinEntityTickingSystem");
-        boolean parallelSteering = !disabled.contains("MixinSteeringSystem");
-        if (parallelAllSystems || parallelSteering) {
-            forceEnable(disabled, "MixinStore");
-            forceEnable(disabled, "MixinStoreProcessingCounter");
-            forceEnable(disabled, "MixinAnimationUtils");
-            forceEnable(disabled, "MixinDeployablesUtils");
-            forceEnable(disabled, "MixinEntityTickingSystem$SystemTaskData");
-        }
-        if (parallelAllSystems) {
-            forceEnable(disabled, "MixinChunkReplicateChanges");
-            forceEnable(disabled, "MixinFluidReplicateChanges");
-        }
-
-        if (Boolean.TRUE.equals(getBoolean(config, new String[] {"Listeners", "UnknownBlockCleaner"}))
-                && Boolean.TRUE.equals(
-                        getBoolean(config, new String[] {"Listeners", "UnknownBlockCleanerScanContainers"}))) {
-            disabled.remove("MixinBlockComponentSectionAccess");
-        }
-
-        disabledMixins = disabled;
-        writeConfig(config);
-
-        System.out.println("[Refixes] === Early mixin patches ===");
-        for (MixinToggle toggle : TOGGLES) {
+            if (!toggleEnabled(config, toggle)) continue;
             for (String mixin : toggle.mixins) {
-                String marker = disabled.contains(mixin) ? "[ ]" : "[x]";
-                System.out.println("[Refixes]   - " + marker + " " + mixin);
+                if (!toggle.runtimeDependency || required.contains(mixin)) enabled.add(mixin);
+            }
+            enabled.addAll(toggle.uses);
+        }
+        validateDependencies(config, enabled);
+        Set<String> selected = Set.copyOf(enabled);
+        enabledMixins = selected;
+        EarlyOptions.setMixinSelection(selected);
+        initialized = true;
+        if (unsupportedServerVersion) {
+            System.out.println("[Refixes] Version gate overridden for Hytale "
+                    + (serverVersion == null ? "unknown" : serverVersion)
+                    + ". Applying configured mixins.");
+        }
+        writeConfig(CONFIG_PATH, serializeMixins(config));
+        if (!runtimeMigrated.isEmpty()) writeConfig(RUNTIME_CONFIG_PATH, runtimeConfig);
+        System.out.println("[Refixes] === Early mixin patches ===");
+        for (String mixin : ALL_MIXINS.stream().sorted().toList())
+            System.out.println("[Refixes]   - " + (selected.contains(mixin) ? "[x] " : "[ ] ") + mixin);
+    }
+
+    private static String readServerVersion() {
+        try {
+            var resource = RefixesMixinPlugin.class.getClassLoader().getResource("com/hypixel/hytale/Main.class");
+            if (resource == null || !(resource.openConnection() instanceof JarURLConnection connection)) return null;
+            connection.setUseCaches(false);
+            try (var jar = connection.getJarFile()) {
+                var manifest = jar.getManifest();
+                if (manifest == null) return null;
+                String version = manifest.getMainAttributes().getValue(Attributes.Name.IMPLEMENTATION_VERSION);
+                return version == null ? null : version.trim();
+            }
+        } catch (IOException | SecurityException failure) {
+            return null;
+        }
+    }
+
+    private static Set<String> runtimeDependencies(JsonObject runtimeConfig) {
+        Set<String> required = new HashSet<>();
+        boolean cleaner = getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "Enabled");
+        if (cleaner && getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "ScanContainers"))
+            required.add("MixinBlockComponentSectionAccess");
+        if (cleaner && getBoolean(runtimeConfig, "Runtime", "Recovery", "UnknownBlockCleaner", "ScanFluids"))
+            required.add("MixinFluidSection");
+        if (getBoolean(runtimeConfig, "Runtime", "Recovery", "Watchdog", "AutoRestartWorlds"))
+            required.add("MixinTickingThreadAccess");
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "AiTickThrottler", "Enabled")) {
+            required.add("MixinThrottleFreezeSave");
+            required.add("MixinFrozenOwnership");
+            required.add("MixinMotionControllerAccess");
+        }
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "IdleWorldPause", "Enabled"))
+            required.add("MixinWorldPauseOwner");
+        if (getBoolean(runtimeConfig, "Runtime", "Tuning", "PerPlayerHotRadius", "MemoryGuardEnabled"))
+            required.add("MixinServerViewRadius");
+        boolean idlePlayer = getBoolean(runtimeConfig, "Runtime", "Tuning", "IdlePlayerHandler", "Enabled");
+        if (idlePlayer
+                || !Boolean.FALSE.equals(
+                        getOptionalBoolean(runtimeConfig, "Runtime", "Tuning", "PerPlayerHotRadius", "Enabled")))
+            required.add("MixinChunkTrackerRadiusWrites");
+        if (idlePlayer) required.add("MixinPlayerRadiusWrites");
+        return required;
+    }
+
+    private static void validateDependencies(JsonObject config, Set<String> selected) {
+        for (String key : List.of("CollectVisible")) {
+            if (toggleEnabled(config, "Experimental", "Parallel", key)) {
+                requireDependency(
+                        selected.contains("MixinParallelTask"),
+                        "Mixins.Experimental.Parallel." + key,
+                        "Mixins.Correctness.ParallelTaskLifecycle");
             }
         }
+        if (selected.contains("MixinCubicTransferShutdown")) {
+            requireDependency(
+                    selected.contains("MixinSaveCompletionWorld"),
+                    "Mixins.Correctness.WorldTransfer",
+                    "Mixins.Correctness.StorageOrdering");
+        }
+        if (selected.contains("MixinQuicheChannel")) {
+            requireDependency(
+                    selected.contains("MixinSetupStagePacing"),
+                    "Mixins.Correctness.OutgoingQueueLimits",
+                    "Mixins.Correctness.SetupPacing");
+        }
+        if (selected.contains("MixinInstancesPlugin")) {
+            requireDependency(
+                    selected.contains("MixinChunkStoreAccess") && selected.contains("MixinChunkGridAccess"),
+                    "Mixins.Features.SharedInstances",
+                    "Mixins.Features.SharedInstanceStorage");
+        }
+    }
+
+    private static void requireDependency(boolean available, String feature, String dependency) {
+        if (!available)
+            throw new IllegalStateException(feature + " requires " + dependency + " to be enabled in " + CONFIG_PATH);
+    }
+
+    private static boolean toggleEnabled(JsonObject config, String category, String group, String key) {
+        for (MixinToggle toggle : TOGGLES) {
+            String[] path = toggle.jsonPath;
+            if (path.length == 4 && path[1].equals(category) && path[2].equals(group) && path[3].equals(key))
+                return toggleEnabled(config, toggle);
+        }
+        throw new IllegalArgumentException("Unknown mixin policy: " + category + "." + group + "." + key);
+    }
+
+    private static boolean toggleEnabled(JsonObject config, MixinToggle toggle) {
+        Boolean value = getOptionalBoolean(config, toggle.jsonPath);
+        return value == null ? toggle.defaultEnabled : value;
+    }
+
+    private static void requireFabricMixinSupport(ClassLoader loader) {
+        int compatibility;
+        try {
+            Class<?> fabricUtil = Class.forName("org.spongepowered.asm.mixin.FabricUtil", false, loader);
+            compatibility = fabricUtil.getField("COMPATIBILITY_LATEST").getInt(null);
+        } catch (ReflectiveOperationException | LinkageError | SecurityException | IllegalArgumentException failure) {
+            throw new IllegalStateException(
+                    "Refixes requires Fabric Mixin 0.17.5 or newer. Update Hyinit and remove conflicting Mixin JARs.",
+                    failure);
+        }
+        if (compatibility < 17005)
+            throw new IllegalStateException("Refixes requires Fabric Mixin 0.17.5 or newer (detected compatibility "
+                    + compatibility + "). Update Hyinit and remove older conflicting Mixin runtime JARs.");
     }
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (!initialized) return false;
         String simpleName = mixinClassName;
-        if (mixinPackage != null && mixinClassName.startsWith(mixinPackage + ".")) {
+        if (mixinPackage != null && mixinClassName.startsWith(mixinPackage + "."))
             simpleName = mixinClassName.substring(mixinPackage.length() + 1);
-        }
-        return !disabledMixins.contains(simpleName);
+        return enabledMixins.contains(simpleName);
     }
 
-    @Override
-    public String getRefMapperConfig() {
-        return null;
-    }
-
-    @Override
-    public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {}
-
-    @Override
-    public List<String> getMixins() {
-        return null;
-    }
-
-    @Override
-    public void preApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {}
-
-    @Override
-    public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {}
-
-    private static JsonObject readConfig() {
-        if (!Files.isRegularFile(CONFIG_PATH)) {
-            return null;
-        }
-        try (Reader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {
-            JsonElement el = JsonParser.parseReader(reader);
-            return el.isJsonObject() ? el.getAsJsonObject() : null;
-        } catch (Exception e) {
-            System.out.println("[Refixes] Failed to read config: " + e.getMessage());
-            return null;
+    private static JsonObject readConfig(Path path) {
+        if (!Files.isRegularFile(path)) return new JsonObject();
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            JsonElement element = JsonParser.parseReader(reader);
+            if (!element.isJsonObject())
+                throw new IllegalStateException("Malformed Refixes config at " + path + ": root must be a JSON object");
+            return element.getAsJsonObject();
+        } catch (Exception failure) {
+            throw new IllegalStateException(
+                    "Malformed Refixes config at " + path + ": " + failure.getMessage(), failure);
         }
     }
 
-    private static void writeConfig(JsonObject config) {
+    private static JsonObject serializeMixins(JsonObject config) {
+        JsonObject mixins = new JsonObject();
+        for (String category : CATEGORIES) mixins.add(category, new JsonObject());
+        for (MixinToggle toggle : TOGGLES)
+            setBoolean(
+                    mixins,
+                    java.util.Arrays.copyOfRange(toggle.jsonPath, 1, toggle.jsonPath.length),
+                    toggleEnabled(config, toggle));
+        config.addProperty(ALLOW_UNSUPPORTED_SERVER_VERSION, getBoolean(config, ALLOW_UNSUPPORTED_SERVER_VERSION));
+        config.add("Mixins", mixins);
+        return config;
+    }
+
+    private static void writeConfig(Path path, JsonObject config) {
+        String content = new GsonBuilder().setPrettyPrinting().create().toJson(config);
         try {
-            Files.createDirectories(CONFIG_PATH.getParent());
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            try (Writer writer = Files.newBufferedWriter(CONFIG_PATH, StandardCharsets.UTF_8)) {
-                gson.toJson(config, writer);
+            if (Files.isRegularFile(path)
+                    && Files.readString(path, StandardCharsets.UTF_8).equals(content)) return;
+            Files.createDirectories(path.getParent());
+            Path temporary =
+                    Files.createTempFile(path.getParent(), path.getFileName().toString(), ".tmp");
+            try {
+                Files.writeString(temporary, content, StandardCharsets.UTF_8);
+                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temporary);
             }
-        } catch (Exception e) {
-            System.out.println("[Refixes] Failed to write config: " + e.getMessage());
+        } catch (IOException | RuntimeException failure) {
+            System.out.println("[Refixes] WARNING: could not update " + path + " (" + failure
+                    + "). The selected patches are applied; the file keeps its previous content.");
         }
     }
 
-    private static Boolean getBoolean(JsonObject root, String[] path) {
-        JsonObject current = root;
-        for (int i = 0; i < path.length - 1; i++) {
-            JsonElement el = current.get(path[i]);
-            if (el == null || !el.isJsonObject()) {
-                return null;
-            }
-            current = el.getAsJsonObject();
-        }
-        JsonElement leaf = current.get(path[path.length - 1]);
-        if (leaf != null && leaf.isJsonPrimitive() && leaf.getAsJsonPrimitive().isBoolean()) {
-            return leaf.getAsBoolean();
-        }
-        return null;
+    private static boolean getBoolean(JsonObject root, String... path) {
+        return Boolean.TRUE.equals(getOptionalBoolean(root, path));
     }
 
-    private static void forceEnable(Set<String> disabled, String mixin) {
-        if (disabled.remove(mixin)) {
-            System.out.println("[Refixes] Parallel dependency: force-enabled " + mixin
-                    + " (required by an enabled Mixins.Experimental.Parallel toggle).");
+    private static Boolean getOptionalBoolean(JsonObject root, String... path) {
+        JsonElement current = root;
+        for (String part : path) {
+            if (current == null || !current.isJsonObject()) return null;
+            current = current.getAsJsonObject().get(part);
         }
+        return current != null
+                        && current.isJsonPrimitive()
+                        && current.getAsJsonPrimitive().isBoolean()
+                ? current.getAsBoolean()
+                : null;
     }
 
     private static void setBoolean(JsonObject root, String[] path, boolean value) {
         JsonObject current = root;
         for (int i = 0; i < path.length - 1; i++) {
-            JsonElement el = current.get(path[i]);
-            if (el == null || !el.isJsonObject()) {
+            JsonElement child = current.get(path[i]);
+            if (child == null || !child.isJsonObject()) {
                 JsonObject created = new JsonObject();
                 current.add(path[i], created);
                 current = created;
-            } else {
-                current = el.getAsJsonObject();
-            }
+            } else current = child.getAsJsonObject();
         }
         current.addProperty(path[path.length - 1], value);
     }

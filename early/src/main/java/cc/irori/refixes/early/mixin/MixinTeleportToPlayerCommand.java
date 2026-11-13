@@ -8,6 +8,7 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import org.joml.Vector3d;
@@ -31,7 +32,8 @@ import org.spongepowered.asm.mixin.injection.At;
 public class MixinTeleportToPlayerCommand {
 
     @WrapOperation(
-            method = "lambda$execute$1",
+            method =
+                    "execute(Lcom/hypixel/hytale/server/core/command/system/CommandContext;Lcom/hypixel/hytale/component/Store;Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/server/core/universe/PlayerRef;Lcom/hypixel/hytale/server/core/universe/world/World;)V ->{2} Ljava/lang/Runnable;run()V",
             at =
                     @At(
                             value = "INVOKE",
@@ -49,23 +51,16 @@ public class MixinTeleportToPlayerCommand {
         }
     }
 
-    @WrapOperation(
-            method = "lambda$execute$1",
+    @WrapWithCondition(
+            method =
+                    "execute(Lcom/hypixel/hytale/server/core/command/system/CommandContext;Lcom/hypixel/hytale/component/Store;Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/server/core/universe/PlayerRef;Lcom/hypixel/hytale/server/core/universe/world/World;)V ->{2} Ljava/lang/Runnable;run()V",
             at =
                     @At(
                             value = "INVOKE",
                             target =
                                     "Lcom/hypixel/hytale/builtin/teleport/components/TeleportHistory;append(Lcom/hypixel/hytale/server/core/universe/world/World;Lorg/joml/Vector3d;Lcom/hypixel/hytale/math/vector/Rotation3f;Ljava/lang/String;)V"))
-    private static void refixes$safeAppendHistory(
-            TeleportHistory instance,
-            World world,
-            Vector3d pos,
-            Rotation3f rotation,
-            String reason,
-            Operation<Void> original) {
-        if (instance == null) {
-            return;
-        }
-        original.call(instance, world, pos, rotation, reason);
+    private static boolean refixes$safeAppendHistory(
+            TeleportHistory instance, World world, Vector3d pos, Rotation3f rotation, String reason) {
+        return instance != null;
     }
 }

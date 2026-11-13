@@ -5,8 +5,10 @@ import com.hypixel.hytale.builtin.instances.removal.InstanceDataResource;
 import com.hypixel.hytale.builtin.instances.removal.RemovalSystem;
 import com.hypixel.hytale.builtin.portals.resources.PortalWorld;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
+import java.util.concurrent.CompletableFuture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -22,6 +24,12 @@ public class MixinRemovalSystem {
             return;
         }
 
+        CompletableFuture<Void> ready = Universe.get().getUniverseReady();
+        if (ready == null || !ready.isDone()) {
+            cir.setReturnValue(false);
+            return;
+        }
+
         PortalWorld portalWorld = world.getEntityStore().getStore().getResource(PortalWorld.getResourceType());
         InstanceDataResource instanceData =
                 world.getChunkStore().getStore().getResource(InstanceDataResource.getResourceType());
@@ -34,9 +42,24 @@ public class MixinRemovalSystem {
             double seconds = portalWorld.getRemainingSeconds(world);
             PortalWorld.setRemainingSeconds(world, seconds, false);
         }
+    }
+
+    @Inject(method = "shouldRemoveWorld(Lcom/hypixel/hytale/component/Store;)Z", at = @At("RETURN"), cancellable = true)
+    private static void refixes$keepWhileTimeRemains(Store<ChunkStore> store, CallbackInfoReturnable<Boolean> cir) {
+        if (!Boolean.TRUE.equals(cir.getReturnValue())) {
+            return;
+        }
+        World world = store.getExternalData().getWorld();
+        if (!world.getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
+            return;
+        }
+
+        PortalWorld portalWorld = world.getEntityStore().getStore().getResource(PortalWorld.getResourceType());
+        if (((MixinPortalWorldAccessor) portalWorld).getWorldRemovalCondition() == null) {
+            return;
+        }
 
         if (portalWorld.getRemainingSeconds(world) > 0.0d) {
-            cir.cancel();
             cir.setReturnValue(false);
         }
     }

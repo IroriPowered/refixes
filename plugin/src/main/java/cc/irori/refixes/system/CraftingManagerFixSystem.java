@@ -12,8 +12,8 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public class CraftingManagerFixSystem extends EntityTickingSystem<EntityStore> {
 
@@ -23,9 +23,9 @@ public class CraftingManagerFixSystem extends EntityTickingSystem<EntityStore> {
     public void tick(
             float dt,
             int index,
-            @NonNull ArchetypeChunk<EntityStore> archetypeChunk,
-            @NonNull Store<EntityStore> store,
-            @NonNull CommandBuffer<EntityStore> commandBuffer) {
+            @Nonnull ArchetypeChunk<EntityStore> archetypeChunk,
+            @Nonnull Store<EntityStore> store,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         try {
             CraftingManager craftingManager = archetypeChunk.getComponent(index, CraftingManager.getComponentType());
             if (craftingManager == null || !craftingManager.hasBenchSet()) return;

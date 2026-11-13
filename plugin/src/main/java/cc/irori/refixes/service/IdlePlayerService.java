@@ -2,11 +2,13 @@ package cc.irori.refixes.service;
 
 import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.util.Logs;
+import cc.irori.refixes.util.PlayerRadiusRevisions;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -15,6 +17,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +33,8 @@ public class IdlePlayerService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
 
+    private static final float LOOK_THRESHOLD_RADIANS = 0.05f;
+
     private final Map<UUID, PlayerIdleState> playerStates = new ConcurrentHashMap<>();
     private ScheduledFuture<?> task;
     private boolean registered;
@@ -42,17 +47,18 @@ public class IdlePlayerService {
         registered = true;
         int intervalSec =
                 Math.max(5, IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.CHECK_INTERVAL_SECONDS));
-        task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        evaluatePlayers();
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error in idle player handler");
-                    }
-                },
-                5000,
-                intervalSec * 1000L,
-                TimeUnit.MILLISECONDS);
+        task = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                evaluatePlayers();
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error in idle player handler");
+                            }
+                        },
+                        5000,
+                        intervalSec * 1000L,
+                        TimeUnit.MILLISECONDS);
         idleGauge = HyboxBridge.registerGauge("IdlePlayer idle", () -> getIdleCount());
         if (IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
             LOGGER.atInfo().log(
@@ -108,9 +114,13 @@ public class IdlePlayerService {
             PlayerIdleState state = playerStates.computeIfAbsent(uuid, _u -> new PlayerIdleState());
 
             Vector3d currentPos = playerRef.getTransform().getPosition();
+            Rotation3f head = playerRef.getHeadRotation();
 
-            // Detect movement
-            if (state.lastPosition != null && hasPlayerMoved(state.lastPosition, currentPos, movementThreshold)) {
+            // Detect movement or a camera turn
+            boolean moved =
+                    state.lastPosition != null && hasPlayerMoved(state.lastPosition, currentPos, movementThreshold);
+            boolean looked = state.hasLook && hasPlayerLooked(state, head);
+            if (moved || looked) {
                 state.markActivity();
                 if (state.wasIdle) {
                     restorePlayerSettings(playerRef, state);
@@ -121,6 +131,9 @@ public class IdlePlayerService {
             } else {
                 state.lastPosition.set(currentPos);
             }
+            state.lastPitch = head.x;
+            state.lastYaw = head.y;
+            state.hasLook = true;
 
             if (!state.wasIdle && now - state.lastActivityMs > timeoutMs) {
                 applyIdleSettings(playerRef, state, cfg);
@@ -160,45 +173,63 @@ public class IdlePlayerService {
             world.execute(() -> {
                 synchronized (IdlePlayerService.this) {
                     try {
-                        if (!registered || playerStates.get(playerRef.getUuid()) != state) {
+                        if (!registered
+                                || playerStates.get(playerRef.getUuid()) != state
+                                || getPlayerWorld(playerRef) != world) {
                             return;
                         }
                         ChunkTracker tracker = playerRef.getChunkTracker();
-
-                        if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_VIEW_RADIUS)) {
-                            Player player = getPlayerComponent(playerRef);
-                            if (player != null) {
-                                int currentView = player.getClientViewRadius();
-                                int idleView = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_VIEW_RADIUS));
-                                if (currentView > idleView) {
-                                    if (state.savedViewRadius == null) {
-                                        state.savedViewRadius = currentView;
-                                    }
-                                    player.setClientViewRadius(idleView);
-                                }
-                            }
-                        }
-
-                        if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)) {
-                            int currentHot = tracker.getMaxHotLoadedRadius();
-                            int idleHot = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_HOT_RADIUS));
-                            if (currentHot > idleHot) {
-                                if (state.savedHotRadius == null) {
-                                    state.savedHotRadius = currentHot;
-                                }
-                                tracker.setMaxHotLoadedRadius(idleHot);
-                            }
-                        }
-
-                        if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
+                        synchronized (tracker) {
                             int currentMinLoaded = tracker.getMinLoadedRadius();
-                            int idleMinLoaded =
-                                    Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_MIN_LOADED_RADIUS));
-                            if (currentMinLoaded > idleMinLoaded) {
-                                if (state.savedMinLoadedRadius == null) {
-                                    state.savedMinLoadedRadius = currentMinLoaded;
+
+                            if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_VIEW_RADIUS)) {
+                                Player player = getPlayerComponent(playerRef);
+                                if (player != null) {
+                                    int currentView = player.getClientViewRadius();
+                                    int idleView = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_VIEW_RADIUS));
+                                    if (currentView > idleView) {
+                                        if (state.savedViewRadius == null) {
+                                            state.savedViewRadius = currentView;
+                                        }
+                                        player.setClientViewRadius(idleView);
+                                        state.appliedViewRadius = player.getClientViewRadius();
+                                        state.appliedViewRevision = PlayerRadiusRevisions.view(tracker);
+                                        if (tracker.getMinLoadedRadius() != currentMinLoaded) {
+                                            if (state.savedMinLoadedRadius == null) {
+                                                state.savedMinLoadedRadius = currentMinLoaded;
+                                            }
+                                            state.appliedMinLoadedRadius = tracker.getMinLoadedRadius();
+                                            state.appliedMinRevision = PlayerRadiusRevisions.min(tracker);
+                                        }
+                                    }
                                 }
-                                tracker.setMinLoadedRadius(idleMinLoaded);
+                            }
+
+                            if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)) {
+                                int currentHot = tracker.getMaxHotLoadedRadius();
+                                int idleHot = Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_HOT_RADIUS));
+                                if (currentHot > idleHot) {
+                                    if (state.savedHotRadius == null) {
+                                        state.savedHotRadius = currentHot;
+                                        state.savedHotRevision = PlayerRadiusRevisions.hot(tracker);
+                                    }
+                                    tracker.setMaxHotLoadedRadius(idleHot);
+                                    state.appliedHotRadius = tracker.getMaxHotLoadedRadius();
+                                    state.appliedHotRevision = PlayerRadiusRevisions.hot(tracker);
+                                }
+                            }
+
+                            if (cfg.getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
+                                int idleMinLoaded =
+                                        Math.max(2, cfg.getValue(IdlePlayerHandlerConfig.IDLE_MIN_LOADED_RADIUS));
+                                if (currentMinLoaded > idleMinLoaded) {
+                                    if (state.savedMinLoadedRadius == null) {
+                                        state.savedMinLoadedRadius = currentMinLoaded;
+                                    }
+                                    tracker.setMinLoadedRadius(idleMinLoaded);
+                                    state.appliedMinLoadedRadius = tracker.getMinLoadedRadius();
+                                    state.appliedMinRevision = PlayerRadiusRevisions.min(tracker);
+                                }
                             }
                         }
 
@@ -219,12 +250,13 @@ public class IdlePlayerService {
         }
     }
 
-    private void restorePlayerSettings(PlayerRef playerRef, PlayerIdleState state) {
+    private synchronized void restorePlayerSettings(PlayerRef playerRef, PlayerIdleState state) {
         if (state.pendingRestore) {
             return;
         }
         World world = getPlayerWorld(playerRef);
         if (world == null) {
+            retryRestore(playerRef, state);
             return;
         }
         state.pendingRestore = true;
@@ -232,26 +264,47 @@ public class IdlePlayerService {
         try {
             world.execute(() -> {
                 synchronized (IdlePlayerService.this) {
+                    if (getPlayerWorld(playerRef) != world) {
+                        state.pendingRestore = false;
+                        restorePlayerSettings(playerRef, state);
+                        return;
+                    }
                     try {
                         ChunkTracker tracker = playerRef.getChunkTracker();
+                        synchronized (tracker) {
+                            int currentMinLoaded = tracker.getMinLoadedRadius();
+                            boolean restoreMinLoaded = state.savedMinLoadedRadius != null
+                                    && Objects.equals(state.appliedMinLoadedRadius, currentMinLoaded)
+                                    && state.appliedMinRevision == PlayerRadiusRevisions.min(tracker);
 
-                        if (state.savedViewRadius != null) {
-                            Player player = getPlayerComponent(playerRef);
-                            if (player == null) {
-                                return;
+                            if (state.savedViewRadius != null) {
+                                Player player = getPlayerComponent(playerRef);
+                                if (player == null) {
+                                    return;
+                                }
+                                if (Objects.equals(state.appliedViewRadius, player.getClientViewRadius())
+                                        && state.appliedViewRevision == PlayerRadiusRevisions.view(tracker)) {
+                                    player.setClientViewRadius(state.savedViewRadius);
+                                }
+                                state.savedViewRadius = null;
+                                state.appliedViewRadius = null;
                             }
-                            player.setClientViewRadius(state.savedViewRadius);
-                            state.savedViewRadius = null;
-                        }
 
-                        if (state.savedHotRadius != null) {
-                            tracker.setMaxHotLoadedRadius(state.savedHotRadius);
-                            state.savedHotRadius = null;
-                        }
+                            if (state.savedHotRadius != null) {
+                                if (Objects.equals(state.appliedHotRadius, tracker.getMaxHotLoadedRadius())
+                                        && state.appliedHotRevision == PlayerRadiusRevisions.hot(tracker)) {
+                                    PlayerRadiusRevisions.restoreHot(
+                                            tracker, state.savedHotRadius, state.savedHotRevision);
+                                }
+                                state.savedHotRadius = null;
+                                state.appliedHotRadius = null;
+                            }
 
-                        if (state.savedMinLoadedRadius != null) {
-                            tracker.setMinLoadedRadius(state.savedMinLoadedRadius);
+                            if (restoreMinLoaded) {
+                                tracker.setMinLoadedRadius(state.savedMinLoadedRadius);
+                            }
                             state.savedMinLoadedRadius = null;
+                            state.appliedMinLoadedRadius = null;
                         }
 
                         state.wasIdle = false;
@@ -275,16 +328,46 @@ public class IdlePlayerService {
         }
     }
 
-    synchronized void restoreHotRadius(PlayerRef playerRef, int radius) {
+    private void retryRestore(PlayerRef playerRef, PlayerIdleState state) {
+        if (!state.wasIdle
+                || playerStates.get(playerRef.getUuid()) != state
+                || Universe.get().getPlayer(playerRef.getUuid()) != playerRef) {
+            return;
+        }
+        try {
+            RefixesScheduler.get().schedule(() -> restorePlayerSettings(playerRef, state), 1, TimeUnit.SECONDS);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    synchronized void restoreHotRadius(PlayerRef playerRef, int radius, int appliedRadius, long appliedRevision) {
         PlayerIdleState state = playerStates.get(playerRef.getUuid());
-        if (state != null
-                && (state.savedHotRadius != null
-                        || (state.wasIdle
-                                && IdlePlayerHandlerConfig.get()
-                                        .getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)))) {
-            state.savedHotRadius = radius;
-        } else {
-            playerRef.getChunkTracker().setMaxHotLoadedRadius(radius);
+        ChunkTracker tracker = playerRef.getChunkTracker();
+        synchronized (tracker) {
+            int currentRadius = tracker.getMaxHotLoadedRadius();
+            long revision = PlayerRadiusRevisions.hot(tracker);
+            if (state != null && state.savedHotRadius != null) {
+                if (Objects.equals(state.appliedHotRadius, currentRadius)
+                        && state.appliedHotRevision == revision
+                        && Objects.equals(state.savedHotRadius, appliedRadius)
+                        && state.savedHotRevision == appliedRevision) {
+                    state.savedHotRadius = radius;
+                }
+                return;
+            }
+            if (currentRadius != appliedRadius || revision != appliedRevision) {
+                return;
+            }
+            if (state != null
+                    && state.wasIdle
+                    && IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.REDUCE_HOT_RADIUS)) {
+                state.savedHotRadius = radius;
+                state.savedHotRevision = appliedRevision;
+                state.appliedHotRadius = currentRadius;
+                state.appliedHotRevision = revision;
+            } else {
+                tracker.setMaxHotLoadedRadius(radius);
+            }
         }
     }
 
@@ -316,13 +399,28 @@ public class IdlePlayerService {
         return dx * dx + dz * dz > threshold * threshold;
     }
 
+    private static boolean hasPlayerLooked(PlayerIdleState state, Rotation3f head) {
+        return Math.abs(head.x - state.lastPitch) > LOOK_THRESHOLD_RADIANS
+                || Math.abs(head.y - state.lastYaw) > LOOK_THRESHOLD_RADIANS;
+    }
+
     private static final class PlayerIdleState {
         volatile long lastActivityMs = System.currentTimeMillis();
         volatile Vector3d lastPosition;
+        volatile float lastPitch;
+        volatile float lastYaw;
+        volatile boolean hasLook;
         volatile boolean wasIdle;
         volatile Integer savedViewRadius;
         volatile Integer savedHotRadius;
         volatile Integer savedMinLoadedRadius;
+        volatile Integer appliedViewRadius;
+        volatile Integer appliedHotRadius;
+        volatile Integer appliedMinLoadedRadius;
+        volatile long savedHotRevision = -1;
+        volatile long appliedViewRevision = -1;
+        volatile long appliedHotRevision = -1;
+        volatile long appliedMinRevision = -1;
         volatile boolean pendingApply;
         volatile boolean pendingRestore;
 

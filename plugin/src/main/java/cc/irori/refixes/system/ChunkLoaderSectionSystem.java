@@ -10,7 +10,7 @@ import com.hypixel.hytale.component.system.tick.TickingSystem;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.component.SectionUnloadingSystem;
 import java.util.Set;
-import org.jspecify.annotations.NonNull;
+import javax.annotation.Nonnull;
 
 public final class ChunkLoaderSectionSystem extends TickingSystem<ChunkStore>
         implements RunWhenPausedSystem<ChunkStore> {
@@ -28,7 +28,7 @@ public final class ChunkLoaderSectionSystem extends TickingSystem<ChunkStore>
     }
 
     @Override
-    public void tick(float dt, int systemIndex, @NonNull Store<ChunkStore> store) {
+    public void tick(float dt, int systemIndex, @Nonnull Store<ChunkStore> store) {
         service.retainSections(store);
     }
 }

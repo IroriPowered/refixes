@@ -1,11 +1,10 @@
 package cc.irori.refixes.util;
 
-import com.hypixel.hytale.logger.HytaleLogger;
+import cc.irori.refixes.early.EarlyOptions;
 
 public final class Early {
 
     private static final String CLASS_NAME = "cc.irori.refixes.early.RefixesEarly";
-    private static final HytaleLogger LOGGER = Logs.logger();
 
     private static boolean earlyEnabled = false;
 
@@ -25,10 +24,11 @@ public final class Early {
         }
     }
 
-    public static boolean isEnabledLogging(String name) {
-        if (!isEnabled()) {
-            LOGGER.atWarning().log("Refixes-Early is required to use '%s'!", name);
-            return false;
+    public static boolean hasMixins(String... mixins) {
+        if (mixins.length == 0) return true;
+        if (!isEnabled()) return false;
+        for (String mixin : mixins) {
+            if (!EarlyOptions.isMixinEnabled(mixin)) return false;
         }
         return true;
     }

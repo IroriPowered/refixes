@@ -28,47 +28,31 @@ public abstract class MixinParallelTask implements ParallelFailure.Managed {
         return running;
     }
 
-    @WrapMethod(method = "doInvoke")
+    @WrapMethod(method = "doInvoke()V", require = 1)
     private void refixes$drainBeforeReuse(Operation<Void> original) {
-        synchronized (this) {
-            if (running) throw new IllegalStateException("Parallel task has already been started");
-            running = true;
-        }
-        Throwable failure = null;
+        if (running) throw new IllegalStateException("Parallel task has already been started");
         try {
-            for (int i = 0; i < size; i++) {
-                subTasks[i].running = true;
-            }
-            ((CountedCompleter<?>) (Object) this).invoke();
-        } catch (Error thrown) {
-            throw thrown;
-        } catch (Throwable thrown) {
+            original.call();
+        } catch (Exception thrown) {
             throw new ParallelFailure.Unrecoverable(thrown);
         }
-        try {
-            for (int i = 0; i < size; i++) {
-                failure =
-                        ParallelFailure.combine(failure, ((ParallelFailure.Access) subTasks[i]).refixes$takeFailure());
-            }
-            if (failure != null) {
-                for (int x = 0; x < size; x++) {
-                    ParallelRangeTask<?> range = subTasks[x];
-                    for (int i = 0; i < range.size(); i++) {
-                        if (range.get(i) instanceof ParallelFailure.Discardable data) {
-                            try {
-                                data.clear();
-                            } catch (Throwable thrown) {
-                                failure = ParallelFailure.combine(failure, thrown);
-                            }
+        Throwable failure = null;
+        for (int i = 0; i < size; i++) {
+            failure = ParallelFailure.combine(failure, ((ParallelFailure.Access) subTasks[i]).refixes$takeFailure());
+        }
+        if (failure != null) {
+            for (int x = 0; x < size; x++) {
+                ParallelRangeTask<?> range = subTasks[x];
+                for (int i = 0; i < range.size(); i++) {
+                    if (range.get(i) instanceof ParallelFailure.Discardable data) {
+                        try {
+                            data.clear();
+                        } catch (Throwable thrown) {
+                            failure = ParallelFailure.combine(failure, thrown);
                         }
                     }
                 }
             }
-        } finally {
-            for (int i = 0; i < size; i++) {
-                subTasks[i].running = false;
-            }
-            running = false;
         }
         ParallelFailure.rethrow(failure);
     }

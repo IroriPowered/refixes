@@ -35,6 +35,8 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
             new ConfigurationKey<>("VeryFarTickSeconds", ConfigField.FLOAT, 1.0f);
     public static final ConfigurationKey<AiTickThrottlerConfig, Float> MIN_TICK_SECONDS =
             new ConfigurationKey<>("MinTickSeconds", ConfigField.FLOAT, 0.05f);
+    public static final ConfigurationKey<AiTickThrottlerConfig, Float> MAX_STEP_SECONDS =
+            new ConfigurationKey<>("MaxStepSeconds", ConfigField.FLOAT, 1.0f);
 
     public static final ConfigurationKey<AiTickThrottlerConfig, Integer> ACTIVATION_HYSTERESIS_CHUNKS =
             new ConfigurationKey<>("ActivationHysteresisChunks", ConfigField.INTEGER, 0);
@@ -54,16 +56,6 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
     public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> STEP_WITHOUT_PLAYERS =
             new ConfigurationKey<>("StepWithoutPlayers", ConfigField.BOOLEAN, false);
 
-    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> CLEANUP_FROZEN_ENTITIES =
-            new ConfigurationKey<>("CleanupFrozenEntities", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<AiTickThrottlerConfig, String[]> CLEANUP_EXCLUDED_NPC_TYPES =
-            new ConfigurationKey<>("CleanupExcludedNpcTypes", ConfigField.STRING_ARRAY, new String[0]);
-
-    public static final ConfigurationKey<AiTickThrottlerConfig, Boolean> LEGACY_CLEANUP =
-            new ConfigurationKey<>("LegacyCleanup", ConfigField.BOOLEAN, false);
-    public static final ConfigurationKey<AiTickThrottlerConfig, String[]> LEGACY_CLEANUP_EXCLUDED_NPC_TYPES =
-            new ConfigurationKey<>("LegacyCleanupExcludedNpcTypes", ConfigField.STRING_ARRAY, new String[0]);
-
     private static final AiTickThrottlerConfig INSTANCE = new AiTickThrottlerConfig();
 
     public AiTickThrottlerConfig() {
@@ -79,6 +71,7 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 FAR_TICK_SECONDS,
                 VERY_FAR_TICK_SECONDS,
                 MIN_TICK_SECONDS,
+                MAX_STEP_SECONDS,
                 ACTIVATION_HYSTERESIS_CHUNKS,
                 MAX_UNFREEZES_PER_TICK,
                 MAX_FREEZES_PER_TICK,
@@ -86,11 +79,7 @@ public class AiTickThrottlerConfig extends Configuration<AiTickThrottlerConfig> 
                 THROTTLE_EXCLUDE_MOUNTS,
                 THROTTLE_EXCLUDE_FLYING,
                 THROTTLE_EXCLUDE_AIRBORNE_OR_DEAD,
-                STEP_WITHOUT_PLAYERS,
-                CLEANUP_FROZEN_ENTITIES,
-                CLEANUP_EXCLUDED_NPC_TYPES,
-                LEGACY_CLEANUP,
-                LEGACY_CLEANUP_EXCLUDED_NPC_TYPES);
+                STEP_WITHOUT_PLAYERS);
     }
 
     public static AiTickThrottlerConfig get() {

@@ -16,8 +16,8 @@ import com.hypixel.hytale.server.core.modules.entity.item.PreventPickup;
 import com.hypixel.hytale.server.core.modules.projectile.component.Projectile;
 import com.hypixel.hytale.server.core.modules.time.TimeResource;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Adds or overrides DespawnComponent timers for dropped items, block entities and projectiles.
@@ -32,10 +32,10 @@ public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
 
     @Override
     public void onEntityAdded(
-            @NonNullDecl Ref<EntityStore> ref,
-            @NonNullDecl AddReason addReason,
-            @NonNullDecl Store<EntityStore> store,
-            @NonNullDecl CommandBuffer<EntityStore> commandBuffer) {
+            @Nonnull Ref<EntityStore> ref,
+            @Nonnull AddReason addReason,
+            @Nonnull Store<EntityStore> store,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer) {
 
         if (store.getComponent(ref, PreventPickup.getComponentType()) != null) {
             return;
@@ -89,12 +89,12 @@ public class EntityDespawnTimerSystem extends RefSystem<EntityStore> {
 
     @Override
     public void onEntityRemove(
-            @NonNullDecl Ref<EntityStore> ref,
-            @NonNullDecl RemoveReason removeReason,
-            @NonNullDecl Store<EntityStore> store,
-            @NonNullDecl CommandBuffer<EntityStore> commandBuffer) {}
+            @Nonnull Ref<EntityStore> ref,
+            @Nonnull RemoveReason removeReason,
+            @Nonnull Store<EntityStore> store,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer) {}
 
-    @NullableDecl
+    @Nullable
     @Override
     public Query<EntityStore> getQuery() {
         return Query.or(

@@ -2,7 +2,6 @@
     "Group": "IroriPowered",
     "Name": "Refixes",
     "Version": "${version}",
-    "Website": "https://www.irori.cc/",
     "Description": "Runtime fixes and optimizations for Hytale.",
     "Main": "cc.irori.refixes.Refixes",
     "Authors": [

@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.util.Logs;
+import cc.irori.refixes.early.util.WorldPolicyTaskCoalescer;
 import com.hypixel.hytale.builtin.adventure.teleporter.system.TurnOffTeleportersSystem;
 import com.hypixel.hytale.component.AddReason;
 import com.hypixel.hytale.component.CommandBuffer;
@@ -32,16 +33,7 @@ public class MixinTurnOffTeleportersSystem {
             @Nonnull Store<ChunkStore> store,
             @Nonnull CommandBuffer<ChunkStore> commandBuffer) {
         if (reason == AddReason.LOAD) {
-            World world = store.getExternalData().getWorld();
-            world.execute(() -> {
-                try {
-                    TurnOffTeleportersSystem.updatePortalBlocksInWorld(world);
-                } catch (Exception e) {
-                    refixes$LOGGER.atWarning().withCause(e).log(
-                            "TurnOffTeleportersSystem#onEntityAdded(): Failed to update portal blocks in %s",
-                            world.getName());
-                }
-            });
+            refixes$queueUpdate(store, "onEntityAdded");
         }
     }
 
@@ -52,16 +44,20 @@ public class MixinTurnOffTeleportersSystem {
             @Nonnull Store<ChunkStore> store,
             @Nonnull CommandBuffer<ChunkStore> commandBuffer) {
         if (reason == RemoveReason.REMOVE) {
-            World world = store.getExternalData().getWorld();
-            world.execute(() -> {
-                try {
-                    TurnOffTeleportersSystem.updatePortalBlocksInWorld(world);
-                } catch (Exception e) {
-                    refixes$LOGGER.atWarning().withCause(e).log(
-                            "TurnOffTeleportersSystem#onEntityRemove(): Failed to update portal blocks in %s",
-                            world.getName());
-                }
-            });
+            refixes$queueUpdate(store, "onEntityRemove");
         }
+    }
+
+    @Unique
+    private static void refixes$queueUpdate(Store<ChunkStore> store, String source) {
+        World world = store.getExternalData().getWorld();
+        WorldPolicyTaskCoalescer.submit(store.getExternalData(), world, () -> {
+            try {
+                TurnOffTeleportersSystem.updatePortalBlocksInWorld(world);
+            } catch (Exception e) {
+                refixes$LOGGER.atWarning().withCause(e).log(
+                        "TurnOffTeleportersSystem#%s(): Failed to update portal blocks in %s", source, world.getName());
+            }
+        });
     }
 }

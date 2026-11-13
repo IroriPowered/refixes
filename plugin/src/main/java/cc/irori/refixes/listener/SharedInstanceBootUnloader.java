@@ -1,10 +1,15 @@
 package cc.irori.refixes.listener;
 
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
+import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
+import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -12,6 +17,10 @@ import com.hypixel.hytale.server.core.universe.world.events.AllWorldsLoadedEvent
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -21,6 +30,8 @@ public class SharedInstanceBootUnloader {
     private static final HytaleLogger LOGGER = Logs.logger();
 
     private final AtomicBoolean unloaded = new AtomicBoolean(false);
+    private final Map<World, Boolean> bootWorlds = new ConcurrentHashMap<>();
+    private final Set<UUID> unloadedWorlds = ConcurrentHashMap.newKeySet();
 
     public SharedInstanceBootUnloader() {
         Early.requireEnabled();
@@ -28,6 +39,13 @@ public class SharedInstanceBootUnloader {
 
     public void registerEvents(JavaPlugin plugin) {
         plugin.getEventRegistry().register(AllWorldsLoadedEvent.class, event -> onAllWorldsLoaded());
+        plugin.getEventRegistry()
+                .registerGlobal(AddPlayerToWorldEvent.class, event -> bootWorlds.remove(event.getWorld(), false));
+        plugin.getEventRegistry()
+                .registerAsyncGlobal(
+                        EventPriority.LAST,
+                        PlayerConnectEvent.class,
+                        future -> future.thenApply(this::onPlayerConnect));
     }
 
     private void onAllWorldsLoaded() {
@@ -35,43 +53,63 @@ public class SharedInstanceBootUnloader {
             return;
         }
 
-        HytaleServer.SCHEDULED_EXECUTOR.schedule(this::unloadSharedWorlds, UNLOAD_DELAY_MS, TimeUnit.MILLISECONDS);
+        for (World world : Universe.get().getWorlds().values()) {
+            if (world.getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
+                bootWorlds.put(world, false);
+            }
+        }
+        RefixesScheduler.get().schedule(this::unloadSharedWorlds, UNLOAD_DELAY_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private PlayerConnectEvent onPlayerConnect(PlayerConnectEvent event) {
+        World world = event.getWorld();
+        if (world == null || bootWorlds.remove(world, false)) {
+            return event;
+        }
+        if (bootWorlds.containsKey(world)
+                || (unloadedWorlds.contains(world.getWorldConfig().getUuid())
+                        && Universe.get().getWorld(world.getName()) != world)) {
+            World fallback = Universe.get().getDefaultWorld();
+            if (fallback != null && fallback != world) {
+                event.getHolder().tryRemoveComponent(TransformComponent.getComponentType());
+                event.setWorld(fallback);
+            }
+        }
+        return event;
     }
 
     private void unloadSharedWorlds() {
-        Map<String, World> worlds = Universe.get().getWorlds();
-        if (worlds.isEmpty()) {
-            return;
-        }
-
-        List<String> toUnload = new ArrayList<>();
-        for (World world : worlds.values()) {
-            if (!world.getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) {
-                continue;
-            }
-            if (world.getPlayerCount() > 0) {
-                LOGGER.atInfo().log("Shared instance world '%s' has players, skipping unload", world.getName());
-                continue;
-            }
-            toUnload.add(world.getName());
-        }
-
-        if (toUnload.isEmpty()) {
-            LOGGER.atInfo().log("No shared instance worlds to unload");
-            return;
-        }
-
-        int removed = 0;
-        for (String worldName : toUnload) {
+        List<CompletableFuture<Boolean>> removals = new ArrayList<>();
+        for (World world : bootWorlds.keySet()) {
             try {
-                if (Universe.get().removeWorld(worldName)) {
-                    removed++;
+                if (world.getPlayerCount() > 0) {
+                    LOGGER.atInfo().log("Shared instance world '%s' has players, skipping unload", world.getName());
+                    continue;
                 }
+                if (Universe.get().getWorld(world.getName()) != world || !bootWorlds.replace(world, false, true)) {
+                    continue;
+                }
+                unloadedWorlds.add(world.getWorldConfig().getUuid());
+                SharedInstancePersistenceSystem.preserveStorage(world.getWorldConfig());
+                String name = world.getName();
+                removals.add(Universe.get().removeWorldAsync(name).exceptionally(error -> {
+                    LOGGER.atWarning().withCause(error).log("Failed to unload shared instance world '%s'", name);
+                    return false;
+                }));
             } catch (Throwable t) {
-                LOGGER.atWarning().withCause(t).log("Failed to unload shared instance world '%s'", worldName);
+                LOGGER.atWarning().withCause(t).log("Failed to unload shared instance world '%s'", world.getName());
+            } finally {
+                bootWorlds.remove(world);
             }
         }
 
-        LOGGER.atInfo().log("Unloaded %d shared instance world(s)", removed);
+        CompletableFuture.allOf(removals.toArray(CompletableFuture[]::new)).thenRun(() -> {
+            long removed = removals.stream().filter(CompletableFuture::join).count();
+            if (removed == 0) {
+                LOGGER.atInfo().log("No shared instance worlds to unload");
+                return;
+            }
+            LOGGER.atInfo().log("Unloaded %d shared instance world(s)", removed);
+        });
     }
 }

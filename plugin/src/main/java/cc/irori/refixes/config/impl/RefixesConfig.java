@@ -2,43 +2,18 @@ package cc.irori.refixes.config.impl;
 
 import cc.irori.refixes.config.Configuration;
 import cc.irori.refixes.config.ConfigurationKey;
-import cc.irori.refixes.config.field.ConfigField;
 
 public class RefixesConfig extends Configuration<RefixesConfig> {
 
-    public static final ConfigurationKey<RefixesConfig, Boolean> HYBOX_INTEGRATION =
-            new ConfigurationKey<>("HyboxIntegration", ConfigField.BOOLEAN, true);
-
     private static final ConfigurationKey<RefixesConfig, EarlyConfig> EARLY_CONFIG =
             ConfigurationKey.subConfig("Early", EarlyConfig.get());
-    private static final ConfigurationKey<RefixesConfig, ListenerConfig> LISTENER_CONFIG =
-            ConfigurationKey.subConfig("Listeners", ListenerConfig.get());
-    private static final ConfigurationKey<RefixesConfig, SystemConfig> SYSTEM_CONFIG =
-            ConfigurationKey.subConfig("Systems", SystemConfig.get());
-    private static final ConfigurationKey<RefixesConfig, ServiceConfig> SERVICE_CONFIG =
-            ConfigurationKey.subConfig("Services", ServiceConfig.get());
-    private static final ConfigurationKey<RefixesConfig, ChunkLoaderConfig> CHUNK_LOADER_CONFIG =
-            ConfigurationKey.subConfig("ChunkLoader", ChunkLoaderConfig.get());
-    private static final ConfigurationKey<RefixesConfig, SharedInstanceConfig> SHARED_INSTANCE_CONFIG =
-            ConfigurationKey.subConfig("SharedInstanceWorlds", SharedInstanceConfig.get());
-    private static final ConfigurationKey<RefixesConfig, WatchdogConfig> WATCHDOG_CONFIG =
-            ConfigurationKey.subConfig("Watchdog", WatchdogConfig.get());
-    private static final ConfigurationKey<RefixesConfig, ExperimentalConfig> EXPERIMENTAL_CONFIG =
-            ConfigurationKey.subConfig("Experimental", ExperimentalConfig.get());
+    private static final ConfigurationKey<RefixesConfig, RuntimeConfig> RUNTIME_CONFIG =
+            ConfigurationKey.subConfig("Runtime", RuntimeConfig.get());
 
     private static final RefixesConfig INSTANCE = new RefixesConfig();
 
     public RefixesConfig() {
-        register(
-                HYBOX_INTEGRATION,
-                EARLY_CONFIG,
-                LISTENER_CONFIG,
-                SYSTEM_CONFIG,
-                SERVICE_CONFIG,
-                CHUNK_LOADER_CONFIG,
-                SHARED_INSTANCE_CONFIG,
-                WATCHDOG_CONFIG,
-                EXPERIMENTAL_CONFIG);
+        register(EARLY_CONFIG, RUNTIME_CONFIG);
     }
 
     public static RefixesConfig get() {

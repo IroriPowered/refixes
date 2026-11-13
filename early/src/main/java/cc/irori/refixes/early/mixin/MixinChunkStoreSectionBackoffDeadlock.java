@@ -12,7 +12,10 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class MixinChunkStoreSectionBackoffDeadlock {
 
     @WrapOperation(
-            method = "getChunkSectionReferenceAsync(IIII)Ljava/util/concurrent/CompletableFuture;",
+            method = {
+                "getChunkSectionReferenceAsync(IIII)Ljava/util/concurrent/CompletableFuture;",
+                "getChunkReferenceAsync(JI)Ljava/util/concurrent/CompletableFuture;"
+            },
             at = @At(value = "INVOKE", target = "Ljava/util/concurrent/locks/StampedLock;writeLock()J"))
     private long refixes$trackSectionWriteLock(StampedLock lock, Operation<Long> original) {
         long stamp = original.call(lock);
@@ -21,7 +24,10 @@ public abstract class MixinChunkStoreSectionBackoffDeadlock {
     }
 
     @WrapOperation(
-            method = "getChunkSectionReferenceAsync(IIII)Ljava/util/concurrent/CompletableFuture;",
+            method = {
+                "getChunkSectionReferenceAsync(IIII)Ljava/util/concurrent/CompletableFuture;",
+                "getChunkReferenceAsync(JI)Ljava/util/concurrent/CompletableFuture;"
+            },
             at = @At(value = "INVOKE", target = "Ljava/util/concurrent/locks/StampedLock;unlockWrite(J)V"))
     private void refixes$trackSectionUnlockWrite(StampedLock lock, long stamp, Operation<Void> original) {
         try {

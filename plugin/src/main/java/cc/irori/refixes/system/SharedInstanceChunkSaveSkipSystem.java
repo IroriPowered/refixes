@@ -9,7 +9,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.ChunkFlag;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkSaveEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
-import org.jspecify.annotations.NonNull;
+import javax.annotation.Nonnull;
 
 public class SharedInstanceChunkSaveSkipSystem extends WorldEventSystem<ChunkStore, ChunkSaveEvent> {
 
@@ -19,9 +19,9 @@ public class SharedInstanceChunkSaveSkipSystem extends WorldEventSystem<ChunkSto
 
     @Override
     public void handle(
-            @NonNull Store<ChunkStore> store,
-            @NonNull CommandBuffer<ChunkStore> commandBuffer,
-            @NonNull ChunkSaveEvent event) {
+            @Nonnull Store<ChunkStore> store,
+            @Nonnull CommandBuffer<ChunkStore> commandBuffer,
+            @Nonnull ChunkSaveEvent event) {
         WorldChunk chunk = event.getChunk();
         if (!chunk.is(ChunkFlag.ON_DISK) || chunk.is(ChunkFlag.NEEDS_FORMAT_REWRITE)) {
             return;

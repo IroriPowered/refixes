@@ -1,10 +1,12 @@
 package cc.irori.refixes.compat;
 
-import cc.irori.refixes.config.impl.RefixesConfig;
+import cc.irori.refixes.config.impl.DiagnosticsConfig;
 import com.hypixel.hytale.common.plugin.PluginIdentifier;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 
 public final class HyboxBridge {
@@ -13,6 +15,8 @@ public final class HyboxBridge {
     private static final PluginIdentifier PLUGIN_ID = new PluginIdentifier("Xytronix", "Hybox");
     private static final String OWNER = "refixes";
     private static final long RETRY_INTERVAL_NANOS = 60_000_000_000L;
+
+    private static final Set<Gauge> gauges = ConcurrentHashMap.newKeySet();
 
     private static volatile Binding binding;
     private static volatile boolean attempted;
@@ -31,17 +35,6 @@ public final class HyboxBridge {
         }
     }
 
-    public static void gauge(String name, double value) {
-        Binding b = available();
-        if (b == null) {
-            return;
-        }
-        try {
-            b.gauge.invoke(null, OWNER, name, value);
-        } catch (Throwable ignored) {
-        }
-    }
-
     public static void count(String name, long delta) {
         Binding b = available();
         if (b == null) {
@@ -54,18 +47,13 @@ public final class HyboxBridge {
     }
 
     public static AutoCloseable registerGauge(String name, DoubleSupplier supplier) {
+        Gauge gauge = new Gauge(name, supplier);
+        gauges.add(gauge);
         Binding b = available();
-        if (b == null) {
-            return () -> {};
+        if (b != null) {
+            gauge.bind(b);
         }
-        try {
-            Object registration = b.registerGauge.invoke(null, OWNER, name, supplier);
-            if (registration instanceof AutoCloseable closeable) {
-                return closeable;
-            }
-        } catch (Throwable ignored) {
-        }
-        return () -> {};
+        return gauge;
     }
 
     private static Binding available() {
@@ -98,10 +86,12 @@ public final class HyboxBridge {
             Binding resolved = new Binding(
                     plugin,
                     api.getMethod("recordEvent", String.class, String.class, String.class),
-                    api.getMethod("recordGauge", String.class, String.class, double.class),
                     api.getMethod("recordCount", String.class, String.class, long.class),
                     api.getMethod("registerGauge", String.class, String.class, DoubleSupplier.class));
             binding = resolved;
+            for (Gauge gauge : gauges) {
+                gauge.bind(resolved);
+            }
             return resolved;
         } catch (Throwable ignored) {
             return null;
@@ -110,11 +100,58 @@ public final class HyboxBridge {
 
     private static boolean integrationEnabled() {
         try {
-            return RefixesConfig.get().getValue(RefixesConfig.HYBOX_INTEGRATION);
+            return DiagnosticsConfig.get().getValue(DiagnosticsConfig.HYBOX_INTEGRATION);
         } catch (Throwable t) {
             return false;
         }
     }
 
-    private record Binding(JavaPlugin plugin, Method event, Method gauge, Method count, Method registerGauge) {}
+    private record Binding(JavaPlugin plugin, Method event, Method count, Method registerGauge) {}
+
+    private static final class Gauge implements AutoCloseable {
+        private final String name;
+        private final DoubleSupplier supplier;
+        private Binding boundTo;
+        private AutoCloseable registration;
+        private boolean closed;
+
+        private Gauge(String name, DoubleSupplier supplier) {
+            this.name = name;
+            this.supplier = supplier;
+        }
+
+        private synchronized void bind(Binding b) {
+            if (closed || boundTo == b) {
+                return;
+            }
+            unregister();
+            boundTo = b;
+            try {
+                if (b.registerGauge.invoke(null, OWNER, name, supplier) instanceof AutoCloseable closeable) {
+                    registration = closeable;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        private void unregister() {
+            AutoCloseable current = registration;
+            registration = null;
+            if (current != null) {
+                try {
+                    current.close();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            synchronized (this) {
+                closed = true;
+                unregister();
+            }
+            gauges.remove(this);
+        }
+    }
 }

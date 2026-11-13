@@ -18,9 +18,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 /**
- * This patch uses collectCylinder() instead of collect(),
- * limiting the vertical search to 2× the view radius while using the same horizontal radius.
- * This reduces unnecessary vertical matches in worlds with entities at many Y levels
+ * This patch uses collectCylinder() with the same horizontal radius.
+ * At the default height multiplier of 2.0, the cylinder contains the native sphere
+ * and includes additional vertical matches.
  */
 @Mixin(EntityTrackerSystems.CollectVisible.class)
 public abstract class MixinCollectVisible {

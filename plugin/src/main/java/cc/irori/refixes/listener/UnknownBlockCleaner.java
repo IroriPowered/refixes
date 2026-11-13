@@ -1,9 +1,11 @@
 package cc.irori.refixes.listener;
 
 import cc.irori.refixes.compat.HyboxBridge;
-import cc.irori.refixes.config.impl.ListenerConfig;
+import cc.irori.refixes.config.impl.UnknownBlockCleanerConfig;
 import cc.irori.refixes.early.accessor.BlockComponentSectionAccess;
 import cc.irori.refixes.early.duck.UnknownFluidScannable;
+import cc.irori.refixes.early.util.RefixesScheduler;
+import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.assetstore.map.BlockTypeAssetMap;
 import com.hypixel.hytale.component.AddReason;
@@ -17,7 +19,6 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.RotationTuple;
 import com.hypixel.hytale.server.core.asset.type.fluid.Fluid;
@@ -61,11 +62,6 @@ public final class UnknownBlockCleaner {
     private UnknownBlockCleaner() {}
 
     public static synchronized void registerEvents(JavaPlugin plugin) {
-        if (ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_SCAN_CONTAINERS)
-                && !BlockComponentSectionAccess.class.isAssignableFrom(BlockComponentSection.class)) {
-            throw new IllegalStateException(
-                    "Unknown-block container cleaning requires Refixes early BlockComponentSectionAccess");
-        }
         shutdown();
         long currentGeneration = generation;
         running = true;
@@ -75,18 +71,19 @@ public final class UnknownBlockCleaner {
                 cleanPlayerInventory(event);
             }
         });
-        int intervalMs = Math.max(20, ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_INTERVAL_MS));
-        cleanerTask = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        drainQueue(currentGeneration);
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error in unknown block cleaner");
-                    }
-                },
-                1000,
-                intervalMs,
-                TimeUnit.MILLISECONDS);
+        int intervalMs = Math.max(20, UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.INTERVAL_MS));
+        cleanerTask = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                drainQueue(currentGeneration);
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error in unknown block cleaner");
+                            }
+                        },
+                        1000,
+                        intervalMs,
+                        TimeUnit.MILLISECONDS);
     }
 
     public static synchronized void shutdown() {
@@ -139,7 +136,7 @@ public final class UnknownBlockCleaner {
     }
 
     private static void processSections(List<PendingSection> sections, long currentGeneration) {
-        int budgetMs = Math.max(1, ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_BUDGET_MS));
+        int budgetMs = Math.max(1, UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.BUDGET_MS));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMs);
         for (int i = 0; i < sections.size(); i++) {
             if (!isRunning(currentGeneration)) {
@@ -175,7 +172,7 @@ public final class UnknownBlockCleaner {
         }
         World world = store.getExternalData().getWorld();
         Map<String, Integer> removedCounts = new HashMap<>();
-        String[] exclude = ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_EXCLUDE);
+        String[] exclude = UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.EXCLUDE);
         BlockComponentSection blockComponents =
                 store.getComponent(sectionRef, BlockComponentSection.getComponentType());
         cleanBlocks(sectionRef, section, blockComponents, removedCounts, exclude);
@@ -274,13 +271,15 @@ public final class UnknownBlockCleaner {
             ChunkSection section,
             Map<String, Integer> removedCounts,
             String[] exclude) {
-        if (!ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_SCAN_FLUIDS)) {
+        if (!UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.SCAN_FLUIDS)) {
             return;
         }
         FluidSection fluids = store.getComponent(sectionRef, FluidSection.getComponentType());
         if (fluids == null
                 || fluids.isEmpty()
-                || (fluids instanceof UnknownFluidScannable scannable && !scannable.refixes$hasUnknownFluid())) {
+                || (Early.isEnabled()
+                        && fluids instanceof UnknownFluidScannable scannable
+                        && !scannable.refixes$hasUnknownFluid())) {
             return;
         }
         for (int x = 0; x < ChunkUtil.SIZE; x++) {
@@ -311,24 +310,28 @@ public final class UnknownBlockCleaner {
             BlockComponentSection blockComponents,
             Map<String, Integer> removedCounts,
             String[] exclude) {
-        if (!ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_SCAN_CONTAINERS)
+        if (!UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.SCAN_CONTAINERS)
                 || blockComponents == null) {
             return;
         }
         String worldName = store.getExternalData().getWorld().getName();
-        var references = Short2ReferenceMaps.fastIterator(
-                ((BlockComponentSectionAccess) blockComponents).refixes$getBlockReferences());
-        while (references.hasNext()) {
-            var entry = references.next();
-            Ref<ChunkStore> blockRef = entry.getValue();
-            if (blockRef == null || !blockRef.isValid()) {
-                continue;
+        if (Early.isEnabled() && blockComponents instanceof BlockComponentSectionAccess access) {
+            var references = Short2ReferenceMaps.fastIterator(access.refixes$getBlockReferences());
+            while (references.hasNext()) {
+                var entry = references.next();
+                cleanBlockContainer(
+                        store, section, blockComponents, entry.getShortKey(), entry.getValue(), removedCounts, exclude);
             }
-            ItemContainerBlock containerBlock = store.getComponent(blockRef, ItemContainerBlock.getComponentType());
-            if (containerBlock != null
-                    && cleanItemContainer(containerBlock.getItemContainer(), removedCounts, worldName, exclude)) {
-                blockComponents.markBlockNeedsSaving(entry.getShortKey());
-                section.markNeedsSaving();
+        } else {
+            for (int index = 0; index < ChunkUtil.SIZE * ChunkUtil.SIZE * ChunkUtil.SIZE; index++) {
+                cleanBlockContainer(
+                        store,
+                        section,
+                        blockComponents,
+                        index,
+                        blockComponents.getBlockReference(index),
+                        removedCounts,
+                        exclude);
             }
         }
         for (var entry : blockComponents.getBlockHolders().short2ObjectEntrySet()) {
@@ -341,8 +344,29 @@ public final class UnknownBlockCleaner {
         }
     }
 
+    private static void cleanBlockContainer(
+            Store<ChunkStore> store,
+            ChunkSection section,
+            BlockComponentSection blockComponents,
+            int index,
+            Ref<ChunkStore> blockRef,
+            Map<String, Integer> removedCounts,
+            String[] exclude) {
+        if (blockRef == null || !blockRef.isValid() || blockRef.getStore() != store) return;
+        ItemContainerBlock containerBlock = store.getComponent(blockRef, ItemContainerBlock.getComponentType());
+        if (containerBlock != null
+                && cleanItemContainer(
+                        containerBlock.getItemContainer(),
+                        removedCounts,
+                        store.getExternalData().getWorld().getName(),
+                        exclude)) {
+            blockComponents.markBlockNeedsSaving(index);
+            section.markNeedsSaving();
+        }
+    }
+
     private static void cleanPlayerInventory(AddPlayerToWorldEvent event) {
-        if (!ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_SCAN_PLAYER_INVENTORIES)) {
+        if (!UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.SCAN_PLAYER_INVENTORIES)) {
             return;
         }
         World world = event.getWorld();
@@ -351,7 +375,7 @@ public final class UnknownBlockCleaner {
             return;
         }
         Map<String, Integer> removedCounts = new HashMap<>();
-        String[] exclude = ListenerConfig.get().getValue(ListenerConfig.UNKNOWN_BLOCK_CLEANER_EXCLUDE);
+        String[] exclude = UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.EXCLUDE);
         for (ComponentType<EntityStore, ? extends InventoryComponent> type : InventoryComponent.EVERYTHING) {
             InventoryComponent inventory = holder.getComponent(type);
             if (inventory != null) {
@@ -412,7 +436,7 @@ public final class UnknownBlockCleaner {
                 continue;
             }
             BlockType blockType = assetMap.getAsset(blockId);
-            if (blockType == null || blockType.isUnknown()) {
+            if (blockType != null && blockType.isUnknown()) {
                 return true;
             }
         }
