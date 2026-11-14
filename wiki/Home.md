@@ -4,7 +4,7 @@ Server fixes and optional optimizations for Hytale.
 
 ## Installation
 
-1. Launch the server through [Hyinit](https://github.com/IroriPowered/hyinit) 0.2.4 or newer. It must bundle Fabric Mixin 0.17.5. Keep Hyinit and Refixes up to date together.
+1. Launch the server through [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer. It must bundle Fabric Mixin 0.17.5. Keep Hyinit and Refixes up to date together.
 2. Put `refixes-X.X.X.jar` in `earlyplugins`.
 3. Remove older Refixes JARs from `earlyplugins` and `mods`. One JAR contains the runtime plugin and early patches.
 

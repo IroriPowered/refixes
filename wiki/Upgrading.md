@@ -86,7 +86,7 @@ Refixes 0.6.0 reorganizes `Refixes.json` and `config.json`. Settings from 0.5.x 
 Every moved, ignored or removed setting is logged with the prefix `[Refixes] Refixes.json:` or `[Refixes] config.json:`. Check these lines after the first start. Later starts log nothing because the old keys are gone.
 
 Requirements changed too:
-- Hyinit 0.2.4 or newer with Fabric Mixin 0.17.5. See [Installation](Home.md#installation).
+- [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer with Fabric Mixin 0.17.5. See [Installation](Home.md#installation).
 - Refixes 0.6.0 was built for Hytale 0.7.7. Refixes 0.5.0 was built for Hytale 0.6.4. Refixes 0.7.0-pre.5 needs Hytale 0.8.0-pre.5 or a later 0.8 version.
 
 ## Refixes.json
