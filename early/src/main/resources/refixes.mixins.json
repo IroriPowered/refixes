@@ -77,6 +77,8 @@
         "MixinChunkTrackerSectionFence",
         "MixinChunkTrackerQueryReentry",
         "MixinChunkTrackerRadiusWrites",
+        "MixinChunkTrackerHeightBounds",
+        "MixinWorldHeightBounds",
         "MixinReplicateSnapshotFence",
         "MixinFluidReplicateLoadFence",
         "MixinFluidReplicateSnapshotFence",

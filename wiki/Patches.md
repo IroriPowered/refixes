@@ -154,8 +154,11 @@ Optional changes to visibility, streaming, waiting and pathfinding limits.
 |-----|---------|-------------|
 | `CylinderVisibility` | `false` | Uses a cylinder instead of a sphere for entity visibility. The default height includes more entities above and below players. See `Early.CylinderVisibility`. |
 | `ChunkStreaming` | `false` | Applies `Early.MaxSectionsPerSecond`, `Early.MaxSectionsPerTick` and `Early.UnloadDistanceOffset`. |
+| `WorldHeightBounds` | `false` | Stops sending sections above and below the standard world height on RocksDB worlds. Worlds whose generator creates sections outside that height are left unchanged. |
 | `TickWait` | `false` | Uses brief sleeps between ticks when the system timer is precise enough. Otherwise keeps the server's normal waiting behavior. |
 | `PathfindingLimits` | `false` | Caps path length and search nodes using the `Early` settings. Keeps stricter NPC role limits. |
+
+To generate less terrain for the world map, set `ViewRadiusMax` under `WorldMapConfig` in the world's `config.json`. This is a Hytale setting and needs no switch.
 
 ## Features
 Section: `Mixins.Features`
