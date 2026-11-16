@@ -49,6 +49,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -81,6 +82,7 @@ public class AiTickThrottlerService {
     private ComponentType<EntityStore, DamageDataComponent> damageDataType;
     private ComponentType<EntityStore, StateSupport> stateSupportType;
     private Query<EntityStore> npcQuery;
+    private final AtomicBoolean componentTypesFailureLogged = new AtomicBoolean();
 
     private final Map<World, WorldState> worldStates = new ConcurrentHashMap<>();
 
@@ -865,6 +867,10 @@ public class AiTickThrottlerService {
                 npcQuery = Query.and(npcType, transformType);
             }
         } catch (Throwable t) {
+            if (componentTypesFailureLogged.compareAndSet(false, true)) {
+                LOGGER.atWarning().withCause(t).log(
+                        "Could not resolve NPC component types; AI tick throttling is skipped until they resolve");
+            }
             return false;
         }
         return npcType != null

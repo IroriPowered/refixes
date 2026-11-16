@@ -710,8 +710,15 @@ public final class CubicTransfer {
         try {
             p.target.execute(() -> release(p));
         } catch (RuntimeException e) {
+            boolean first;
             synchronized (p) {
+                first = !p.closed;
                 p.closed = true;
+            }
+            if (first) {
+                LOGGER.atWarning().withCause(e).log(
+                        "Entity %s is saved in %s but that world stopped accepting tasks; its saved copy in the world it came from remains there",
+                        p.uuid, p.target.getName());
             }
         }
     }

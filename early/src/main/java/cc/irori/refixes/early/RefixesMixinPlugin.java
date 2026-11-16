@@ -618,6 +618,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         } catch (IOException | RuntimeException failure) {
             System.out.println("[Refixes] WARNING: could not update " + path + " (" + failure
                     + "). The selected patches are applied; the file keeps its previous content.");
+            failure.printStackTrace(System.out);
         }
     }
 
