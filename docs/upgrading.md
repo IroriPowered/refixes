@@ -1,17 +1,21 @@
-# Upgrading from 0.6.0 to 0.7.0-pre.5
+# Upgrading
 
-Refixes 0.6.0 is the release for Hytale 0.7.7. Refixes 0.7.0-pre.5 supports Hytale 0.8.0-pre.5 and later 0.8 versions. Other versions are not supported. Hytale 0.8.0-pre.5 fixes many defects that Refixes 0.6.0 patched, so their switches are removed.
+## From 0.6.0 to 0.7.0-pre.5
 
-## Before the first start
+Refixes 0.7.0-pre.5 is the release for Hytale 0.8.0-pre.5 and later 0.8 versions. Hytale 0.8.0-pre.5 fixes many defects that Refixes 0.6.0 patched, so their switches are removed.
+
+### Before the first start
 
 1. Update the server to Hytale 0.8.0-pre.5 or a later 0.8 version. On Hytale 0.7.7, Refixes 0.7.0-pre.5 disables its early patches.
 2. Back up `mods/IroriPowered_Refixes/`.
-3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged. See [Installation](installing.md#installation).
-4. After the first start, check the lines that start with `[Refixes] Refixes.json:`. Each removed switch is logged as `Removed retired setting` with the reason `fixed in Hytale 0.8.0-pre.5`. Later starts log nothing because the keys are gone.
+3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged.
+4. After the first start, check the lines that start with `[Refixes] Refixes.json:`. Each switch listed below is logged as `Removed retired setting` with the reason `fixed in Hytale 0.8.0-pre.5`. Later starts log nothing because the keys are gone.
 
-`config.json` keeps all of its keys and defaults. No setting there moves or is removed.
+A `config.json` written by Refixes 0.6.0 keeps all of its keys and defaults. No setting there moves or is removed.
 
-## Switches removed because Hytale fixed the defect
+Refixes 0.6.1 adds `Mixins.Tuning.WorldHeightBounds`, `Mixins.Tuning.WorldMapExistingTerrain` and `Mixins.Diagnostics.PatchCounters`. Refixes 0.7.0-pre.5 does not have these switches. On its first start it removes them from a `Refixes.json` written by 0.6.1 and logs each as `Removed unknown setting <path>=<value>`. Their features are not available on 0.7.0-pre.5.
+
+### Switches removed because Hytale fixed the defect
 
 These switches are removed from `Refixes.json` whatever their value. Hytale 0.8.0-pre.5 behaves as described without Refixes.
 
@@ -27,7 +31,7 @@ World removal and shutdown:
 - `Correctness.WorldReopenGuard`: a removed world cannot be opened again while it is still stopping.
 - `Correctness.TickingThreadStop`: stopping a world no longer blocks its saves.
 - `Correctness.TickingThreadAbandon`: a stop timeout hands over to a shutdown hook that is already running.
-- `Correctness.WorldTaskQueueClose`: tasks offered while a world stops are rejected, and queued tasks are cancelled.
+- `Correctness.WorldTaskQueueClose`: tasks offered while a world stops are rejected, and queued tasks are canceled.
 - `Correctness.WorldEventSaving`: world events are saved in order.
 - `Correctness.PortalDeviceWorldClose`: breaking a portal device closes its portal world in the background.
 - `Correctness.UniverseDeletedCleanup`: a locked file in `worlds-deleted` logs a warning and startup continues.
@@ -69,25 +73,25 @@ The 0.5.x switch `Helpers.WorldMapTracker` is also removed instead of being move
 
 The startup check that `WorldRetirement` requires `WorldReopenGuard` is gone with both switches.
 
-## Changed behavior
+### Changed behavior
 
-- Hytale 0.8.0-pre.5 releases queued world tasks after 10 seconds of world config saving and keeps waiting for the save. `Mixins.Recovery.ShutdownSaveTimeout` still limits that wait during server shutdown, along with the store resource save and indexed storage close. See [Patches](patches.md#recovery).
-- `Mixins.Features.OriginRetention` keeps the origin column and its sections 0-9 loaded. Hytale 0.8.0-pre.5 unloads sections separately from their column.
-- Chunk loaders keep the column, sections 0-9 and the section Y values registered with `/chunkloader add`. Sections that load later are no longer added automatically. Y values that 0.6.0 added this way are still in the saved loader files and stay loaded. Remove and add a loader again to drop them. See [Chunk Loader](configuration.md#chunk-loader).
+- Hytale 0.8.0-pre.5 releases queued world tasks after 10 seconds of world config saving and keeps waiting for the save. `Mixins.Recovery.ShutdownSaveTimeout`, when enabled, still limits that wait during server shutdown, along with the store resource save and indexed storage close.
+- `Mixins.Features.OriginRetention`, when enabled, keeps the origin column and its sections 0-9 loaded. Hytale 0.8.0-pre.5 unloads sections separately from their column.
+- Chunk loaders keep the column, sections 0-9 and the section Y values registered with `/chunkloader add`. Sections that load later are no longer added to the loader. Y values outside 0-9 that 0.6.0 added this way are still in the saved loader files and stay loaded. Remove and add a loader again to drop them.
 - `Early.UnloadDistanceOffset` and `Runtime.Tuning.IdlePlayerHandler.ReduceMinLoadedRadius` no longer change when chunks unload. They only change the radius in which pending chunk generation is kept.
-- Watchdog auto-restart postpones a restart while the removed world is still stopping, instead of counting a failed attempt. See [Watchdog Recovery](configuration.md#watchdog-recovery).
+- If the server stops waiting for a removed world after 90 seconds while the world is still stopping, watchdog auto-restart postpones the restart to the next watchdog check instead of counting a failed attempt. The next check runs the save or shutdown check again.
 
-# Upgrading from 0.5.x to 0.6.0
+## From 0.5.x to 0.6.0
 
-Refixes 0.6.0 reorganizes `Refixes.json` and `config.json`. Settings from 0.5.x are moved once, at the first start on a supported server version. Starting once on another server version discards the 0.5.x `config.json` settings without moving them. Back up `mods/IroriPowered_Refixes/` before upgrading. Refixes 0.7.0-pre.5 applies the same moves, except that switches retired for Hytale 0.8.0-pre.5 are removed. See [Switches removed because Hytale fixed the defect](#switches-removed-because-hytale-fixed-the-defect).
+Refixes 0.6.0 reorganizes `Refixes.json` and `config.json`. Settings from 0.5.x are moved once, at the first start on Hytale 0.7.x. Starting once on another server version discards the 0.5.x `config.json` settings without moving them. Back up `mods/IroriPowered_Refixes/` before upgrading. Refixes 0.7.0-pre.5 applies the same moves, except that switches retired for Hytale 0.8.0-pre.5 are removed.
 
 Every moved, ignored or removed setting is logged with the prefix `[Refixes] Refixes.json:` or `[Refixes] config.json:`. Check these lines after the first start. Later starts log nothing because the old keys are gone.
 
 Requirements changed too:
-- [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer with Fabric Mixin 0.17.5. See [Installation](installing.md#installation).
-- Refixes 0.6.0 was built for Hytale 0.7.7. Refixes 0.5.0 was built for Hytale 0.6.4. Refixes 0.7.0-pre.5 needs Hytale 0.8.0-pre.5 or a later 0.8 version.
+- Hyinit and Fabric Mixin versions: see [Installation](installing.md#installation).
+- Refixes 0.6.0 is built for Hytale 0.7.7. Refixes 0.5.0 was built for Hytale 0.6.4.
 
-## Refixes.json
+### Refixes.json
 
 Switches move from the old `Crashfixes` and `Helpers` sections and from some `Optimizations` and `Experimental` keys to the sections in [Patches](patches.md):
 
@@ -110,15 +114,14 @@ Rules:
 - `Helpers.WorldMapTracker` is copied to both `Recovery.WorldMapTracker` and `Correctness.WorldMapCache`. Refixes 0.7.0-pre.5 removes it instead, because both successors are retired.
 - An empty `HypixelServices` object is removed.
 - Switches without a successor are removed and logged as `Removed retired setting` with the reason.
-- Any other unknown key under `Mixins` is removed and logged as `Removed unknown setting`.
 - `Optimizations.KDTree` keeps its path. A value of `true`, the 0.5.x default, is treated as an old default and removed, so the new default `false` applies. A value of `false` is kept.
 
 Development builds after 0.5.1 used some other paths. These are moved with the same rules:
 - `Correctness.QuicheChannel` is split into `OutgoingQueueLimits`, `SetupPacing`, `QuicCloseRetention`, `ChunkSectionFences` and `WorldMapPacing`. Refixes 0.7.0-pre.5 no longer sets `WorldMapPacing`.
 - `Correctness.WorldTransfer` is split into `WorldTransfer`, `WorldReopenGuard`, `StorageOrdering` and `TransferCombatClock`. `WorldReopenGuard` stays on while `WorldRetirement` is on. Refixes 0.7.0-pre.5 no longer sets `WorldReopenGuard`.
-- `Recovery.MarkerAddRemoveSystem` and `Recovery.TickingSpawnMarkerSystem` move to `Correctness`. From some development builds an explicit `false` for these two switches is not kept. Check both after upgrading.
+- `Recovery.MarkerAddRemoveSystem` and `Recovery.TickingSpawnMarkerSystem` move to `Correctness`. A `false` at these old paths was their old default, so it is not kept and the new default `true` applies. Check both after upgrading.
 
-## config.json
+### config.json
 
 The old root sections move under `Runtime`. Each value is moved on its own:
 
@@ -138,14 +141,14 @@ The old root sections move under `Runtime`. Each value is moved on its own:
 
 Rules:
 - If the new path already has a value, that value wins and the old one is logged as `Ignored`.
-- `Watchdog.Enabled` set to `false` also sets `Runtime.Recovery.Watchdog.ShutdownOnDefaultWorldCrash` and `AutoRestartWorlds` to `false`. The watchdog stays off as in 0.5.x. See [Watchdog Diagnostics](configuration.md#watchdog-diagnostics).
+- `Watchdog.Enabled` set to `false` also sets `Runtime.Recovery.Watchdog.ShutdownOnDefaultWorldCrash` and `AutoRestartWorlds` to `false`. The watchdog stays off as in 0.5.x.
 - `Systems.EntityDespawnTimer` is removed. If it was `false`, both `AddTimerWhenMissing` and `OverrideExistingTimers` under `Runtime.Tuning.EntityDespawnTimer` are set to `false`.
 - `Services.AiTickThrottler.CleanupFrozenEntities` set to `false` was the 0.5.x default and is not carried over. The new default is `true`.
 - `Early.BackpressureMaxOutboundBytes`, `Early.BackpressureGraceMs` and `Experimental.ParallelSteeringThreshold` are removed.
 - Any other key left under `Listeners`, `Systems`, `Services`, `ChunkLoader`, `SharedInstanceWorlds`, `Watchdog` or `Experimental` is removed and logged.
 - The other `Early` settings keep their paths.
 
-## Changed defaults
+### Changed defaults
 
 Set a switch explicitly to keep the 0.5.x behavior.
 
@@ -172,13 +175,11 @@ Set a switch explicitly to keep the 0.5.x behavior.
 | `Runtime.Recovery.Watchdog.HaltOnShutdownTimeout` (new) | always on while the watchdog ran | `false` |
 | `Runtime.Tuning.AiTickThrottler.MaxStepSeconds` (new) | uncapped | `1.0` |
 
-`Mixins.Recovery.WorldMapTracker` is removed where Hytale fixes the defect itself. See [Switches removed because Hytale fixed the defect](#switches-removed-because-hytale-fixed-the-defect).
-
 `Optimizations.AStarBase` is not migrated. Enable `Mixins.Tuning.PathfindingLimits` to apply the three per-search `Early.Pathfinding*` limits again. The per-tick limits need `Mixins.Experimental.PathfindingBudget`.
 
-Many new fixes in `Mixins.Correctness` are on by default. See [Patches](patches.md#correctness).
+`Mixins.Correctness` is new in 0.6.0. All its switches except `WorldRetirement` default to `true`. See [Patches](patches.md#correctness).
 
-## Removed features
+### Removed features
 
 - `/copychunks` and `/pastechunks`. The `refixes-clipboards/` folder in the server directory is no longer used and can be deleted.
 - The WorldGen prefab browser root (`Helpers.PrefabListExtraRoots`). The prefab browser shows the vanilla roots only.
@@ -195,6 +196,6 @@ Development builds after 0.5.1 also had these. They are removed in 0.6.0:
 - `Mixins.Optimizations.LegacySeparation`.
 - `Mixins.Correctness.RespawnPointPage`. Hytale 0.7.7 claims beds correctly itself.
 
-## AI-throttled NPCs
+### AI-throttled NPCs
 
-Refixes 0.6.0 no longer writes throttle freezes to world saves. Saves made with older versions can still contain frozen NPCs. Keep Refixes installed with `Runtime.Compatibility.TickThrottledCleanup.CleanupFrozenEntities` set to `true`, which is the default, until the affected chunks have loaded and saved once. After that, removing Refixes leaves no frozen NPCs. See [Saved Throttler Cleanup](configuration.md#saved-throttler-cleanup).
+Refixes 0.6.0 no longer writes throttle freezes to world saves. Saves made with older versions can still contain frozen NPCs. Keep Refixes installed with `Runtime.Compatibility.TickThrottledCleanup.CleanupFrozenEntities` set to `true`, which is the default, until the affected chunks have loaded and saved once. After that, removing Refixes leaves no frozen NPCs.

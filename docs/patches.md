@@ -1,14 +1,10 @@
 # Patches
 
-Patch switches live in `mods/IroriPowered_Refixes/Refixes.json`. Restart after editing. Missing values use defaults. A value that is not `true` or `false` is replaced with the default and logged. See [Configuration](configuration.md) for settings in `config.json`.
+`mods/IroriPowered_Refixes/Refixes.json` turns early patches on and off. Rules shared with `config.json` are in [Settings files](installing.md#settings-files).
 
-Use the exact `Mixins` section paths below. Switches from Refixes 0.5.x are moved to these paths once at startup. Other unknown keys under `Mixins` are removed and logged. See [Upgrading](upgrading.md).
+Use the exact `Mixins` section paths below. The top-level key `AllowUnsupportedServerVersion` is described in [Server version override](installing.md#server-version-override).
 
-Switches for defects that the installed Hytale version fixes itself are removed from `Refixes.json` at startup and logged. See [Switches removed because Hytale fixed the defect](upgrading.md#switches-removed-because-hytale-fixed-the-defect).
-
-Correctness fixes are separated from optional tuning, world behavior and recovery. Check each option's default and risks before enabling it.
-
-The top-level key `AllowUnsupportedServerVersion` is described in [Server version override](installing.md#server-version-override). Switch combinations that stop startup are listed in [Patch dependencies](troubleshooting.md#patch-dependencies).
+Every `Requires` in the tables below is checked at startup. Startup stops when an enabled switch requires a switch that is off. See [Startup errors](troubleshooting.md#startup-errors).
 
 ## Correctness
 Section: `Mixins.Correctness`
@@ -35,7 +31,7 @@ Fixes that preserve intended server behavior.
 | `ConfigLoad` | `true` | Orders configuration saves and fixes reloads after a load completes or fails. |
 | `PluginPreload` | `true` | Unloads a plugin whose configuration fails when it is loaded on a running server, so it can be loaded again. |
 | `PluginLoaderCache` | `true` | Reads a plugin JAR again when the plugin is loaded after a failed or skipped load. |
-| `WorldEventSaving` | `true` | Saves world events in order. On shutdown it waits at most `Early.ShutdownSaveTimeoutSeconds` for the last save, and not at all at `0` or below. |
+| `WorldEventSaving` | `true` | Saves world events in order. The shutdown wait for the last save is set by [`Early.ShutdownSaveTimeoutSeconds`](configuration.md#early-patches). |
 | `WorldTransfer` | `true` | Guards player and entity transfers between worlds. On RocksDB worlds it removes a moved entity from the running source world's save. On indexed storage this happens only when the source world stops. Requires `StorageOrdering`. |
 | `WorldReopenGuard` | `true` | Waits for a removed world's cleanup before its save folder is opened again. Refuses to open it if the folder is still in use after 30 seconds. |
 | `StorageOrdering` | `true` | Finishes pending chunk and entity saves before a world closes and writes each chunk column in order. |
@@ -64,14 +60,12 @@ Fixes that preserve intended server behavior.
 | `WorldRetirement` | `false` | Keeps a stopping world's save folder reserved until its thread has exited, also for instance copies and creative hub worlds. Requires `WorldReopenGuard`. |
 | `StoredFlockSaving` | `true` | Marks spawn markers and stored-flock NPC sections for saving, so marker NPCs are not duplicated or lost after a restart. |
 
-Setup transfers wait for pending writes to drain instead of filling the outgoing queue. On both transports a backlog defers chunk section updates while `ChunkSectionFences` is on. On Quiche a channel with 512 KiB queued also reports itself unwritable, which pauses chunk and world map sending. The default hard per-connection limit is 64 MiB of estimated packet data or 65,536 pending packets. Configure these limits under `Early` in `config.json`, then restart. See [Outgoing packet queues](configuration.md#outgoing-packet-queues). A write that would exceed a limit closes the connection. A limit set to `0` is not applied.
-
-Netty warnings identify the byte or packet limit and include pending and requested counts. On Netty, packet size calculation failures are reported separately. Quiche reports them as a queue limit overflow without counts.
+On both transports a backlog defers chunk section updates while `ChunkSectionFences` is on. On Quiche a channel with 512 KiB queued also reports itself unwritable, which pauses chunk and world map sending. Limits are set in [Outgoing packet queues](configuration.md#outgoing-packet-queues).
 
 ### Backports
 Section: `Mixins.Correctness`
 
-Fixes that Hytale also made in later versions.
+Fixes that Hytale 0.8.0-pre.5 also makes.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -124,9 +118,9 @@ Optional changes to visibility, streaming, waiting and pathfinding limits.
 | `CylinderVisibility` | `false` | Uses a cylinder instead of a sphere for entity visibility. The default height includes more entities above and below players. See `Early.CylinderVisibility`. |
 | `ChunkStreaming` | `false` | Applies `Early.MaxSectionsPerSecond`, `Early.MaxSectionsPerTick` and `Early.UnloadDistanceOffset`. |
 | `WorldHeightBounds` | `false` | Stops sending sections above and below the standard world height on RocksDB worlds. Worlds whose generator creates sections outside that height are left unchanged. Anything already stored outside that height stays in the world but is not sent to players while this is on. |
-| `WorldMapExistingTerrain` | `false` | Draws the world map only from terrain that already exists. The map no longer generates terrain and fills in as players load it. A chunk appears on the map once it and its eight neighbours exist. Worlds whose map is limited to a fixed area are left unchanged. |
+| `WorldMapExistingTerrain` | `false` | Draws the world map only from terrain that already exists. The map no longer generates terrain and fills in as players load it. A chunk appears on the map once it and its eight neighbors exist. Worlds whose map is limited to a fixed area are left unchanged. |
 | `TickWait` | `false` | Uses brief sleeps between ticks when the system timer is precise enough. Otherwise keeps the server's normal waiting behavior. |
-| `PathfindingLimits` | `false` | Caps path length and search nodes using the `Early` settings. Keeps stricter NPC role limits. |
+| `PathfindingLimits` | `false` | Caps path length and search nodes using the per-search `Early.Pathfinding*` settings. |
 
 To generate less terrain for the world map, set `ViewRadiusMax` under `WorldMapConfig` in the world's `config.json`. This is a Hytale setting and needs no switch.
 
@@ -156,25 +150,21 @@ Optional world behavior and storage access used by shared worlds.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `OriginRetention` | `false` | Keeps the origin column and its sections 0-9 loaded when `Early.VanillaKeepSpawnLoaded` is enabled. |
-| `SharedInstances` | `false` | Shares instance worlds between players. Can change consumable dungeon behavior. |
+| `OriginRetention` | `false` | Keeps the chunk column at X 0, Z 0 loaded when `Early.VanillaKeepSpawnLoaded` is enabled. |
+| `SharedInstances` | `false` | Shares instance worlds between players. Can change consumable dungeon behavior. Requires `SharedInstanceStorage` and `Runtime.Compatibility.ExistingSharedInstances` set to `true` in `config.json`. |
 | `SharedInstanceStorage` | `true` | Keeps the saved data of `instance-shared-` worlds from being deleted on removal or restart while `Runtime.Compatibility.ExistingSharedInstances` is enabled. Does not create shared worlds. |
 | `WorldPauseCommand` | `false` | Lets `/world pause` toggle pause in an empty multiplayer world. |
-
-`SharedInstances` requires `Mixins.Features.SharedInstanceStorage` in `Refixes.json`. It also requires `Runtime.Compatibility.ExistingSharedInstances` in `config.json`. Startup stops if either requirement is disabled while shared-instance creation is enabled.
-
-`SharedInstanceStorage` is also used for existing shared worlds when new shared-instance creation is disabled. See [Configuration](configuration.md) for storage and reset behavior.
 
 ## Recovery
 Section: `Mixins.Recovery`
 
-All recovery options default to `false`. They can discard saved data or skip failed work rather than fix its cause. Back up affected worlds before enabling options that change saved data.
+These options can discard saved data or skip failed work rather than fix its cause. Back up affected worlds before enabling options that change saved data.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ShutdownSaveTimeout` | `false` | Limits the store resource save, world config save and indexed storage close during server shutdown to `Early.ShutdownSaveTimeoutSeconds`. If the server first waits its own 10 seconds for the world config save, this limit starts after that wait. Chunk saves are still awaited in full. Saves that time out may not finish before the process exits. |
+| `ShutdownSaveTimeout` | `false` | Limits shutdown saves to `Early.ShutdownSaveTimeoutSeconds`. The saves it covers are listed under [`ShutdownSaveTimeoutSeconds`](configuration.md#early-patches). If the server first waits its own 10 seconds for the world config save, this limit starts after that wait. The process can exit before a timed-out save finishes. |
 | `TickSurvival` | `false` | Skips failed tick work. Rethrows save exceptions after three failures in the same saving system within five minutes. |
-| `CorruptSectionReset` | `false` | Replaces unreadable section data with an empty section and keeps the original bytes in `mods/IroriPowered_Refixes/quarantine/block-sections/` as `block-section-<world>-<x>.<y>.<z>-<id>.bin`, or as `block-section-<id>.bin` if it cannot be labelled. Can remove blocks. A section still fails to load if its format is unsupported or the quarantine file cannot be written. |
+| `CorruptSectionReset` | `false` | Replaces unreadable section data with an empty section and keeps the original bytes in `mods/IroriPowered_Refixes/quarantine/block-sections/` as `block-section-<world>-<x>.<y>.<z>-<id>.bin`, or as `block-section-<id>.bin` if it cannot be labeled. Can remove blocks. A section still fails to load if its format is unsupported or the quarantine file cannot be written. |
 | `MotionControllerBase` | `false` | Resets nonfinite NPC motion to zero. |
 | `TurnOffTeleportersSystem` | `false` | Defers teleporter updates outside chunk loading callbacks. |
 | `InvalidSavedHolders` | `false` | Drops saved entities with missing or empty component data and marks the chunk for saving. Dropped entities are lost. |
@@ -184,8 +174,6 @@ All recovery options default to `false`. They can discard saved data or skip fai
 | `WorldMapTracker` | `false` | Clears pending map reloads with the tracker, fixes the reload list size and guards null references during map image unloading. |
 | `WorldSpawningSystem` | `false` | Returns no chunk when random spawn selection fails. The warning is logged at most once per minute. |
 | `DuplicateComponentReferences` | `false` | Keeps the newer block entity holder when a section holds two for the same block. Ignores a saved holder when a live block entity already exists and replaces stale references on load. When two live block entities claim one block, the newer one is removed. |
-
-Transfer cleanup under `Mixins.Correctness.WorldTransfer` runs only while `Early.ShutdownSaveTimeoutSeconds` is above `0`, even when `ShutdownSaveTimeout` is `false`. The timeout does not limit that cleanup.
 
 ## Compatibility
 Section: `Mixins.Compatibility`
@@ -204,30 +192,28 @@ Compatibility with authentication, updates, saved configuration and client behav
 
 ### Runtime support hooks
 
-Runtime settings select these hooks automatically at startup while the switches below remain `true`. These switches do not enable the runtime features themselves. Disabling a needed hook can leave a feature or part of it inactive.
+Runtime settings in `config.json` select these hooks automatically at startup while the switches below remain `true`. These switches do not enable the runtime features themselves.
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `PlayerRadius` | `true` | Tracks radius changes for `Runtime.Tuning.PerPlayerHotRadius` and `Runtime.Tuning.IdlePlayerHandler`. |
-| `ServerViewRadius` | `true` | Tracks view-radius changes for `Runtime.Tuning.PerPlayerHotRadius.MemoryGuardEnabled`. |
-| `AiTickThrottler` | `true` | Provides movement access and freeze ownership for `Runtime.Tuning.AiTickThrottler.Enabled` and keeps throttle freezes out of world saves. |
-| `IdleWorldPause` | `true` | Tracks pauses owned by `Runtime.Tuning.IdleWorldPause.Enabled`. |
-| `UnknownBlockCleaner` | `true` | Speeds up `ScanContainers` and `ScanFluids` under `Runtime.Recovery.UnknownBlockCleaner` when the cleaner is enabled. Without it both scans still run but check every block. |
-| `Watchdog` | `true` | Provides world-thread access for `Runtime.Recovery.Watchdog.AutoRestartWorlds`. |
-
-`Mixins.Correctness.WorldOwnership` also loads the world-thread accessor. Disabling `Mixins.Compatibility.Watchdog` alone does not remove it.
+| Key | Default | Description | Without it |
+|-----|---------|-------------|------------|
+| `PlayerRadius` | `true` | Tracks radius changes for `Runtime.Tuning.PerPlayerHotRadius` and `Runtime.Tuning.IdlePlayerHandler`. | Both services stay off and log that they are inactive. |
+| `ServerViewRadius` | `true` | Tracks view-radius changes for `Runtime.Tuning.PerPlayerHotRadius.MemoryGuardEnabled`. | The memory guard stays off and logs a warning. |
+| `AiTickThrottler` | `true` | Provides movement access and freeze ownership for `Runtime.Tuning.AiTickThrottler.Enabled` and keeps throttle freezes out of world saves. | The throttler stays off and logs that it is inactive. |
+| `IdleWorldPause` | `true` | Tracks pauses owned by `Runtime.Tuning.IdleWorldPause.Enabled`. | Idle world pause stays off and logs that it is inactive. |
+| `UnknownBlockCleaner` | `true` | Speeds up `ScanContainers` and `ScanFluids` under `Runtime.Recovery.UnknownBlockCleaner` when the cleaner is enabled. | Both scans still run but check every block. |
+| `Watchdog` | `true` | Provides world-thread access for `Runtime.Recovery.Watchdog.AutoRestartWorlds`. | See [Watchdog Recovery](configuration.md#watchdog-recovery) for the switches auto-restart needs. |
 
 ## Diagnostics
 Section: `Mixins.Diagnostics`
 
-Reporting controls. Disabling system metrics is optional.
+Reporting controls.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `SkipSystemMetrics` | `false` | Disables system timing metrics. |
 | `HytaleServer` | `true` | Warns when the runtime Refixes plugin is not enabled. |
 | `SpawnMarkerBlockStateHeartbeat` | `true` | Reports spawn marker heartbeat messages at warning level. |
-| `PatchCounters` | `false` | Counts how often each performance patch was reached and how often it changed the outcome since server start. Read the numbers with `/patchcounters`. Needs a restart to take effect. |
+| `PatchCounters` | `false` | Counts how often each performance patch was reached and how often it changed the outcome since server start. Read the numbers with `/patchcounters`. |
 
 With `PatchCounters` on, `/patchcounters` prints one line for each counted performance switch. Each line shows the switch name, whether the patch is on or off and two numbers. The first number counts how often the server reached the patched code. The second counts how often the patch changed what happened, for example a cache hit, a skipped section, a header-only read, a shared snapshot or a lowered path limit.
 
@@ -238,7 +224,7 @@ A first number of zero means the server never ran that code since it started, so
 ## Experimental
 Section: `Mixins.Experimental`
 
-These options are experimental and default to `false`. They change pathfinding or concurrency behavior. Test them on a copy of the server before using them with players.
+These options change pathfinding or concurrency behavior. Test them on a copy of the server before using them with players.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -249,6 +235,4 @@ Section: `Mixins.Experimental.Parallel`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `CollectVisible` | `false` | Collects visible entities in parallel. |
-
-Requires `Mixins.Correctness.ParallelTaskLifecycle`. Startup stops if `CollectVisible` is enabled without it.
+| `CollectVisible` | `false` | Collects visible entities in parallel. Requires `Mixins.Correctness.ParallelTaskLifecycle`. |
