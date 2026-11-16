@@ -176,7 +176,7 @@ public final class CompatibilityProbe {
             result.addProperty("mode", plan.get("mode").getAsString());
             result.addProperty("activeMixinTargetPairs", active);
             result.add("transformedTargets", transformed);
-            result.addProperty("earlyPluginLoading", "registered dummy transformer removed by real loader");
+            result.addProperty("earlyPluginLoading", "registered Hyinit transformer removed by real loader");
             result.addProperty("sharedInstanceStorage", "inline callbacks; in-flight deduplication; permanent first-write success; synchronous/asynchronous retry; cubic Y isolation");
             result.addProperty("nettySetupPacing", "ordered setup bursts and batches, flush-driven drainage, close release, nonblocking event loop, hard caps and invalid-size diagnostics");
             result.addProperty("strictInjectionCounts", Boolean.getBoolean("mixin.debug.countInjections"));
@@ -289,7 +289,8 @@ public final class CompatibilityProbe {
     }
 
     private static void verifyEarlyPluginLoading(ClassLoader serverLoader) throws Exception {
-        String dummy = "cc.irori.hyinit.dummy.DummyClassTransformer";
+        Set<String> own =
+                Set.of("cc.irori.hyinit.dummy.DummyClassTransformer", "cc.irori.hyinit.early.EarlyLaunchTransformer");
         Class<?> earlyLoader = serverLoader.loadClass("com.hypixel.hytale.plugin.early.EarlyPluginLoader");
         earlyLoader.getMethod("loadEarlyPlugins", String[].class)
                 .invoke(null, (Object) new String[] {"--accept-early-plugins"});
@@ -298,12 +299,12 @@ public final class CompatibilityProbe {
         Class<?> transformer = serverLoader.loadClass("com.hypixel.hytale.plugin.early.ClassTransformer");
         boolean registered = false;
         for (Object service : java.util.ServiceLoader.load(transformer, plugins)) {
-            if (service.getClass().getName().equals(dummy)) registered = true;
+            if (own.contains(service.getClass().getName())) registered = true;
         }
-        if (!registered) throw new AssertionError("Positive control: Hyinit dummy transformer was not registered");
+        if (!registered) throw new AssertionError("Positive control: Hyinit's own transformer was not registered");
         for (Object service : (List<?>) earlyLoader.getMethod("getTransformers").invoke(null)) {
-            if (service.getClass().getName().equals(dummy)) {
-                throw new AssertionError("Hyinit's dummy transformer survived real early-plugin loading");
+            if (own.contains(service.getClass().getName())) {
+                throw new AssertionError("Hyinit's own transformer survived real early-plugin loading");
             }
         }
         System.out.println("[LocalVerify] Early-plugin transformer removal PASS");
