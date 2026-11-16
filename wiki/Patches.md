@@ -161,6 +161,23 @@ Optional changes to visibility, streaming, waiting and pathfinding limits.
 
 To generate less terrain for the world map, set `ViewRadiusMax` under `WorldMapConfig` in the world's `config.json`. This is a Hytale setting and needs no switch.
 
+## Measured effect
+
+These numbers come from a test server on Hytale 0.7.7 with one simulated player. They show what a performance switch did in one scenario. Results on other servers depend on players, entities, terrain and mods. Differences below about 3 percent of world-thread CPU could not be told apart from noise.
+
+| Switch | Scenario | Result |
+|--------|----------|--------|
+| `SoundHeaderValidation` | Server boot, six boots with the switch on and six with it off | Boot was 0.45 seconds faster (6.9 percent). The server read 0.85 GB less from disk before boot. |
+| `SpawnManagerRecalc` | Server boot | 271 spawn recalculations during startup became 1. The time saved was not measured. |
+| `RepulsionTicker` | 250 NPCs that were each given a repulsion component | World-thread allocation was 2.8 percent lower. CPU did not change. Hytale 0.7.7 with stock assets gives no entity a repulsion component, so the switch has no effect there. |
+| `CollisionConfig` | 250 walking NPCs, about 5,550 collision checks per tick | No measurable change in CPU or allocation. |
+| `SkipEmptyLightSections`, `FluidDiscovery`, `AssetPartSnapshotSharing` | The NPC scenario above | The scenario never ran their code. Not measured. |
+| `WorldMapExistingTerrain` | One player flying at 13 blocks per second with view radius 12 on a RocksDB world | Generated columns fell from 21.1 to 10.2 per second. Garbage collection pauses fell from 10.8 to about 5 ms per second. The map held about 700 images instead of 1,793. |
+| `WorldHeightBounds` | The same flight at view radius 12 and 24 | No clear change in server CPU or garbage collection. Sections outside the standard height were 47.8 percent of all sections sent at view radius 12 and 73.6 percent at view radius 24, and the switch stops sending those. They carried about 5 percent of the section bytes. |
+| `KDTree`, `RocksDbCompression`, `CylinderVisibility`, `ChunkStreaming`, `TickWait`, `PathfindingLimits` | None | Not measured. |
+
+The seven optimizations that are on by default lowered world-thread allocation by 2.8 percent together in the NPC scenario. Refixes as a whole showed no measurable cost or gain there.
+
 ## Features
 Section: `Mixins.Features`
 
