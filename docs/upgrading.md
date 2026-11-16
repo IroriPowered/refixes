@@ -1,5 +1,3 @@
-[Home](README.md) · [Configuration](Configuration.md) · [Patches](Patches.md) · **Upgrading**
-
 # Upgrading from 0.6.0 to 0.7.0-pre.5
 
 Refixes 0.6.0 is the release for Hytale 0.7.7. Refixes 0.7.0-pre.5 supports Hytale 0.8.0-pre.5 and later 0.8 versions. Other versions are not supported. Hytale 0.8.0-pre.5 fixes many defects that Refixes 0.6.0 patched, so their switches are removed.
@@ -8,7 +6,7 @@ Refixes 0.6.0 is the release for Hytale 0.7.7. Refixes 0.7.0-pre.5 supports Hyta
 
 1. Update the server to Hytale 0.8.0-pre.5 or a later 0.8 version. On Hytale 0.7.7, Refixes 0.7.0-pre.5 disables its early patches.
 2. Back up `mods/IroriPowered_Refixes/`.
-3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged. See [Installation](README.md#installation).
+3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged. See [Installation](installing.md#installation).
 4. After the first start, check the lines that start with `[Refixes] Refixes.json:`. Each removed switch is logged as `Removed retired setting` with the reason `fixed in Hytale 0.8.0-pre.5`. Later starts log nothing because the keys are gone.
 
 `config.json` keeps all of its keys and defaults. No setting there moves or is removed.
@@ -73,11 +71,11 @@ The startup check that `WorldRetirement` requires `WorldReopenGuard` is gone wit
 
 ## Changed behavior
 
-- Hytale 0.8.0-pre.5 releases queued world tasks after 10 seconds of world config saving and keeps waiting for the save. `Mixins.Recovery.ShutdownSaveTimeout` still limits that wait during server shutdown, along with the store resource save and indexed storage close. See [Patches](Patches.md#recovery).
+- Hytale 0.8.0-pre.5 releases queued world tasks after 10 seconds of world config saving and keeps waiting for the save. `Mixins.Recovery.ShutdownSaveTimeout` still limits that wait during server shutdown, along with the store resource save and indexed storage close. See [Patches](patches.md#recovery).
 - `Mixins.Features.OriginRetention` keeps the origin column and its sections 0-9 loaded. Hytale 0.8.0-pre.5 unloads sections separately from their column.
-- Chunk loaders keep the column, sections 0-9 and the section Y values registered with `/chunkloader add`. Sections that load later are no longer added automatically. Y values that 0.6.0 added this way are still in the saved loader files and stay loaded. Remove and add a loader again to drop them. See [Chunk Loader](Configuration.md#chunk-loader).
+- Chunk loaders keep the column, sections 0-9 and the section Y values registered with `/chunkloader add`. Sections that load later are no longer added automatically. Y values that 0.6.0 added this way are still in the saved loader files and stay loaded. Remove and add a loader again to drop them. See [Chunk Loader](configuration.md#chunk-loader).
 - `Early.UnloadDistanceOffset` and `Runtime.Tuning.IdlePlayerHandler.ReduceMinLoadedRadius` no longer change when chunks unload. They only change the radius in which pending chunk generation is kept.
-- Watchdog auto-restart postpones a restart while the removed world is still stopping, instead of counting a failed attempt. See [Watchdog Recovery](Configuration.md#watchdog-recovery).
+- Watchdog auto-restart postpones a restart while the removed world is still stopping, instead of counting a failed attempt. See [Watchdog Recovery](configuration.md#watchdog-recovery).
 
 # Upgrading from 0.5.x to 0.6.0
 
@@ -86,12 +84,12 @@ Refixes 0.6.0 reorganizes `Refixes.json` and `config.json`. Settings from 0.5.x 
 Every moved, ignored or removed setting is logged with the prefix `[Refixes] Refixes.json:` or `[Refixes] config.json:`. Check these lines after the first start. Later starts log nothing because the old keys are gone.
 
 Requirements changed too:
-- [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer with Fabric Mixin 0.17.5. See [Installation](README.md#installation).
+- [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer with Fabric Mixin 0.17.5. See [Installation](installing.md#installation).
 - Refixes 0.6.0 was built for Hytale 0.7.7. Refixes 0.5.0 was built for Hytale 0.6.4. Refixes 0.7.0-pre.5 needs Hytale 0.8.0-pre.5 or a later 0.8 version.
 
 ## Refixes.json
 
-Switches move from the old `Crashfixes` and `Helpers` sections and from some `Optimizations` and `Experimental` keys to the sections in [Patches](Patches.md):
+Switches move from the old `Crashfixes` and `Helpers` sections and from some `Optimizations` and `Experimental` keys to the sections in [Patches](patches.md):
 
 | Old switches | New section |
 |---|---|
@@ -140,7 +138,7 @@ The old root sections move under `Runtime`. Each value is moved on its own:
 
 Rules:
 - If the new path already has a value, that value wins and the old one is logged as `Ignored`.
-- `Watchdog.Enabled` set to `false` also sets `Runtime.Recovery.Watchdog.ShutdownOnDefaultWorldCrash` and `AutoRestartWorlds` to `false`. The watchdog stays off as in 0.5.x. See [Watchdog Diagnostics](Configuration.md#watchdog-diagnostics).
+- `Watchdog.Enabled` set to `false` also sets `Runtime.Recovery.Watchdog.ShutdownOnDefaultWorldCrash` and `AutoRestartWorlds` to `false`. The watchdog stays off as in 0.5.x. See [Watchdog Diagnostics](configuration.md#watchdog-diagnostics).
 - `Systems.EntityDespawnTimer` is removed. If it was `false`, both `AddTimerWhenMissing` and `OverrideExistingTimers` under `Runtime.Tuning.EntityDespawnTimer` are set to `false`.
 - `Services.AiTickThrottler.CleanupFrozenEntities` set to `false` was the 0.5.x default and is not carried over. The new default is `true`.
 - `Early.BackpressureMaxOutboundBytes`, `Early.BackpressureGraceMs` and `Experimental.ParallelSteeringThreshold` are removed.
@@ -178,13 +176,13 @@ Set a switch explicitly to keep the 0.5.x behavior.
 
 `Optimizations.AStarBase` is not migrated. Enable `Mixins.Tuning.PathfindingLimits` to apply the three per-search `Early.Pathfinding*` limits again. The per-tick limits need `Mixins.Experimental.PathfindingBudget`.
 
-Many new fixes in `Mixins.Correctness` are on by default. See [Patches](Patches.md#correctness).
+Many new fixes in `Mixins.Correctness` are on by default. See [Patches](patches.md#correctness).
 
 ## Removed features
 
 - `/copychunks` and `/pastechunks`. The `refixes-clipboards/` folder in the server directory is no longer used and can be deleted.
 - The WorldGen prefab browser root (`Helpers.PrefabListExtraRoots`). The prefab browser shows the vanilla roots only.
-- Connection backpressure (`Experimental.ConnectionBackpressure`, `Early.BackpressureMaxOutboundBytes`, `Early.BackpressureGraceMs`). Replaced by `Mixins.Correctness.OutgoingQueueLimits` and [Outgoing packet queues](Configuration.md#outgoing-packet-queues).
+- Connection backpressure (`Experimental.ConnectionBackpressure`, `Early.BackpressureMaxOutboundBytes`, `Early.BackpressureGraceMs`). Replaced by `Mixins.Correctness.OutgoingQueueLimits` and [Outgoing packet queues](configuration.md#outgoing-packet-queues).
 - Parallel ticking (`Experimental.Parallel.SpatialCollection`, `AllSystems`, `Steering`, `RelaxStoreAsserts`, `FluidReplicateChanges`, `ChunkReplicateChanges` and `Experimental.ParallelSteeringThreshold`). Only `Parallel.CollectVisible` remains.
 - Blackbox metrics. `Runtime.Diagnostics.HyboxIntegration` sends metrics and events to Hybox instead.
 - Watchdog restarts of worlds that were never loaded. With an empty `AutoRestartingWorldFilter`, automatic restart now only restarts worlds that were loaded.
@@ -199,4 +197,4 @@ Development builds after 0.5.1 also had these. They are removed in 0.6.0:
 
 ## AI-throttled NPCs
 
-Refixes 0.6.0 no longer writes throttle freezes to world saves. Saves made with older versions can still contain frozen NPCs. Keep Refixes installed with `Runtime.Compatibility.TickThrottledCleanup.CleanupFrozenEntities` set to `true`, which is the default, until the affected chunks have loaded and saved once. After that, removing Refixes leaves no frozen NPCs. See [Saved Throttler Cleanup](Configuration.md#saved-throttler-cleanup).
+Refixes 0.6.0 no longer writes throttle freezes to world saves. Saves made with older versions can still contain frozen NPCs. Keep Refixes installed with `Runtime.Compatibility.TickThrottledCleanup.CleanupFrozenEntities` set to `true`, which is the default, until the affected chunks have loaded and saved once. After that, removing Refixes leaves no frozen NPCs. See [Saved Throttler Cleanup](configuration.md#saved-throttler-cleanup).

@@ -1,8 +1,6 @@
-[Home](README.md) · **Configuration** · [Patches](Patches.md) · [Upgrading](Upgrading.md)
+Settings live in `mods/IroriPowered_Refixes/config.json`, created and saved by the server. It contains both `Early` and `Runtime` settings. Patch switches in `Refixes.json` are documented in [Patches](patches.md). Restart the server after changing either file. See [compatibility](installing.md#compatibility) before using patch-dependent features.
 
-Settings live in `mods/IroriPowered_Refixes/config.json`, created and saved by the server. It contains both `Early` and `Runtime` settings. Patch switches in `Refixes.json` are documented in [Patches](Patches.md). Restart the server after changing either file. See [compatibility](README.md#compatibility) before using patch-dependent features.
-
-Missing values use defaults. Back up your settings before upgrading. Settings from Refixes 0.5.x are moved to the paths below once at startup on a supported server version and each move is logged. See [Upgrading](Upgrading.md). Other unknown keys are removed on save. Startup stops if `config.json` is not valid JSON. See [Startup checks](Patches.md#startup-checks).
+Missing values use defaults. Back up your settings before upgrading. Settings from Refixes 0.5.x are moved to the paths below once at startup on a supported server version and each move is logged. See [Upgrading](upgrading.md). Other unknown keys are removed on save. Startup stops if `config.json` is not valid JSON. See [Startup errors](troubleshooting.md#startup-errors).
 
 The dotted `Section:` paths below describe nested JSON objects. This partial `config.json` example maps `Runtime.Tuning.IdlePlayerHandler` to those objects and leaves the service disabled. Merge the setting into your existing file rather than replacing the whole file with this example.
 
@@ -30,7 +28,7 @@ Settings apply through their associated Mixin patches. Changing a setting does n
 | `MaxSectionsPerSecond` | `360` | Sections per player per second. `0` or below stops sending new chunk sections. Requires `Mixins.Tuning.ChunkStreaming`. |
 | `MaxSectionsPerTick` | `40` | Sections per player per tick. `0` or below stops sending new chunk sections. Requires `Mixins.Tuning.ChunkStreaming`. |
 | `VanillaKeepSpawnLoaded` | `true` | Keep the origin chunk column and its sections 0-9 loaded. Requires `Mixins.Features.OriginRetention`. |
-| `UnloadDistanceOffset` | `4` | Extra chunk radius beyond player view radius. Pending chunk generation in that radius is kept. Whether chunks in that radius also stay loaded depends on the Hytale version. See [Changed behavior](Upgrading.md#changed-behavior). Requires `Mixins.Tuning.ChunkStreaming`. |
+| `UnloadDistanceOffset` | `4` | Extra chunk radius beyond player view radius. Pending chunk generation in that radius is kept. Whether chunks in that radius also stay loaded depends on the Hytale version. See [Changed behavior](upgrading.md#changed-behavior). Requires `Mixins.Tuning.ChunkStreaming`. |
 | `PathfindingMaxPathLength` | `200` | Maximum nodes in an NPC path. `0` or below keeps the NPC role limit. Requires `Mixins.Tuning.PathfindingLimits`. |
 | `PathfindingOpenNodesLimit` | `80` | Maximum open nodes per search. `0` or below keeps the NPC role limit. Requires `Mixins.Tuning.PathfindingLimits`. |
 | `PathfindingTotalNodesLimit` | `400` | Maximum nodes discovered per search. `0` or below keeps the NPC role limit. Requires `Mixins.Tuning.PathfindingLimits`. |
@@ -183,7 +181,7 @@ Reduces ticking and view radii for idle players. Horizontal movement or camera t
 | `IdleViewRadius` | `4` | Idle view radius. Values below 2 act as 2. |
 | `ReduceHotRadius` | `true` | Reduce idle hot radius. |
 | `IdleHotRadius` | `3` | Idle hot radius. Values below 2 act as 2. |
-| `ReduceMinLoadedRadius` | `true` | Reduce idle minimum loaded chunk radius. This narrows the radius in which pending chunk generation is kept. Whether it also makes chunks unload sooner depends on the Hytale version. See [Changed behavior](Upgrading.md#changed-behavior). |
+| `ReduceMinLoadedRadius` | `true` | Reduce idle minimum loaded chunk radius. This narrows the radius in which pending chunk generation is kept. Whether it also makes chunks unload sooner depends on the Hytale version. See [Changed behavior](upgrading.md#changed-behavior). |
 | `IdleMinLoadedRadius` | `2` | Idle minimum loaded chunk radius. Values below 2 act as 2. |
 | `MovementThreshold` | `0.5` | Blocks moved to reset the idle timer. |
 
@@ -201,7 +199,7 @@ Requires `Mixins.Compatibility.IdleWorldPause`. Empty worlds with chunk loaders 
 # Chunk Loader
 Section: `Runtime.Features.ChunkLoader`
 
-A chunk loader keeps its chunk column, sections 0-9 of that column and the section Y registered with `/chunkloader add` loaded and ticking. Whether sections that load later in the column are added to the loader depends on the Refixes version. See [Changed behavior](Upgrading.md#changed-behavior).
+A chunk loader keeps its chunk column, sections 0-9 of that column and the section Y registered with `/chunkloader add` loaded and ticking. Whether sections that load later in the column are added to the loader depends on the Refixes version. See [Changed behavior](upgrading.md#changed-behavior).
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -238,7 +236,7 @@ Section: `Runtime.Compatibility.TickThrottledCleanup`
 
 Clears saved Refixes freezes when entities load, even with throttling or Refixes Mixins disabled. Refixes 0.6.0 and newer do not save throttle freezes while the throttler is enabled. Leave `CleanupFrozenEntities` enabled until chunks saved by older versions have loaded and saved once.
 
-Risk: Removing Refixes also removes this cleanup. Freezes saved by older versions in unvisited chunks can remain, leaving NPCs frozen. See [Upgrading](Upgrading.md#ai-throttled-npcs).
+Risk: Removing Refixes also removes this cleanup. Freezes saved by older versions in unvisited chunks can remain, leaving NPCs frozen. See [Upgrading](upgrading.md#ai-throttled-npcs).
 
 | Key | Default | Description |
 |-----|---------|-------------|

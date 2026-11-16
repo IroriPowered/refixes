@@ -1,45 +1,14 @@
 # Patches
 
-Patch switches live in `mods/IroriPowered_Refixes/Refixes.json`. Restart after editing. Missing values use defaults. A value that is not `true` or `false` is replaced with the default and logged. See [Configuration](Configuration.md) for settings in `config.json`.
+Patch switches live in `mods/IroriPowered_Refixes/Refixes.json`. Restart after editing. Missing values use defaults. A value that is not `true` or `false` is replaced with the default and logged. See [Configuration](configuration.md) for settings in `config.json`.
 
-Use the exact `Mixins` section paths below. Switches from Refixes 0.5.x are moved to these paths once at startup. Other unknown keys under `Mixins` are removed and logged. See [Upgrading](Upgrading.md).
+Use the exact `Mixins` section paths below. Switches from Refixes 0.5.x are moved to these paths once at startup. Other unknown keys under `Mixins` are removed and logged. See [Upgrading](upgrading.md).
 
-Switches for defects that the installed Hytale version fixes itself are removed from `Refixes.json` at startup and logged. See [Switches removed because Hytale fixed the defect](Upgrading.md#switches-removed-because-hytale-fixed-the-defect).
+Switches for defects that the installed Hytale version fixes itself are removed from `Refixes.json` at startup and logged. See [Switches removed because Hytale fixed the defect](upgrading.md#switches-removed-because-hytale-fixed-the-defect).
 
 Correctness fixes are separated from optional tuning, world behavior and recovery. Check each option's default and risks before enabling it.
 
-## Server version override
-
-`AllowUnsupportedServerVersion` is a top-level key. Default: `false`.
-
-Supported versions are listed under [Compatibility](README.md#compatibility). When Refixes does not accept the server version, or cannot identify it, all early patches are disabled and a message is logged. The server still starts. Runtime features that need patches report that they are inactive.
-
-Setting `AllowUnsupportedServerVersion` to `true` applies the configured patches on a version Refixes was not built for. This is unsupported and startup can fail. Individual patch switches and dependency checks still apply.
-
-**This is not a normal setup step.** Use a compatible Refixes release instead. See [Compatibility](README.md#compatibility).
-
-## Startup checks
-
-Startup stops with a `[Refixes]` error message when any of the following applies. The process exit code depends on Hyinit: Hyinit 0.2.4 exits with code 0, Hyinit 0.3.0 with code 1. Check the log rather than the exit code if a supervisor restarts the server.
-- `Refixes.json` or `config.json` is not valid JSON or its root is not an object.
-- `Early` in `config.json` is not an object, or `Early.OutgoingQueueMaxBytes` or `Early.OutgoingQueueMaxPackets` is invalid. See [Outgoing packet queues](Configuration.md#outgoing-packet-queues).
-- An enabled patch needs another patch that is disabled:
-
-| Enabled | Requires |
-|---------|----------|
-| `Mixins.Experimental.Parallel.CollectVisible` | `Mixins.Correctness.ParallelTaskLifecycle` |
-| `Mixins.Features.SharedInstances` | `Mixins.Features.SharedInstanceStorage` |
-| `Mixins.Correctness.WorldTransfer` | `Mixins.Correctness.StorageOrdering` |
-| `Mixins.Correctness.WorldRetirement` | `Mixins.Correctness.WorldReopenGuard` |
-| `Mixins.Correctness.OutgoingQueueLimits` | `Mixins.Correctness.SetupPacing` |
-
-- Hyinit provides Fabric Mixin older than 0.17.5.
-
-On an unsupported server version without the override, the early checks stop at an invalid `Refixes.json`. The other early checks are skipped because no patch is applied. An invalid `config.json` still stops startup when the runtime plugin loads it.
-
-The runtime plugin also stops startup when `Mixins.Features.SharedInstances` is enabled while `Runtime.Compatibility.ExistingSharedInstances` is `false`.
-
-Refixes rewrites `Refixes.json` at startup to list every switch. A file that is already up to date is not rewritten. If the file cannot be written, Refixes logs a warning, keeps the file and continues with the selected patches. Settings from 0.5.x that were moved are written to `config.json` the same way. The runtime plugin also saves `config.json` on every start and stops startup if it cannot, so the folder must be writable. On an unsupported server version without the override, nothing is migrated, `Refixes.json` is not rewritten and the runtime plugin's save removes 0.5.x settings from `config.json`.
+The top-level key `AllowUnsupportedServerVersion` is described in [Server version override](installing.md#server-version-override). Switch combinations that stop startup are listed in [Patch dependencies](troubleshooting.md#patch-dependencies).
 
 ## Correctness
 Section: `Mixins.Correctness`
@@ -95,7 +64,7 @@ Fixes that preserve intended server behavior.
 | `WorldRetirement` | `false` | Keeps a stopping world's save folder reserved until its thread has exited, also for instance copies and creative hub worlds. Requires `WorldReopenGuard`. |
 | `StoredFlockSaving` | `true` | Marks spawn markers and stored-flock NPC sections for saving, so marker NPCs are not duplicated or lost after a restart. |
 
-Setup transfers wait for pending writes to drain instead of filling the outgoing queue. On both transports a backlog defers chunk section updates while `ChunkSectionFences` is on. On Quiche a channel with 512 KiB queued also reports itself unwritable, which pauses chunk and world map sending. The default hard per-connection limit is 64 MiB of estimated packet data or 65,536 pending packets. Configure these limits under `Early` in `config.json`, then restart. See [Outgoing packet queues](Configuration.md#outgoing-packet-queues). A write that would exceed a limit closes the connection. A limit set to `0` is not applied.
+Setup transfers wait for pending writes to drain instead of filling the outgoing queue. On both transports a backlog defers chunk section updates while `ChunkSectionFences` is on. On Quiche a channel with 512 KiB queued also reports itself unwritable, which pauses chunk and world map sending. The default hard per-connection limit is 64 MiB of estimated packet data or 65,536 pending packets. Configure these limits under `Early` in `config.json`, then restart. See [Outgoing packet queues](configuration.md#outgoing-packet-queues). A write that would exceed a limit closes the connection. A limit set to `0` is not applied.
 
 Netty warnings identify the byte or packet limit and include pending and requested counts. On Netty, packet size calculation failures are reported separately. Quiche reports them as a queue limit overflow without counts.
 
@@ -194,7 +163,7 @@ Optional world behavior and storage access used by shared worlds.
 
 `SharedInstances` requires `Mixins.Features.SharedInstanceStorage` in `Refixes.json`. It also requires `Runtime.Compatibility.ExistingSharedInstances` in `config.json`. Startup stops if either requirement is disabled while shared-instance creation is enabled.
 
-`SharedInstanceStorage` is also used for existing shared worlds when new shared-instance creation is disabled. See [Configuration](Configuration.md) for storage and reset behavior.
+`SharedInstanceStorage` is also used for existing shared worlds when new shared-instance creation is disabled. See [Configuration](configuration.md) for storage and reset behavior.
 
 ## Recovery
 Section: `Mixins.Recovery`
