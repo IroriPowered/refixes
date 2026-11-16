@@ -100,7 +100,7 @@ public abstract class MixinServerAuthManager {
                     setExpiryAndScheduleRefresh(seededExpiry);
                     refixes$LOGGER.atInfo().log("Token refresh scheduler started (expires: %s)", seededExpiry);
                 } catch (Exception e) {
-                    refixes$LOGGER.atWarning().log("Failed to schedule token refresh: %s", e.getMessage());
+                    refixes$LOGGER.atWarning().withCause(e).log("Failed to schedule token refresh: %s", e.getMessage());
                 }
             }
         } else {
@@ -117,7 +117,8 @@ public abstract class MixinServerAuthManager {
                     try {
                         setExpiryAndScheduleRefresh(expiresAt);
                     } catch (Exception e) {
-                        refixes$LOGGER.atWarning().log("Failed to schedule token refresh: %s", e.getMessage());
+                        refixes$LOGGER.atWarning().withCause(e).log(
+                                "Failed to schedule token refresh: %s", e.getMessage());
                     }
                 } else if (existingTokens.refreshToken() != null) {
                     refixes$LOGGER.atInfo().log(
@@ -126,7 +127,8 @@ public abstract class MixinServerAuthManager {
                         try {
                             setExpiryAndScheduleRefresh(expiresAt);
                         } catch (Exception e) {
-                            refixes$LOGGER.atWarning().log("Failed to schedule token refresh: %s", e.getMessage());
+                            refixes$LOGGER.atWarning().withCause(e).log(
+                                    "Failed to schedule token refresh: %s", e.getMessage());
                         }
                     }
                 } else {
@@ -239,7 +241,7 @@ public abstract class MixinServerAuthManager {
                     break;
                 }
             } catch (Exception e) {
-                refixes$LOGGER.atWarning().log(
+                refixes$LOGGER.atWarning().withCause(e).log(
                         "Game session creation attempt %d/%d failed: %s", attempt, maxRetries, e.getMessage());
             }
 
@@ -398,7 +400,7 @@ public abstract class MixinServerAuthManager {
                     Instant expiresAt = Instant.parse(session.expiresAt);
                     json.addProperty("session_expires", expiresAt.getEpochSecond());
                 } catch (Exception e) {
-                    refixes$LOGGER.atWarning().log("Failed to parse session expiry: %s", e.getMessage());
+                    refixes$LOGGER.atWarning().withCause(e).log("Failed to parse session expiry: %s", e.getMessage());
                 }
             }
 
@@ -414,7 +416,8 @@ public abstract class MixinServerAuthManager {
             refixes$writeAtomically(authFile, refixes$GSON.toJson(json));
             refixes$LOGGER.atInfo().log("Synced OAuth tokens to external auth file");
         } catch (Exception e) {
-            refixes$LOGGER.atWarning().log("Failed to sync tokens to external auth file: %s", e.getMessage());
+            refixes$LOGGER.atWarning().withCause(e).log(
+                    "Failed to sync tokens to external auth file: %s", e.getMessage());
         }
     }
 
