@@ -78,6 +78,12 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Tuning", "CylinderVisibility", false, "MixinCollectVisible"),
             toggle("Tuning", "ChunkStreaming", false, "MixinPlayerChunkTrackerSystems", "MixinPlayerViewRadius"),
             toggle("Tuning", "WorldHeightBounds", false, "MixinChunkTrackerHeightBounds", "MixinWorldHeightBounds"),
+            toggle(
+                    "Tuning",
+                    "WorldMapExistingTerrain",
+                    false,
+                    "MixinImageBuilderExistingTerrain",
+                    "MixinWorldMapTrackerMissingTerrain"),
             toggle("Tuning", "TickWait", false, "MixinTickSleep"),
             toggle("Tuning", "PathfindingLimits", false, "MixinAStarLimits"),
             toggle("Features", "OriginRetention", false, "MixinChunkUnloadingSystem"),
