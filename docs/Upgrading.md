@@ -1,4 +1,4 @@
-[Home](Home.md) · [Configuration](Configuration.md) · [Patches](Patches.md) · **Upgrading**
+[Home](README.md) · [Configuration](Configuration.md) · [Patches](Patches.md) · **Upgrading**
 
 # Upgrading from 0.6.0 to 0.7.0-pre.5
 
@@ -8,7 +8,7 @@ Refixes 0.6.0 is the release for Hytale 0.7.7. Refixes 0.7.0-pre.5 supports Hyta
 
 1. Update the server to Hytale 0.8.0-pre.5 or a later 0.8 version. On Hytale 0.7.7, Refixes 0.7.0-pre.5 disables its early patches.
 2. Back up `mods/IroriPowered_Refixes/`.
-3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged. See [Installation](Home.md#installation).
+3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged. See [Installation](README.md#installation).
 4. After the first start, check the lines that start with `[Refixes] Refixes.json:`. Each removed switch is logged as `Removed retired setting` with the reason `fixed in Hytale 0.8.0-pre.5`. Later starts log nothing because the keys are gone.
 
 `config.json` keeps all of its keys and defaults. No setting there moves or is removed.
@@ -86,7 +86,7 @@ Refixes 0.6.0 reorganizes `Refixes.json` and `config.json`. Settings from 0.5.x 
 Every moved, ignored or removed setting is logged with the prefix `[Refixes] Refixes.json:` or `[Refixes] config.json:`. Check these lines after the first start. Later starts log nothing because the old keys are gone.
 
 Requirements changed too:
-- [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer with Fabric Mixin 0.17.5. See [Installation](Home.md#installation).
+- [Hyinit](https://github.com/IroriPowered/hyinit/releases/tag/0.3.0) 0.3.0 or newer with Fabric Mixin 0.17.5. See [Installation](README.md#installation).
 - Refixes 0.6.0 was built for Hytale 0.7.7. Refixes 0.5.0 was built for Hytale 0.6.4. Refixes 0.7.0-pre.5 needs Hytale 0.8.0-pre.5 or a later 0.8 version.
 
 ## Refixes.json

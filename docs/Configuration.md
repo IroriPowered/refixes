@@ -1,6 +1,6 @@
-[Home](Home.md) · **Configuration** · [Patches](Patches.md) · [Upgrading](Upgrading.md)
+[Home](README.md) · **Configuration** · [Patches](Patches.md) · [Upgrading](Upgrading.md)
 
-Settings live in `mods/IroriPowered_Refixes/config.json`, created and saved by the server. It contains both `Early` and `Runtime` settings. Patch switches in `Refixes.json` are documented in [Patches](Patches.md). Restart the server after changing either file. See [compatibility](Home.md#compatibility) before using patch-dependent features.
+Settings live in `mods/IroriPowered_Refixes/config.json`, created and saved by the server. It contains both `Early` and `Runtime` settings. Patch switches in `Refixes.json` are documented in [Patches](Patches.md). Restart the server after changing either file. See [compatibility](README.md#compatibility) before using patch-dependent features.
 
 Missing values use defaults. Back up your settings before upgrading. Settings from Refixes 0.5.x are moved to the paths below once at startup on a supported server version and each move is logged. See [Upgrading](Upgrading.md). Other unknown keys are removed on save. Startup stops if `config.json` is not valid JSON. See [Startup checks](Patches.md#startup-checks).
 

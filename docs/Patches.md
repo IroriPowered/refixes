@@ -12,11 +12,11 @@ Correctness fixes are separated from optional tuning, world behavior and recover
 
 `AllowUnsupportedServerVersion` is a top-level key. Default: `false`.
 
-Supported versions are listed under [Compatibility](Home.md#compatibility). When Refixes does not accept the server version, or cannot identify it, all early patches are disabled and a message is logged. The server still starts. Runtime features that need patches report that they are inactive.
+Supported versions are listed under [Compatibility](README.md#compatibility). When Refixes does not accept the server version, or cannot identify it, all early patches are disabled and a message is logged. The server still starts. Runtime features that need patches report that they are inactive.
 
 Setting `AllowUnsupportedServerVersion` to `true` applies the configured patches on a version Refixes was not built for. This is unsupported and startup can fail. Individual patch switches and dependency checks still apply.
 
-**This is not a normal setup step.** Use a compatible Refixes release instead. See [Compatibility](Home.md#compatibility).
+**This is not a normal setup step.** Use a compatible Refixes release instead. See [Compatibility](README.md#compatibility).
 
 ## Startup checks
 
