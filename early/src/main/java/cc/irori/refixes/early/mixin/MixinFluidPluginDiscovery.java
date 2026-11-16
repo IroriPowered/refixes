@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.accessor.FluidSectionPaletteAccess;
+import cc.irori.refixes.early.util.PatchCounters;
 import com.hypixel.hytale.assetstore.map.BlockTypeAssetMap;
 import com.hypixel.hytale.assetstore.map.IndexedLookupTableAssetMap;
 import com.hypixel.hytale.builtin.fluid.FluidPlugin;
@@ -38,10 +39,12 @@ public class MixinFluidPluginDiscovery {
             BlockSection belowBlockSection,
             boolean bottomIsWorldFloor,
             CallbackInfo ci) {
+        if (PatchCounters.ENABLED) PatchCounters.FLUID_DISCOVERY.countReached();
         AbstractSectionPalette palette = ((FluidSectionPaletteAccess) fluidSection).refixes$getTypePalette();
         if (!(palette instanceof HalfByteSectionPalette)) {
             return;
         }
+        if (PatchCounters.ENABLED) PatchCounters.FLUID_DISCOVERY.countEffect();
         ci.cancel();
         IntArrayList fluidIds = new IntArrayList(16);
         palette.forEachValue(id -> {

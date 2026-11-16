@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.accessor.ExistingTerrainAccess;
+import cc.irori.refixes.early.util.PatchCounters;
 import com.hypixel.hytale.common.fastutil.HLongSet;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
@@ -167,8 +168,12 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
     private CompletableFuture<MapImage> refixes$request(
             WorldMapManager manager, long index, Operation<CompletableFuture<MapImage>> original, World world) {
         if (manager.getWorldMapSettings().getWorldMapArea() != null) return original.call(manager, index);
+        if (PatchCounters.ENABLED) PatchCounters.WORLD_MAP_EXISTING_TERRAIN.countReached();
         long now = System.nanoTime();
-        if (refixes$isWaiting(index, now)) return REFIXES$MISSING;
+        if (refixes$isWaiting(index, now)) {
+            if (PatchCounters.ENABLED) PatchCounters.WORLD_MAP_EXISTING_TERRAIN.countEffect();
+            return REFIXES$MISSING;
+        }
         CompletableFuture<MapImage> request = refixes$requests.get(index);
         if (request != null) {
             if (!request.isDone()) {
@@ -222,6 +227,7 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
 
     @Unique
     private CompletableFuture<MapImage> refixes$markMissing(long index, long now) {
+        if (PatchCounters.ENABLED) PatchCounters.WORLD_MAP_EXISTING_TERRAIN.countEffect();
         if (refixes$missingSince.size() >= REFIXES$MAX_TRACKED) refixes$missingSince.clear();
         refixes$missingSince.put(index, now);
         return REFIXES$MISSING;

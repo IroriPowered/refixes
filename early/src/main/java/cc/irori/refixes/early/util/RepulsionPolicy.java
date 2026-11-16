@@ -10,9 +10,11 @@ public final class RepulsionPolicy {
     private RepulsionPolicy() {}
 
     public static ReferenceArrayList<Object> borrow() {
+        if (PatchCounters.ENABLED) PatchCounters.REPULSION_TICKER.countReached();
         ReferenceArrayList<Object> list = AVAILABLE.get();
         AVAILABLE.remove();
         if (list == null) return new ReferenceArrayList<>();
+        if (PatchCounters.ENABLED) PatchCounters.REPULSION_TICKER.countEffect();
         list.clear();
         return list;
     }

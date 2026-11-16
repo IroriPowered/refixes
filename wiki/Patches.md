@@ -178,6 +178,8 @@ These numbers come from a test server on Hytale 0.7.7 with one simulated player.
 
 The seven optimizations that are on by default lowered world-thread allocation by 2.8 percent together in the NPC scenario. Refixes as a whole showed no measurable cost or gain there.
 
+To see what the performance patches do on your own server, turn on `Mixins.Diagnostics.PatchCounters` and run `/patchcounters`. See [Diagnostics](#diagnostics).
+
 ## Features
 Section: `Mixins.Features`
 
@@ -256,6 +258,13 @@ Reporting controls. Disabling system metrics is optional.
 | `SkipSystemMetrics` | `false` | Disables system timing metrics. |
 | `HytaleServer` | `true` | Warns when the runtime Refixes plugin is not enabled. |
 | `SpawnMarkerBlockStateHeartbeat` | `true` | Reports spawn marker heartbeat messages at warning level. |
+| `PatchCounters` | `false` | Counts how often each performance patch was reached and how often it changed the outcome since server start. Read the numbers with `/patchcounters`. Needs a restart to take effect. |
+
+With `PatchCounters` on, `/patchcounters` prints one line for each counted performance switch. Each line shows the switch name, whether the patch is on or off and two numbers. The first number counts how often the server reached the patched code. The second counts how often the patch changed what happened, for example a cache hit, a skipped section, a header-only read, a shared snapshot or a lowered path limit.
+
+A first number of zero means the server never ran that code since it started, so the patch does nothing on this server as it is used now. A patch that is off always shows zero. Both numbers count events, not time saved. A high second number shows the patch is doing work but does not say how much CPU it saved.
+
+`RocksDbCompression`, `CylinderVisibility` and `ChunkStreaming` have no counter because they only apply settings or because their effect cannot be counted cheaply. The counters start at zero on every server start. Counting costs nothing while the switch is off.
 
 ## Experimental
 Section: `Mixins.Experimental`

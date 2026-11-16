@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.util.PatchCounters;
 import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
@@ -43,7 +44,9 @@ public class MixinCollisionConfig {
         if (componentType != FluidSection.getComponentType()) {
             return store.getComponent(ref, componentType);
         }
+        if (PatchCounters.ENABLED) PatchCounters.COLLISION_CONFIG.countReached();
         if (ref == this.refixes$fluidRef) {
+            if (PatchCounters.ENABLED) PatchCounters.COLLISION_CONFIG.countEffect();
             return this.refixes$fluidSection;
         }
         Component<ChunkStore> section = store.getComponent(ref, componentType);

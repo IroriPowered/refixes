@@ -30,6 +30,7 @@ public final class SoundHeaderInfo {
     private SoundHeaderInfo() {}
 
     public static OggVorbisInfo getNow(String name, Operation<OggVorbisInfo> original) {
+        if (PatchCounters.ENABLED) PatchCounters.SOUND_HEADER_VALIDATION.countReached();
         if (!NATIVE_READERS || name == null) return original.call(name);
         OggVorbisInfo cached =
                 MixinOggVorbisInfoCacheAccess.refixes$getVorbisFiles().get(name);
@@ -45,6 +46,7 @@ public final class SoundHeaderInfo {
             return original.call(name);
         }
         OggVorbisInfo info = parse(prefix);
+        if (PatchCounters.ENABLED && info != null) PatchCounters.SOUND_HEADER_VALIDATION.countEffect();
         return info != null ? info : original.call(name);
     }
 

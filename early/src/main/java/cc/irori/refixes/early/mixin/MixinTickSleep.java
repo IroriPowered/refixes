@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.util.Logs;
+import cc.irori.refixes.early.util.PatchCounters;
 import com.hypixel.hytale.server.core.util.thread.TickingThread;
 import java.util.concurrent.locks.LockSupport;
 import org.spongepowered.asm.mixin.Mixin;
@@ -31,7 +32,9 @@ public class MixinTickSleep {
     @Redirect(method = "run", at = @At(value = "INVOKE", target = "Ljava/lang/Thread;onSpinWait()V"))
     private void refixes$hybridWait() {
         Thread.onSpinWait();
+        if (PatchCounters.ENABLED) PatchCounters.TICK_WAIT.countReached();
         if (refixes$timerState == 1) {
+            if (PatchCounters.ENABLED) PatchCounters.TICK_WAIT.countEffect();
             LockSupport.parkNanos(refixes$PARK_NANOS);
         }
     }

@@ -8,6 +8,9 @@ public final class WorldHeight {
     private WorldHeight() {}
 
     public static boolean isUnbounded(ChunkStore store, boolean cubicStorage) {
-        return cubicStorage && store.getGenerator() instanceof IWorldGen.Cubic;
+        boolean unbounded = cubicStorage && store.getGenerator() instanceof IWorldGen.Cubic;
+        if (PatchCounters.ENABLED) PatchCounters.WORLD_HEIGHT_BOUNDS.countReached();
+        if (PatchCounters.ENABLED && cubicStorage && !unbounded) PatchCounters.WORLD_HEIGHT_BOUNDS.countEffect();
+        return unbounded;
     }
 }

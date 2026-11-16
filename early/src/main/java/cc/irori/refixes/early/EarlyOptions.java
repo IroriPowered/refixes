@@ -10,6 +10,7 @@ public final class EarlyOptions {
 
     private static boolean available = false;
     private static final String MIXIN_SELECTION_PROPERTY = "cc.irori.refixes.early.enabledMixins";
+    private static final String PATCH_COUNTERS_PROPERTY = "cc.irori.refixes.early.patchCounters";
 
     private record MixinSelection(String encoded, Set<String> mixins) {}
 
@@ -67,7 +68,16 @@ public final class EarlyOptions {
 
     static void clearMixinSelection() {
         System.clearProperty(MIXIN_SELECTION_PROPERTY);
+        System.clearProperty(PATCH_COUNTERS_PROPERTY);
         selection = new MixinSelection(null, Set.of());
+    }
+
+    static void setPatchCounters(boolean enabled) {
+        System.setProperty(PATCH_COUNTERS_PROPERTY, Boolean.toString(enabled));
+    }
+
+    public static boolean patchCountersEnabled() {
+        return Boolean.getBoolean(PATCH_COUNTERS_PROPERTY);
     }
 
     public static boolean hasMixinSelection() {

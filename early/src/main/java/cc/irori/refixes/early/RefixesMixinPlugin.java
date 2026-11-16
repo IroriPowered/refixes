@@ -75,6 +75,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Diagnostics", "SkipSystemMetrics", false, "MixinStoreSystemMetrics"),
             toggle("Diagnostics", "HytaleServer", true, "MixinHytaleServer"),
             toggle("Diagnostics", "SpawnMarkerBlockStateHeartbeat", true, "MixinSpawnMarkerBlockStateHeartbeat"),
+            toggle("Diagnostics", "PatchCounters", false),
             toggle("Tuning", "CylinderVisibility", false, "MixinCollectVisible"),
             toggle("Tuning", "ChunkStreaming", false, "MixinPlayerChunkTrackerSystems", "MixinPlayerViewRadius"),
             toggle("Tuning", "WorldHeightBounds", false, "MixinChunkTrackerHeightBounds", "MixinWorldHeightBounds"),
@@ -441,6 +442,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         Set<String> selected = Set.copyOf(enabled);
         enabledMixins = selected;
         EarlyOptions.setMixinSelection(selected);
+        EarlyOptions.setPatchCounters(toggleEnabled(config, "Diagnostics", "PatchCounters"));
         initialized = true;
         if (unsupportedServerVersion) {
             System.out.println("[Refixes] Version gate overridden for Hytale "
@@ -452,6 +454,8 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         System.out.println("[Refixes] === Early mixin patches ===");
         for (String mixin : ALL_MIXINS.stream().sorted().toList())
             System.out.println("[Refixes]   - " + (selected.contains(mixin) ? "[x] " : "[ ] ") + mixin);
+        if (EarlyOptions.patchCountersEnabled())
+            System.out.println("[Refixes] Patch counters are on. Run /patchcounters to read them.");
     }
 
     private static String readServerVersion() {
@@ -535,6 +539,15 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
     private static void requireDependency(boolean available, String feature, String dependency) {
         if (!available)
             throw new IllegalStateException(feature + " requires " + dependency + " to be enabled in " + CONFIG_PATH);
+    }
+
+    private static boolean toggleEnabled(JsonObject config, String category, String key) {
+        for (MixinToggle toggle : TOGGLES) {
+            String[] path = toggle.jsonPath;
+            if (path.length == 3 && path[1].equals(category) && path[2].equals(key))
+                return toggleEnabled(config, toggle);
+        }
+        throw new IllegalArgumentException("Unknown mixin policy: " + category + "." + key);
     }
 
     private static boolean toggleEnabled(JsonObject config, String category, String group, String key) {

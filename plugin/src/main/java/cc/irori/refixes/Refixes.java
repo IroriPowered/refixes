@@ -1,6 +1,7 @@
 package cc.irori.refixes;
 
 import cc.irori.refixes.command.ChunkLoaderCommand;
+import cc.irori.refixes.command.PatchCountersCommand;
 import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
@@ -321,6 +322,7 @@ public class Refixes extends JavaPlugin {
                 if (!event.isCancelled()) chunkLoaderService.unloadWorld(event.getWorld());
             });
         });
+        getCommandRegistry().registerCommand(new PatchCountersCommand());
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) LOGGER.atInfo().log(summary);
     }

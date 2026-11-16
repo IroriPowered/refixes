@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.util.PatchCounters;
 import com.hypixel.hytale.server.npc.navigation.AStarBase;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -55,6 +56,13 @@ public abstract class MixinAStarLimits {
                 refixes$tighter(refixes$roleOpenNodesLimit, EarlyOptions.PATHFINDING_OPEN_NODES_LIMIT.get());
         this.totalNodesLimit =
                 refixes$tighter(refixes$roleTotalNodesLimit, EarlyOptions.PATHFINDING_TOTAL_NODES_LIMIT.get());
+        if (PatchCounters.ENABLED) PatchCounters.PATHFINDING_LIMITS.countReached();
+        if (PatchCounters.ENABLED
+                && (maxPathLength != refixes$roleMaxPathLength
+                        || openNodesLimit != refixes$roleOpenNodesLimit
+                        || totalNodesLimit != refixes$roleTotalNodesLimit)) {
+            PatchCounters.PATHFINDING_LIMITS.countEffect();
+        }
     }
 
     @Unique
