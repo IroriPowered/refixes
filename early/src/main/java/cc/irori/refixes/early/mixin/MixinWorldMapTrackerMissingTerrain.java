@@ -1,20 +1,20 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.accessor.ExistingTerrainAccess;
 import com.hypixel.hytale.common.fastutil.HLongSet;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.WorldMapTracker;
-import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
-import com.hypixel.hytale.server.core.universe.world.storage.GetChunkFlags;
-import com.hypixel.hytale.server.core.universe.world.worldmap.IWorldMap;
 import com.hypixel.hytale.server.core.universe.world.worldmap.WorldMapManager;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongIterator;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.concurrent.CompletableFuture;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -46,18 +46,27 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
     @Final
     private Player player;
 
-    @Unique
-    private final Long2LongOpenHashMap refixes$probedAt = new Long2LongOpenHashMap();
+    @Shadow
+    private int sentViewRadius;
+
+    @Shadow
+    private int lastChunkX;
+
+    @Shadow
+    private int lastChunkZ;
 
     @Unique
-    private final Long2ObjectOpenHashMap<CompletableFuture<MapImage>> refixes$probes = new Long2ObjectOpenHashMap<>();
+    private final Long2LongOpenHashMap refixes$missingSince = new Long2LongOpenHashMap();
+
+    @Unique
+    private final Long2ObjectOpenHashMap<CompletableFuture<MapImage>> refixes$requests = new Long2ObjectOpenHashMap<>();
+
+    @Unique
+    private final Long2LongOpenHashMap refixes$requestSeenAt = new Long2LongOpenHashMap();
 
     @Unique
     private final Long2ObjectOpenHashMap<CompletableFuture<Boolean>> refixes$terrainChecks =
             new Long2ObjectOpenHashMap<>();
-
-    @Unique
-    private boolean refixes$missing;
 
     @WrapOperation(
             method = "loadImages",
@@ -68,92 +77,177 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
                                     "Lcom/hypixel/hytale/server/core/universe/world/worldmap/WorldMapManager;getImageAsync(J)Ljava/util/concurrent/CompletableFuture;"),
             require = 1,
             allow = 1)
-    private CompletableFuture<MapImage> refixes$skipMissingTerrain(
+    private CompletableFuture<MapImage> refixes$drawExistingTerrain(
             WorldMapManager manager,
             long index,
             Operation<CompletableFuture<MapImage>> original,
-            @Local(argsOnly = true) World world,
-            @Local(argsOnly = true, ordinal = 1) int playerChunkX,
-            @Local(argsOnly = true, ordinal = 2) int playerChunkZ) {
+            @Local(argsOnly = true) World world) {
+        return refixes$request(manager, index, original, world);
+    }
+
+    @WrapOperation(
+            method = "processPendingReloadChunks",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/server/core/universe/world/worldmap/WorldMapManager;getImageAsync(J)Ljava/util/concurrent/CompletableFuture;"),
+            require = 1,
+            allow = 1)
+    private CompletableFuture<MapImage> refixes$reloadExistingTerrain(
+            WorldMapManager manager,
+            long index,
+            Operation<CompletableFuture<MapImage>> original,
+            @Local(argsOnly = true) World world) {
+        CompletableFuture<MapImage> future = refixes$request(manager, index, original, world);
+        if (future == REFIXES$MISSING) sentViewRadius = 0;
+        return future;
+    }
+
+    @WrapOperation(
+            method = "processPendingReloadChunks",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lit/unimi/dsi/fastutil/longs/Long2ObjectOpenHashMap;put(JLjava/lang/Object;)Ljava/lang/Object;"),
+            require = 1,
+            allow = 1)
+    private Object refixes$askAgainWhilePending(
+            Long2ObjectOpenHashMap<CompletableFuture<MapImage>> futures,
+            long index,
+            Object future,
+            Operation<Object> original) {
+        return future == REFIXES$PENDING ? null : original.call(futures, index, future);
+    }
+
+    @WrapOperation(
+            method = {"loadImages", "processPendingReloadChunks"},
+            at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/common/fastutil/HLongSet;add(J)Z"),
+            require = 2,
+            allow = 2)
+    private boolean refixes$keepMissingUnloaded(
+            HLongSet loaded, long index, Operation<Boolean> original, @Local CompletableFuture<MapImage> future) {
+        return future != REFIXES$MISSING && original.call(loaded, index);
+    }
+
+    @Inject(
+            method = "clear",
+            at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/common/fastutil/HLongSet;clear()V"),
+            require = 1,
+            allow = 1)
+    private void refixes$forgetMissingTerrain(CallbackInfo ci) {
+        refixes$missingSince.clear();
+        refixes$requests.clear();
+        refixes$requestSeenAt.clear();
+        refixes$terrainChecks.clear();
+    }
+
+    @Inject(
+            method = "clearChunks",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lit/unimi/dsi/fastutil/longs/LongSet;forEach(Ljava/util/function/LongConsumer;)V"),
+            require = 1,
+            allow = 1)
+    private void refixes$forgetClearedChunks(LongSet chunks, CallbackInfo ci) {
+        LongIterator iterator = chunks.iterator();
+        while (iterator.hasNext()) {
+            long index = iterator.nextLong();
+            refixes$missingSince.remove(index);
+            refixes$requests.remove(index);
+            refixes$requestSeenAt.remove(index);
+            refixes$terrainChecks.remove(index);
+        }
+    }
+
+    @Unique
+    private CompletableFuture<MapImage> refixes$request(
+            WorldMapManager manager, long index, Operation<CompletableFuture<MapImage>> original, World world) {
+        if (manager.getWorldMapSettings().getWorldMapArea() != null) return original.call(manager, index);
         long now = System.nanoTime();
-        if (refixes$probedAt.containsKey(index)) {
-            long dx = ChunkUtil.xOfChunkIndex(index) - playerChunkX;
-            long dz = ChunkUtil.zOfChunkIndex(index) - playerChunkZ;
-            long near = player.getViewRadius() + 1;
-            long wait = dx * dx + dz * dz <= near * near ? REFIXES$NEAR_RETRY_NANOS : REFIXES$FAR_RETRY_NANOS;
-            if (now - refixes$probedAt.get(index) < wait) {
-                refixes$missing = true;
-                return REFIXES$MISSING;
+        if (refixes$isWaiting(index, now)) return REFIXES$MISSING;
+        CompletableFuture<MapImage> request = refixes$requests.get(index);
+        if (request != null) {
+            if (!request.isDone()) {
+                refixes$requestSeenAt.put(index, now);
+                return REFIXES$PENDING;
             }
-            refixes$probedAt.remove(index);
+            refixes$requests.remove(index);
+            boolean watched = now - refixes$requestSeenAt.remove(index) < REFIXES$FAR_RETRY_NANOS;
+            if (refixes$isEmpty(request)) return refixes$markMissing(index, now);
+            if (watched) return request;
+        } else {
+            CompletableFuture<MapImage> blocked = refixes$awaitTerrain(world, index, now);
+            if (blocked != null) return blocked;
         }
-        refixes$missing = false;
-        CompletableFuture<MapImage> future = refixes$probes.get(index);
-        if (future == null) {
-            if (refixes$usesForeignBuilder(manager.getGenerator())) {
-                CompletableFuture<Boolean> check = refixes$terrainChecks.get(index);
-                if (check == null) {
-                    check = refixes$terrainPresent(world.getChunkStore(), index);
-                    if (refixes$terrainChecks.size() >= REFIXES$MAX_TRACKED) refixes$terrainChecks.clear();
-                    refixes$terrainChecks.put(index, check);
-                }
-                if (!check.isDone()) return REFIXES$PENDING;
-                refixes$terrainChecks.remove(index);
-                if (check.isCompletedExceptionally() || !check.getNow(false)) return refixes$markMissing(index, now);
-            }
-            future = original.call(manager, index);
-        }
+        CompletableFuture<MapImage> future = original.call(manager, index);
         if (!future.isDone()) {
-            if (refixes$probes.size() >= REFIXES$MAX_TRACKED) refixes$probes.clear();
-            refixes$probes.put(index, future);
-            return future;
+            if (refixes$requests.size() >= REFIXES$MAX_TRACKED) {
+                refixes$requests.clear();
+                refixes$requestSeenAt.clear();
+            }
+            refixes$requests.put(index, future);
+            refixes$requestSeenAt.put(index, now);
+            return REFIXES$PENDING;
         }
-        refixes$probes.remove(index);
-        if (future.isCompletedExceptionally() || future.getNow(null) != null) return future;
-        return refixes$markMissing(index, now);
+        return refixes$isEmpty(future) ? refixes$markMissing(index, now) : future;
+    }
+
+    @Unique
+    private boolean refixes$isWaiting(long index, long now) {
+        if (!refixes$missingSince.containsKey(index)) return false;
+        long dx = ChunkUtil.xOfChunkIndex(index) - lastChunkX;
+        long dz = ChunkUtil.zOfChunkIndex(index) - lastChunkZ;
+        long reach = Math.max(0, 2L * player.getViewRadius() - 3);
+        long wait = 4 * (dx * dx + dz * dz) <= reach * reach ? REFIXES$NEAR_RETRY_NANOS : REFIXES$FAR_RETRY_NANOS;
+        if (now - refixes$missingSince.get(index) < wait) return true;
+        refixes$missingSince.remove(index);
+        return false;
+    }
+
+    @Unique
+    private CompletableFuture<MapImage> refixes$awaitTerrain(World world, long index, long now) {
+        CompletableFuture<Boolean> check = refixes$terrainChecks.remove(index);
+        if (check == null) check = refixes$terrainPresent((ExistingTerrainAccess) world.getChunkStore(), index);
+        if (!check.isDone()) {
+            if (refixes$terrainChecks.size() >= REFIXES$MAX_TRACKED) refixes$terrainChecks.clear();
+            refixes$terrainChecks.put(index, check);
+            return REFIXES$PENDING;
+        }
+        return check.isCompletedExceptionally() || !check.getNow(false) ? refixes$markMissing(index, now) : null;
     }
 
     @Unique
     private CompletableFuture<MapImage> refixes$markMissing(long index, long now) {
-        if (refixes$probedAt.size() >= REFIXES$MAX_TRACKED) refixes$probedAt.clear();
-        refixes$probedAt.put(index, now);
-        refixes$missing = true;
+        if (refixes$missingSince.size() >= REFIXES$MAX_TRACKED) refixes$missingSince.clear();
+        refixes$missingSince.put(index, now);
         return REFIXES$MISSING;
     }
 
     @Unique
-    private static boolean refixes$usesForeignBuilder(IWorldMap generator) {
-        return generator != null && !generator.getClass().getName().startsWith("com.hypixel.hytale.");
+    private static boolean refixes$isEmpty(CompletableFuture<MapImage> future) {
+        return !future.isCompletedExceptionally() && future.getNow(null) == null;
     }
 
     @Unique
-    private static CompletableFuture<Boolean> refixes$terrainPresent(ChunkStore store, long index) {
-        int x = ChunkUtil.xOfChunkIndex(index);
-        int z = ChunkUtil.zOfChunkIndex(index);
-        CompletableFuture<Boolean> present = CompletableFuture.completedFuture(true);
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                present = present.thenCombine(
-                        store.getChunkReferenceAsync(ChunkUtil.indexChunk(x + dx, z + dz), GetChunkFlags.NO_GENERATE),
-                        (found, reference) -> found && reference != null && reference.isValid());
+    private static CompletableFuture<Boolean> refixes$terrainPresent(ExistingTerrainAccess terrain, long index) {
+        return terrain.refixes$getExistingChunk(index).thenCompose(centre -> {
+            if (centre == null || !centre.isValid()) return CompletableFuture.completedFuture(false);
+            int x = ChunkUtil.xOfChunkIndex(index);
+            int z = ChunkUtil.zOfChunkIndex(index);
+            CompletableFuture<Boolean> present = CompletableFuture.completedFuture(true);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    present = present.thenCombine(
+                            terrain.refixes$getExistingChunk(ChunkUtil.indexChunk(x + dx, z + dz)),
+                            (found, reference) -> found && reference != null && reference.isValid());
+                }
             }
-        }
-        return present;
-    }
-
-    @WrapOperation(
-            method = "loadImages",
-            at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/common/fastutil/HLongSet;add(J)Z"),
-            require = 1,
-            allow = 1)
-    private boolean refixes$keepMissingUnloaded(HLongSet loaded, long index, Operation<Boolean> original) {
-        return !refixes$missing && original.call(loaded, index);
-    }
-
-    @Inject(method = "clear", at = @At("HEAD"), require = 1, allow = 1)
-    private void refixes$forgetMissingTerrain(CallbackInfo ci) {
-        refixes$probedAt.clear();
-        refixes$probes.clear();
-        refixes$terrainChecks.clear();
+            return present;
+        });
     }
 }

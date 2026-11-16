@@ -167,6 +167,8 @@
         "MixinWorldMapPacing",
         "MixinImageBuilderExistingTerrain",
         "MixinWorldMapTrackerMissingTerrain",
+        "MixinChunkGridExistingTerrain",
+        "MixinLoadStateAccess",
         "MixinWorldMapManager",
         "MixinWorldSpawningSystem",
         "MixinAStarLimits",

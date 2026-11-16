@@ -154,8 +154,8 @@ Optional changes to visibility, streaming, waiting and pathfinding limits.
 |-----|---------|-------------|
 | `CylinderVisibility` | `false` | Uses a cylinder instead of a sphere for entity visibility. The default height includes more entities above and below players. See `Early.CylinderVisibility`. |
 | `ChunkStreaming` | `false` | Applies `Early.MaxSectionsPerSecond`, `Early.MaxSectionsPerTick` and `Early.UnloadDistanceOffset`. |
-| `WorldHeightBounds` | `false` | Stops sending sections above and below the standard world height on RocksDB worlds. Worlds whose generator creates sections outside that height are left unchanged. |
-| `WorldMapExistingTerrain` | `false` | Draws the world map only from terrain that already exists. The map no longer generates terrain and fills in as players load it. With mods that draw their own map images the map shows a chunk once its neighbours are loaded too. |
+| `WorldHeightBounds` | `false` | Stops sending sections above and below the standard world height on RocksDB worlds. Worlds whose generator creates sections outside that height are left unchanged. Anything already stored outside that height stays in the world but is not sent to players while this is on. |
+| `WorldMapExistingTerrain` | `false` | Draws the world map only from terrain that already exists. The map no longer generates terrain and fills in as players load it. A chunk appears on the map once it and its eight neighbours exist. Worlds whose map is limited to a fixed area are left unchanged. |
 | `TickWait` | `false` | Uses brief sleeps between ticks when the system timer is precise enough. Otherwise keeps the server's normal waiting behavior. |
 | `PathfindingLimits` | `false` | Caps path length and search nodes using the `Early` settings. Keeps stricter NPC role limits. |
 
