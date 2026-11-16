@@ -47,6 +47,7 @@ public class WatchdogService {
     private final Set<String> intentionallyRemoved = ConcurrentHashMap.newKeySet();
     private final Set<String> restartCandidates = ConcurrentHashMap.newKeySet();
     private final Set<String> selfInitiatedRemovals = ConcurrentHashMap.newKeySet();
+    private final Set<String> worldsRejectingTasks = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean armed = new AtomicBoolean();
 
     private final boolean canRestartWorlds =
@@ -122,6 +123,7 @@ public class WatchdogService {
         String name = event.getWorld().getName();
         if (!name.startsWith(InstancesPlugin.INSTANCE_PREFIX)) restartCandidates.add(name);
         intentionallyRemoved.remove(name);
+        worldsRejectingTasks.remove(name);
     }
 
     public synchronized void unregisterService() {
@@ -222,8 +224,12 @@ public class WatchdogService {
                 // Wait for response on world thread
                 world.execute(
                         () -> worldResponseMap.computeIfPresent(worldName, (key, last) -> System.currentTimeMillis()));
+                worldsRejectingTasks.remove(worldName);
             } catch (Exception e) {
                 worldResponseMap.put(worldName, WORLD_RESPONSE_ERROR);
+                if (worldsRejectingTasks.add(worldName)) {
+                    LOGGER.atWarning().withCause(e).log("World %s did not accept a watchdog task", worldName);
+                }
             }
         }
     }
@@ -416,6 +422,7 @@ public class WatchdogService {
 
         boolean shutdown = false;
         String shutdownReason = "Unknown";
+        Throwable cause = null;
 
         World world = Universe.get().getDefaultWorld();
         if (world == null && Options.isBare()) {
@@ -448,10 +455,11 @@ public class WatchdogService {
             shutdown = true;
             shutdownReason =
                     "World " + world.getName() + " was unable to accept tasks. The world may have been crashed.";
+            cause = e;
         }
 
         if (shutdown) {
-            alert(shutdownReason);
+            alert(shutdownReason, cause);
         }
     }
 
@@ -472,6 +480,10 @@ public class WatchdogService {
     }
 
     private void alert(String reason) throws InterruptedException {
+        alert(reason, null);
+    }
+
+    private void alert(String reason, @Nullable Throwable cause) throws InterruptedException {
         long now = System.currentTimeMillis();
         boolean repeat = lastAlertAt != 0 && defaultWorldResponse.get() < lastAlertAt;
         if (repeat
@@ -480,7 +492,7 @@ public class WatchdogService {
             return;
         }
         lastAlertAt = now;
-        triggerWatchdog(reason);
+        triggerWatchdog(reason, cause);
     }
 
     private static boolean watchForServerShutdown() throws InterruptedException {
@@ -492,9 +504,9 @@ public class WatchdogService {
         return false;
     }
 
-    private static void triggerWatchdog(String reason) throws InterruptedException {
+    private static void triggerWatchdog(String reason, @Nullable Throwable cause) throws InterruptedException {
         LOGGER.atSevere().log("========== WATCHDOG ALERT ==========");
-        LOGGER.atSevere().log("Reason: %s", reason);
+        LOGGER.atSevere().withCause(cause).log("Reason: %s", reason);
         HyboxBridge.event("Watchdog", reason);
         if (WatchdogConfig.get().getValue(WatchdogConfig.ENABLED)) dumpThreads();
         if (!WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) return;

@@ -552,14 +552,18 @@ public class PerPlayerHotRadiusService {
         try {
             Files.createDirectories(VIEW_RADIUS_RESTORE_FILE.getParent());
             Files.writeString(VIEW_RADIUS_RESTORE_FILE, Integer.toString(value), StandardCharsets.UTF_8);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log(
+                    "Failed to save max view radius %d; it cannot be restored after an unclean shutdown", value);
         }
     }
 
     private static void deleteRestore() {
         try {
             Files.deleteIfExists(VIEW_RADIUS_RESTORE_FILE);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log(
+                    "Failed to delete the saved max view radius; it is applied again at the next start");
         }
     }
 }

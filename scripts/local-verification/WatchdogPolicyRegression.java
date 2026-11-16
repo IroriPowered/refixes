@@ -38,10 +38,10 @@ public final class WatchdogPolicyRegression {
         java.lang.reflect.Field restart = WatchdogService.class.getDeclaredField("canRestartWorlds");
         restart.setAccessible(true);
         require(!restart.getBoolean(service), "Auto-restart enabled without the early thread accessor");
-        Method trigger = WatchdogService.class.getDeclaredMethod("triggerWatchdog", String.class);
+        Method trigger = WatchdogService.class.getDeclaredMethod("triggerWatchdog", String.class, Throwable.class);
         trigger.setAccessible(true);
         long start = System.nanoTime();
-        trigger.invoke(null, "diagnostics-only regression");
+        trigger.invoke(null, "diagnostics-only regression", null);
         require(System.nanoTime() - start < 1_000_000_000L, "Diagnostics waited for destructive recovery");
         Method timeout = WatchdogService.class.getDeclaredMethod("handleShutdownTimeout");
         timeout.setAccessible(true);

@@ -27,7 +27,9 @@ import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.objectweb.asm.Opcodes;
@@ -46,6 +48,9 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
 
     @Unique
     private static final long refixes$UNWRITABLE_BACKLOG_BYTES = 524288L;
+
+    @Unique
+    private static final Set<String> refixes$INVALID_SIZES = ConcurrentHashMap.newKeySet();
 
     @Unique
     private final Object refixes$queueLock = new Object();
@@ -152,12 +157,23 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
 
     @Unique
     private static long refixes$frameBytes(ToClientPacket packet) {
+        int size;
         try {
-            int size = packet.computeSize();
-            return size < 0 ? Long.MAX_VALUE : (long) size + PacketIO.PACKET_HEADER_SIZE;
+            size = packet.computeSize();
         } catch (RuntimeException failure) {
+            if (packet != null && refixes$INVALID_SIZES.add(packet.getClass().getName()))
+                LOGGER.atWarning().withCause(failure).log(
+                        "Invalid outgoing packet size for %s", packet.getClass().getName());
             return Long.MAX_VALUE;
         }
+        if (size < 0) {
+            if (refixes$INVALID_SIZES.add(packet.getClass().getName()))
+                LOGGER.atWarning().log(
+                        "Invalid outgoing packet size for %s: computeSize returned %d",
+                        packet.getClass().getName(), size);
+            return Long.MAX_VALUE;
+        }
+        return (long) size + PacketIO.PACKET_HEADER_SIZE;
     }
 
     @Unique
