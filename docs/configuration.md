@@ -284,6 +284,14 @@ Risk: `HaltOnShutdownTimeout` forces the process to exit without waiting for rem
 ## Hybox Integration
 Section: `Runtime.Diagnostics`
 
+[Hybox](https://github.com/Xytronix/hybox) is a performance profiler for Hytale servers. It keeps a rolling Java Flight Recorder recording and saves incident bundles with a report. When Hybox is installed and enabled, Refixes adds its own data to that recording:
+
+- Gauges: AI tick throttler active and throttled NPCs and cycle time, idle players, paused worlds, pathfinding deferrals, hot radius.
+- Counters: NPCs frozen and unfrozen by the AI tick throttler and its budget overruns, idle players reduced and restored, blocks removed by the unknown block cleaner.
+- Events: watchdog alerts, world restarts and give-ups, worlds paused by Idle World Pause, hot radius changes and view radius changes by the memory guard.
+
+Hybox masks player names in events. World names are not masked. The data stays in Hybox's recording and incident bundles. Its Prometheus endpoint, when turned on, also exports the Refixes gauges and counters.
+
 | Key | Default | Description |
 |-----|---------|-------------|
-| `HyboxIntegration` | `true` | Send metrics and events to Hybox, if installed. Events include world names. |
+| `HyboxIntegration` | `true` | Send this data to Hybox, if installed. |
