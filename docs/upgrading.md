@@ -9,69 +9,11 @@ Refixes 0.7.0-pre.5 is the release for Hytale 0.8.0-pre.5 and later 0.8 versions
 1. Update the server to Hytale 0.8.0-pre.5 or a later 0.8 version. On Hytale 0.7.7, Refixes 0.7.0-pre.5 disables its early patches.
 2. Back up `mods/IroriPowered_Refixes/`.
 3. Replace the Refixes 0.6.0 JAR in `earlyplugins` with `refixes-0.7.0-pre.5.jar`. The Hyinit requirement is unchanged.
-4. After the first start, check the lines that start with `[Refixes] Refixes.json:`. Each switch listed below is logged as `Removed retired setting` with the reason `fixed in Hytale 0.8.0-pre.5`. Later starts log nothing because the keys are gone.
+4. After the first start, check the lines that start with `[Refixes] Refixes.json:`. Every switch for a defect that Hytale 0.8.0-pre.5 fixes is removed, whatever its value, and logged as `Removed retired setting` with the reason `fixed in Hytale 0.8.0-pre.5`. Later starts log nothing because the keys are gone.
 
 A `config.json` written by Refixes 0.6.0 keeps all of its keys and defaults. No setting there moves or is removed.
 
 Refixes 0.6.1 adds `Mixins.Tuning.WorldHeightBounds`, `Mixins.Tuning.WorldMapExistingTerrain` and `Mixins.Diagnostics.PatchCounters`. Refixes 0.7.0-pre.5 does not have these switches. On its first start it removes them from a `Refixes.json` written by 0.6.1 and logs each as `Removed unknown setting <path>=<value>`. Their features are not available on 0.7.0-pre.5.
-
-### Switches removed because Hytale fixed the defect
-
-These switches are removed from `Refixes.json` whatever their value. Hytale 0.8.0-pre.5 behaves as described without Refixes.
-
-World map:
-- `Recovery.WorldMapTracker`: pending map reloads are cleared with the tracker.
-- `Correctness.WorldMapCache`: an older map image generation no longer replaces a newer one.
-- `Correctness.WorldMapPacing`: map image updates are sent in limited batches.
-- `Correctness.WorldMapTickingStop`: toggling the compass or world map no longer stalls the world.
-- `Correctness.MapMarkerLocking`: block map markers are locked while the world map updates.
-
-World removal and shutdown:
-- `Correctness.WorldRetirement`: a removed world stays registered until it has stopped, and its folder is deleted only after that.
-- `Correctness.WorldReopenGuard`: a removed world cannot be opened again while it is still stopping.
-- `Correctness.TickingThreadStop`: stopping a world no longer blocks its saves.
-- `Correctness.TickingThreadAbandon`: a stop timeout hands over to a shutdown hook that is already running.
-- `Correctness.WorldTaskQueueClose`: tasks offered while a world stops are rejected, and queued tasks are canceled.
-- `Correctness.WorldEventSaving`: world events are saved in order.
-- `Correctness.PortalDeviceWorldClose`: breaking a portal device closes its portal world in the background.
-- `Correctness.UniverseDeletedCleanup`: a locked file in `worlds-deleted` logs a warning and startup continues.
-- `Correctness.WorldGenReload`: the saving lock is released when chunk deletion finishes or fails.
-- `Correctness.ServerShutdownWatchdog`: server shutdown waits at most 10 seconds for the config save, and the halt watchdog runs on its own thread.
-- `Correctness.ServerManagerShutdown`: shutdown works when the network transport never started.
-- `Correctness.ServerConfigSaveChain`: server `config.json` saves run one after another.
-
-Storage:
-- `Correctness.RocksDbFlush`: all RocksDB data columns are flushed on save and close.
-- `Correctness.RocksDbColumnRemoval`: removing a chunk column deletes all of its sections, block entities and stored entities.
-- `Correctness.RocksDbScanBounds`: chunk loads after a large removal no longer step over every deleted row.
-- `Optimizations.RocksDbCompression`: write-ahead logs are always compressed with zstd, with a 128 MiB total log size target. `-Dhytale.rocksdb.max_total_wal_size=<bytes>` still overrides the target.
-
-Fluids:
-- `Correctness.FluidChangeSaving`: a section with fluid changes is marked for saving.
-- `Correctness.FluidRelightSection`: the section where the fluid changed is relit.
-- `Correctness.FluidDropSection`: the drop-distance check reads the section below at the neighbor block.
-- `Optimizations.FluidDiscovery`: fluid discovery skips empty cells natively.
-
-Entities and NPCs:
-- `Correctness.EntityModule`: entity component types stay available while the entity module is disabled.
-- `Correctness.EntitySectionLoad`: an entity that moves into an unloaded section starts one load request and is kept.
-- `Correctness.SerializableArchetype`: serialized components are preserved when plugins unload.
-- `Correctness.StoredFlockSaving`: spawn markers and stored-flock NPC sections are marked for saving.
-- `Correctness.ObjectiveEntityRemoval`: objectives skip unloaded worlds and remove their entity on the world thread.
-- `Correctness.TeleportInstanceInteraction`: a missing return point offset is skipped.
-- `Correctness.MountMovementTeleport`: mount movement is ignored until the rider acknowledges a pending teleport.
-
-Network, assets and text:
-- `Correctness.PacketAdapters`: inbound packet filters run once on every transport.
-- `Correctness.CommonAssetHashCleanup`: `.hash` files inside zip or jar asset packs are kept.
-- `Correctness.SoundChannelEncoding`: sound validation reports the channel count of files with more than 2 channels.
-- `Optimizations.SoundHeaderValidation`: sound headers are validated without loading whole files.
-- `Correctness.MessageSelect`: text `select` placeholders match on the parameter's value.
-- `Correctness.PrefabPasteLoaded`: the prefab editor skips a prefab whose area did not fully load.
-
-The 0.5.x switch `Helpers.WorldMapTracker` is also removed instead of being moved. `Correctness.QuicheChannel` no longer sets `WorldMapPacing`, and `Correctness.WorldTransfer` no longer sets `WorldReopenGuard`.
-
-The startup check that `WorldRetirement` requires `WorldReopenGuard` is gone with both switches.
 
 ### Changed behavior
 
