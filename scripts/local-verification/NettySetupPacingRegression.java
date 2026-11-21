@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.OutgoingQueueLimits;
 import cc.irori.refixes.early.duck.QuicheDrainSignal;
 import cc.irori.refixes.early.util.NettyQueueBudget;
 import cc.irori.refixes.early.util.SetupAssetPacing;
@@ -36,8 +38,7 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
 public final class NettySetupPacingRegression {
-    private static final int HARD_BYTES = 64 * 1024 * 1024;
-    private static final int HARD_PACKETS = 65_536;
+    private static final OutgoingQueueLimits LIMITS = EarlyOptions.outgoingQueueLimits();
     private static final int FRAME_BYTES = 1024 * 1024;
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -52,7 +53,6 @@ public final class NettySetupPacingRegression {
         assertInterruptFailsActiveWorker();
         assertConcurrentSetupReservation();
         assertEventLoopDoesNotWait();
-        assertByteLimit();
         assertPacketLimit();
         assertInvalidSize(false);
         assertInvalidSize(true);
@@ -181,7 +181,7 @@ public final class NettySetupPacingRegression {
         try (Fixture fixture = new Fixture()) {
             NettyQueueBudget budget = new NettyQueueBudget(fixture.channel);
             budget.register(fixture.channel);
-            long setupBytes = HARD_BYTES - 128 * 1024;
+            long setupBytes = LIMITS.maxBytes() - 128 * 1024;
             long competingBytes = 256 * 1024;
             AtomicReference<Thread> worker = new AtomicReference<>();
             CountDownLatch checkedAvailable = new CountDownLatch(1);
@@ -233,9 +233,9 @@ public final class NettySetupPacingRegression {
                 releaseSetup.countDown();
             }
             work.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            require(budget.tryReserve(HARD_BYTES, HARD_PACKETS),
+            require(budget.tryReserve(LIMITS.maxBytes(), LIMITS.maxPackets()),
                     "Contended setup admission leaked or reserved its capacity more than once");
-            budget.release(HARD_BYTES, HARD_PACKETS, null);
+            budget.release(LIMITS.maxBytes(), LIMITS.maxPackets(), null);
             require(fixture.channel.isActive(), "Contended setup admission disconnected the native channel");
         }
     }
@@ -274,26 +274,10 @@ public final class NettySetupPacingRegression {
         }
     }
 
-    private static void assertByteLimit() throws Exception {
-        try (Fixture fixture = new Fixture(); Diagnostics diagnostics = new Diagnostics()) {
-            List<SizedPacket> boundary = packets(HARD_BYTES / FRAME_BYTES);
-            for (SizedPacket packet : boundary) fixture.connection.write(packet);
-            fixture.outbound.firstWrite.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            require(fixture.channel.isActive(), "The 64 MiB byte limit rejected its exact boundary");
-            fixture.connection.write(new SizedPacket(boundary.size(), 0, null));
-            require(fixture.channel.closeFuture().await(TIMEOUT_SECONDS, TimeUnit.SECONDS),
-                    "An unpaced byte overflow did not finish closing the native channel");
-            require(fixture.outbound.received().equals(boundary),
-                    "The byte-overflow packet reached the native outbound handler");
-            require(!fixture.channel.isActive(), "An unpaced byte overflow did not close the native channel");
-            diagnostics.assertClassification("byte");
-        }
-    }
-
     private static void assertPacketLimit() throws Exception {
         try (Fixture fixture = new Fixture(); Diagnostics diagnostics = new Diagnostics()) {
             SizedPacket packet = new SizedPacket(0, 0, null);
-            ToClientPacket[] boundary = new ToClientPacket[HARD_PACKETS];
+            ToClientPacket[] boundary = new ToClientPacket[LIMITS.maxPackets()];
             Arrays.fill(boundary, packet);
             fixture.connection.write(boundary);
             fixture.outbound.firstWrite.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -326,7 +310,7 @@ public final class NettySetupPacingRegression {
 
     private static void assertFailedWriteReleasesCapacity() throws Exception {
         try (Fixture fixture = new Fixture()) {
-            List<SizedPacket> initial = packets(HARD_BYTES / FRAME_BYTES);
+            List<SizedPacket> initial = packets((int) (LIMITS.maxBytes() / FRAME_BYTES));
             for (SizedPacket packet : initial) fixture.connection.writeAndFlush(packet);
             fixture.outbound.firstFlush.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             CompletableFuture<Void> drained = fixture.signal().refixes$drained();

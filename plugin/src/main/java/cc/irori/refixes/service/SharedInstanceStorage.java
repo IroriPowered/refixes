@@ -10,7 +10,6 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.function.consumer.TriIntConsumer;
-import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.metrics.MetricProvider;
 import com.hypixel.hytale.metrics.MetricResults;
 import com.hypixel.hytale.server.core.entity.Dirty;
@@ -22,6 +21,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.ChunkFlag;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.heightmap.TreeHeightmap;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockComponentSection;
+import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
 import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
 import com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent;
@@ -54,9 +54,9 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
     }
 
     public static void registerEvents(JavaPlugin plugin) {
+        registerDeletionGuard(plugin);
         plugin.getEventRegistry().registerGlobal(StartWorldEvent.class, event -> {
             if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
-            SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
             InstanceDataResource instanceData =
                     event.getWorld().getChunkStore().getStore().getResource(InstanceDataResource.getResourceType());
             instanceData.setHadPlayer(false);
@@ -71,6 +71,13 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
             SharedInstanceStorage storage = new SharedInstanceStorage(cubic, chunks.getStore());
             gridAccess.refixes$setLoader(storage.new Loader(loader));
             storeAccess.refixes$setSaver(storage);
+        });
+    }
+
+    public static void registerDeletionGuard(JavaPlugin plugin) {
+        plugin.getEventRegistry().registerGlobal(StartWorldEvent.class, event -> {
+            if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
+            SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
         });
         plugin.getEventRegistry().registerGlobal(EventPriority.LAST, RemoveWorldEvent.class, event -> {
             if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
@@ -281,19 +288,13 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
         SectionKey origin = entityOrigins.putIfAbsent(uuid, key);
         if (origin != null && !origin.equals(key)) return;
         CompletableFuture<Void> previous = writes.putIfAbsent(uuid, batch);
-        Holder<EntityStore> holder;
-        if (previous == null) {
-            claimed.add(uuid);
-            holder = source.cloneSerializable(EntityStore.REGISTRY.getData());
-            holder.tryRemoveComponent(Dirty.getComponentType());
-        } else {
-            holder = EntityStore.REGISTRY.newHolder();
-            holder.putComponent(UUIDComponent.getComponentType(), new UUIDComponent(uuid));
-            Dirty dirty = new Dirty();
-            dirty.consumeDirty();
-            holder.putComponent(Dirty.getComponentType(), dirty);
+        if (previous != null) {
             if (previous != batch) bodies.add(previous);
+            return;
         }
+        claimed.add(uuid);
+        Holder<EntityStore> holder = source.cloneSerializable(EntityStore.REGISTRY.getData());
+        holder.tryRemoveComponent(Dirty.getComponentType());
         snapshot.loadEntityHolder(holder);
     }
 
@@ -319,25 +320,20 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
     public CompletableFuture<Void> saveEntity(UUID uuid, Store<EntityStore> store, Ref<EntityStore> ref) {
         CompletableFuture<Void> existing = writes.get(uuid);
         if (existing != null) return existing;
-        SectionKey entityKey = null;
         TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-        if (transform != null) {
-            var position = transform.getPosition();
-            entityKey = new SectionKey(
-                    ChunkUtil.chunkCoordinate((int) Math.floor(position.x)),
-                    ChunkUtil.chunkCoordinate((int) Math.floor(position.y)),
-                    ChunkUtil.chunkCoordinate((int) Math.floor(position.z)),
-                    1);
-            if (writes.containsKey(entityKey)) return SAVED;
-            SectionKey origin = entityOrigins.putIfAbsent(uuid, entityKey);
-            if (origin != null && !origin.equals(entityKey)) return SAVED;
-        }
-        SectionKey origin = entityKey;
+        Ref<ChunkStore> sectionRef = transform == null ? null : transform.getSectionRef();
+        ChunkSection section = sectionRef == null || !sectionRef.isValid()
+                ? null
+                : sectionRef.getStore().getComponent(sectionRef, ChunkSection.getComponentType());
+        if (section == null) return SAVED;
+        SectionKey origin = new SectionKey(section.getX(), section.getY(), section.getZ(), 1);
+        if (writes.containsKey(origin)) return SAVED;
+        SectionKey claimed = entityOrigins.putIfAbsent(uuid, origin);
+        if (claimed != null && !claimed.equals(origin)) return SAVED;
         CompletableFuture<Void> result = writeOnce(uuid, () -> saver.saveEntity(uuid, store, ref));
-        if (origin != null)
-            result.whenComplete((ignored, error) -> {
-                if (error != null) entityOrigins.remove(uuid, origin);
-            });
+        result.whenComplete((ignored, error) -> {
+            if (error != null) entityOrigins.remove(uuid, origin);
+        });
         return result;
     }
 
@@ -421,7 +417,17 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
     }
 
     @Override
-    public CompletableFuture<Void> removeEntity(UUID uuid) {
+    public CompletableFuture<Void> removeSection(int x, int y, int z) {
+        return SAVED;
+    }
+
+    @Override
+    public CompletableFuture<Void> removeEntity(UUID uuid, Object storageState) {
+        return SAVED;
+    }
+
+    @Override
+    public CompletableFuture<Void> removeEntityMembership(UUID uuid, Object storageState) {
         return SAVED;
     }
 

@@ -1,7 +1,10 @@
 package cc.irori.refixes.early.util;
 
+import cc.irori.refixes.early.EarlyOptions;
+import cc.irori.refixes.early.OutgoingQueueLimits;
 import cc.irori.refixes.early.duck.QuicheDrainSignal;
 import cc.irori.refixes.early.duck.QuicheQueueOwner;
+import com.hypixel.hytale.assetstore.AssetRegistry;
 import com.hypixel.hytale.lib.quiche.QuicheChannel;
 import com.hypixel.hytale.protocol.io.ChannelConnection;
 import com.hypixel.hytale.server.core.Message;
@@ -9,24 +12,34 @@ import com.hypixel.hytale.server.core.asset.common.events.SendCommonAssetsEvent;
 import com.hypixel.hytale.server.core.io.PacketHandler;
 import com.hypixel.hytale.server.core.io.netty.NettyUtil;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public final class SetupAssetPacing {
 
     private static final long WALL_CLOCK_TIMEOUT_MULTIPLIER = 10L;
+    private static final long PROGRESS_CHECK_NANOS = TimeUnit.MILLISECONDS.toNanos(100L);
     private static final ThreadLocal<PacketHandler> OWNER = new ThreadLocal<>();
     private static final CancellationException CLOSED = new CancellationException();
     private static final Map<PacketHandler, Clock> CLOCKS = new WeakHashMap<>();
+    private static final ThreadLocal<Set<Object>> BROADCAST = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> MONITOR = new ThreadLocal<>();
 
     private SetupAssetPacing() {}
 
@@ -134,6 +147,116 @@ public final class SetupAssetPacing {
         PacketHandler owner = OWNER.get();
         if (!channel.isActive() || owner != null && !owner.getChannel().isActive() || budget.overflowed()) throw CLOSED;
         if (Thread.currentThread().isInterrupted()) throw new CancellationException("Setup asset worker interrupted");
+    }
+
+    public static void broadcast(Runnable broadcast) {
+        if (BROADCAST.get() != null || EarlyOptions.outgoingQueueLimits().broadcastWaitMs() == 0L) {
+            broadcast.run();
+            return;
+        }
+        BROADCAST.set(Collections.newSetFromMap(new IdentityHashMap<>()));
+        try {
+            broadcast.run();
+        } finally {
+            BROADCAST.remove();
+        }
+    }
+
+    public static void monitorBroadcast(Runnable broadcast) {
+        if (MONITOR.get() != null) {
+            broadcast.run();
+            return;
+        }
+        MONITOR.set(Boolean.TRUE);
+        try {
+            broadcast.run();
+        } finally {
+            MONITOR.remove();
+        }
+    }
+
+    public static boolean broadcastWaits(Object budget) {
+        Set<Object> expired = BROADCAST.get();
+        if (expired == null || expired.contains(budget) || OWNER.get() != null) return false;
+        boolean waitable = MONITOR.get() != null
+                || Thread.currentThread() instanceof ForkJoinWorkerThread worker
+                        && worker.getPool() == ForkJoinPool.commonPool();
+        return waitable && AssetRegistry.ASSET_LOCK instanceof ReentrantReadWriteLock lock && !lock.isWriteLocked();
+    }
+
+    public static boolean broadcastExempt() {
+        return BROADCAST.get() != null
+                && OWNER.get() == null
+                && AssetRegistry.ASSET_LOCK instanceof ReentrantReadWriteLock lock
+                && lock.isWriteLocked();
+    }
+
+    public static boolean awaitQuicheBroadcast(QuicheChannel channel, QuicheQueueBudget budget) {
+        QuicheDrainSignal signal = (QuicheDrainSignal) (Object) channel;
+        BroadcastWait wait = new BroadcastWait(budget::progress);
+        while (signal.refixes$backlogged()) {
+            if (budget.overflowed()) return false;
+            channel.flush();
+            if (!awaitBroadcast(budget, signal.refixes$drained(), wait)) return false;
+        }
+        return !budget.overflowed();
+    }
+
+    public static boolean awaitNettyBroadcast(NettyQueueBudget budget) {
+        BroadcastWait wait = new BroadcastWait(budget::progress);
+        while (budget.backlogged()) {
+            budget.flush();
+            if (!awaitBroadcast(budget, budget.drained(), wait)) return false;
+        }
+        return budget.failure() == null;
+    }
+
+    private static boolean awaitBroadcast(Object budget, CompletableFuture<Void> drained, BroadcastWait wait) {
+        while (true) {
+            long remaining = wait.remaining();
+            if (remaining <= 0L) break;
+            try {
+                drained.get(Math.min(remaining, PROGRESS_CHECK_NANOS), TimeUnit.NANOSECONDS);
+                return true;
+            } catch (ExecutionException failed) {
+                return true;
+            } catch (TimeoutException ignored) {
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        BROADCAST.get().add(budget);
+        return false;
+    }
+
+    private static final class BroadcastWait {
+
+        private final LongSupplier released;
+        private final long started = System.nanoTime();
+        private final long waitNanos;
+        private final long stallNanos;
+        private long seen;
+        private long progressed = started;
+
+        private BroadcastWait(LongSupplier released) {
+            OutgoingQueueLimits limits = EarlyOptions.outgoingQueueLimits();
+            this.released = released;
+            waitNanos = TimeUnit.MILLISECONDS.toNanos(limits.broadcastWaitMs());
+            stallNanos = TimeUnit.MILLISECONDS.toNanos(limits.broadcastStallMs());
+            seen = released.getAsLong();
+        }
+
+        private long remaining() {
+            long now = System.nanoTime();
+            long current = released.getAsLong();
+            if (current != seen) {
+                seen = current;
+                progressed = now;
+            }
+            long remaining = waitNanos - (now - started);
+            return stallNanos == 0L ? remaining : Math.min(remaining, stallNanos - (now - progressed));
+        }
     }
 
     public static boolean reserveNetty(ChannelConnection channel, NettyQueueBudget budget, long bytes, int packets) {

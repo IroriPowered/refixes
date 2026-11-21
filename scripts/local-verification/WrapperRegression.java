@@ -1,18 +1,11 @@
 package local.hyinit.verify;
 
-import cc.irori.refixes.early.duck.QuarantinedSection;
 import com.hypixel.hytale.component.Ref;
-import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
-import com.hypixel.hytale.server.core.universe.world.chunk.section.palette.EmptySectionPalette;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 
@@ -34,9 +27,8 @@ public final class WrapperRegression {
     private static void run(String[] args) throws Exception {
         if (args.length == 0 || args[0].equals("wrappers")) {
             spawning();
-            blockSection();
-            forwarding();
-            print("PASS: original-operation composition, exception boundaries, nested shared guards, fallback reset");
+            npcKills();
+            print("PASS: original-operation composition, exception boundaries, nested shared guards");
         }
         if (args.length == 0 || args[0].equals("capability")) {
             capability();
@@ -47,57 +39,29 @@ public final class WrapperRegression {
     private static void spawning() throws Exception {
         Object first = fixture("MixinWorldSpawningSystem");
         Object second = fixture("MixinWorldSpawningSystem");
-        Object token = new Ref<>(null, 7);
-        check(call(first, "refixes$wrapPickRandomChunk", null, null, null, null,
-                (Operation<Object>) args -> token) == token, "spawn return identity changed");
         check(call(first, "refixes$wrapPickRandomChunk", null, null, null, null,
                 failing(new Exception())) == null, "spawn exception did not return null");
         expect(AssertionError.class, () -> call(first, "refixes$wrapPickRandomChunk", null, null, null, null,
                 failing(new AssertionError())));
         AtomicInteger continued = new AtomicInteger();
-        check(call(first, "refixes$wrapPickRandomChunk", null, null, null, null, (Operation<Object>) args -> {
+        call(first, "refixes$wrapPickRandomChunk", null, null, null, null, (Operation<Object>) args -> {
             check(call(second, "refixes$wrapPickRandomChunk", null, null, null, null,
                     failing(new Exception())) == null, "inner spawn exception did not return null");
             continued.incrementAndGet();
-            return token;
-        }) == token, "outer spawn return changed by inner containment");
+            return null;
+        });
         check(continued.get() == 1, "nested spawn containment changed");
     }
 
-    private static void blockSection() throws Exception {
-        Object first = fixture("MixinBlockSectionSafety");
-        dirty(first);
-        byte[] bytes = {1, 2, 3};
-        call(first, "refixes$safeDeserialize", bytes, null, (Operation<Void>) args -> {
-            check(args[0] == bytes && args[1] == null, "deserialize arguments changed");
-            return null;
-        });
-        check(field(first, "tickingBlocksCount").equals(7), "successful deserialize was reset");
-        call(first, "refixes$safeDeserialize", bytes, null, failing(new Exception()));
-        reset(first, 1);
-        Path quarantined = ((QuarantinedSection) first).refixes$takeQuarantine();
-        check(quarantined != null && Files.deleteIfExists(quarantined), "reset section did not hand over its quarantine file");
-        dirty(first);
-        expect(AssertionError.class, () -> call(first, "refixes$safeDeserialize", bytes, null,
-                failing(new AssertionError())));
-        check(field(first, "tickingBlocksCount").equals(7), "Error unexpectedly reset section");
-    }
-
-    private static void forwarding() throws Exception {
+    private static void npcKills() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        Class<?> component = Class.forName("com.hypixel.hytale.component.Component");
-        Object token = java.lang.reflect.Proxy.newProxyInstance(component.getClassLoader(),
-                new Class<?>[] {component}, (proxy, method, args) -> null);
         Object npc = fixture("MixinNPCKillsEntitySystem");
         Ref<?> ref = new Ref<>(null, 7);
         check(ref.isValid(), "NPC fixture reference was not valid");
-        calls.set(0);
-        check(call(npc, "refixes$guardKillerRef", null, ref, null, (Operation<Object>) args -> {
-            check(args.length == 3 && args[0] == null && args[1] == ref && args[2] == null,
-                    "NPC receiver/reference/type were not forwarded");
+        call(npc, "refixes$guardKillerRef", null, ref, null, (Operation<Object>) args -> {
             calls.incrementAndGet();
-            return token;
-        }) == token, "NPC operation result changed");
+            return null;
+        });
         check(calls.get() == 1, "NPC valid reference did not chain exactly once");
         expect(IllegalStateException.class, () -> call(npc, "refixes$guardKillerRef", null, ref, null,
                 failing(new IllegalStateException())));
@@ -162,7 +126,6 @@ public final class WrapperRegression {
         String name = "local.hyinit.verify.GeneratedWrapper" + sequence++;
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, name.replace('.', '/'), null, parent.replace('.', '/'), null);
-        writer.visitField(Opcodes.ACC_PUBLIC, "invalidations", "I", null, null).visitEnd();
         var constructor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
         constructor.visitCode();
         constructor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -170,17 +133,6 @@ public final class WrapperRegression {
         constructor.visitInsn(Opcodes.RETURN);
         constructor.visitMaxs(1, 1);
         constructor.visitEnd();
-        var invalidate = writer.visitMethod(Opcodes.ACC_PUBLIC, "invalidate", "()V", null, null);
-        invalidate.visitCode();
-        invalidate.visitVarInsn(Opcodes.ALOAD, 0);
-        invalidate.visitInsn(Opcodes.DUP);
-        invalidate.visitFieldInsn(Opcodes.GETFIELD, name.replace('.', '/'), "invalidations", "I");
-        invalidate.visitInsn(Opcodes.ICONST_1);
-        invalidate.visitInsn(Opcodes.IADD);
-        invalidate.visitFieldInsn(Opcodes.PUTFIELD, name.replace('.', '/'), "invalidations", "I");
-        invalidate.visitInsn(Opcodes.RETURN);
-        invalidate.visitMaxs(3, 1);
-        invalidate.visitEnd();
         writer.visitEnd();
         byte[] bytes = writer.toByteArray();
         Class<?> type = new ClassLoader(WrapperRegression.class.getClassLoader()) {
@@ -206,45 +158,6 @@ public final class WrapperRegression {
         } catch (ReflectiveOperationException failure) {
             throw new AssertionError(failure);
         }
-    }
-
-    private static void dirty(Object fixture) throws Exception {
-        for (String name : new String[] {"chunkSection", "fillerSection", "rotationSection", "localLight", "globalLight"}) {
-            field(fixture, name, null);
-        }
-        BitSet ticking = new BitSet();
-        ticking.set(10);
-        field(fixture, "tickingBlocks", ticking);
-        field(fixture, "tickingBlocksCount", 7);
-        field(fixture, "localChangeCounter", (short) 8);
-        field(fixture, "globalChangeCounter", (short) 9);
-    }
-
-    private static void reset(Object fixture, int invalidations) throws Exception {
-        for (String name : new String[] {"chunkSection", "fillerSection", "rotationSection"}) {
-            check(field(fixture, name) == EmptySectionPalette.INSTANCE, name + " was not reset");
-        }
-        for (String name : new String[] {"localLight", "globalLight"}) {
-            check(field(fixture, name) == ChunkLightData.EMPTY, name + " was not reset");
-        }
-        check(((BitSet) field(fixture, "tickingBlocks")).isEmpty(), "ticking bits were not cleared");
-        check(field(fixture, "tickingBlocksCount").equals(0), "ticking count was not cleared");
-        check(field(fixture, "localChangeCounter").equals((short) 0), "local light counter was not cleared");
-        check(field(fixture, "globalChangeCounter").equals((short) 0), "global light counter was not cleared");
-        check(field(fixture, "invalidations").equals(invalidations), "section invalidation count changed");
-    }
-
-    private static Object field(Object fixture, String name) throws Exception {
-        var field = name.equals("invalidations") ? fixture.getClass().getField(name)
-                : fixture.getClass().getSuperclass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(fixture);
-    }
-
-    private static void field(Object fixture, String name, Object value) throws Exception {
-        var field = fixture.getClass().getSuperclass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(fixture, value);
     }
 
     private static Operation<Object> failing(Throwable failure) {

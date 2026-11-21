@@ -1,7 +1,7 @@
 package cc.irori.refixes;
 
 import cc.irori.refixes.command.ChunkLoaderCommand;
-import cc.irori.refixes.compat.HyboxBridge;
+import cc.irori.refixes.command.PatchCountersCommand;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.config.impl.ChunkLoaderConfig;
@@ -14,7 +14,6 @@ import cc.irori.refixes.config.impl.EntityDespawnTimerConfig;
 import cc.irori.refixes.config.impl.FeaturesConfig;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
 import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
-import cc.irori.refixes.config.impl.KDTreeOptimizationConfig;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
 import cc.irori.refixes.config.impl.RecoveryConfig;
 import cc.irori.refixes.config.impl.RefixesConfig;
@@ -28,6 +27,7 @@ import cc.irori.refixes.early.accessor.ChunkGridAccess;
 import cc.irori.refixes.early.accessor.ChunkStoreAccess;
 import cc.irori.refixes.early.util.PathfindingBudget;
 import cc.irori.refixes.early.util.RefixesScheduler;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.listener.ChunkLoaderWorldListener;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
 import cc.irori.refixes.listener.UnknownBlockCleaner;
@@ -143,8 +143,11 @@ public class Refixes extends JavaPlugin {
         if (chunkLoaderService != null) {
             Universe.get().getWorlds().values().forEach(chunkLoaderService::loadWorld);
         }
-        pathfindingDeferralsGauge =
-                HyboxBridge.registerGauge("PathfindingBudget deferrals", () -> (double) PathfindingBudget.deferrals());
+        if (Early.isEnabled()) {
+            pathfindingDeferralsGauge =
+                    RefixesEvents.gauge("PathfindingBudget deferrals", () -> (double) PathfindingBudget.deferrals());
+        }
+        RefixesEvents.start(String.valueOf(getManifest().getVersion()));
     }
 
     @Override
@@ -176,16 +179,20 @@ public class Refixes extends JavaPlugin {
             }
             pathfindingDeferralsGauge = null;
         }
+        RefixesEvents.stop();
         RefixesScheduler.shutdown();
     }
 
     private void registerEarlyOptions() {
         EarlyConfig config = EarlyConfig.get();
         CylinderVisibilityConfig cylinderVisibilityConfig = CylinderVisibilityConfig.get();
-        KDTreeOptimizationConfig kdTreeOptimizationConfig = KDTreeOptimizationConfig.get();
         SharedInstanceConfig sharedInstanceConfig = SharedInstanceConfig.get();
 
         EarlyOptions.MAX_SECTIONS_PER_SECOND.setSupplier(() -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_SECOND));
+        EarlyOptions.MAX_SECTIONS_PER_SECOND_LAN.setSupplier(
+                () -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_SECOND_LAN));
+        EarlyOptions.MAX_SECTIONS_PER_SECOND_LOCAL.setSupplier(
+                () -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_SECOND_LOCAL));
         EarlyOptions.MAX_SECTIONS_PER_TICK.setSupplier(() -> config.getValue(EarlyConfig.MAX_SECTIONS_PER_TICK));
         EarlyOptions.CHUNK_UNLOAD_OFFSET.setSupplier(() -> config.getValue(EarlyConfig.UNLOAD_DISTANCE_OFFSET));
         EarlyOptions.VANILLA_KEEP_SPAWN_LOADED.setSupplier(
@@ -193,9 +200,6 @@ public class Refixes extends JavaPlugin {
 
         EarlyOptions.CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER.setSupplier(
                 () -> cylinderVisibilityConfig.getValue(CylinderVisibilityConfig.HEIGHT_MULTIPLIER));
-
-        EarlyOptions.KDTREE_OPTIMIZATION_THRESHOLD.setSupplier(
-                () -> kdTreeOptimizationConfig.getValue(KDTreeOptimizationConfig.SPATIAL_FAST_SORT_THRESHOLD));
 
         EarlyOptions.SHARED_INSTANCES_EXCLUDED_PREFIXES.setSupplier(
                 () -> sharedInstanceConfig.getValue(SharedInstanceConfig.EXCLUDED_PREFIXES));
@@ -310,6 +314,20 @@ public class Refixes extends JavaPlugin {
                 },
                 "MixinChunkGridAccess",
                 "MixinChunkStoreAccess");
+        if (sharedInstanceStorage && !Early.hasMixins("MixinChunkGridAccess", "MixinChunkStoreAccess")) {
+            if (SharedInstanceConfig.get().getValue(SharedInstanceConfig.RESET_ON_EMPTY)) {
+                LOGGER.atWarning().log("Mixins.Features.SharedInstanceStorage is not applied on this start and"
+                        + " Runtime.Features.SharedInstances.ResetOnEmpty is on, so Hytale's own instance removal rules"
+                        + " decide when instance-shared- worlds are removed and deleted, timeouts included.");
+            } else {
+                SharedInstanceStorage.registerDeletionGuard(this);
+                getChunkStoreRegistry().registerSystem(new SharedInstancePersistenceSystem());
+                LOGGER.atWarning().log("Mixins.Features.SharedInstanceStorage is not applied on this start, so Hytale"
+                        + " would delete removed instance-shared- worlds. Runtime.Compatibility.ExistingSharedInstances"
+                        + " is on, so Refixes keeps their folders, but shared instance storage is off until the switch"
+                        + " applies again.");
+            }
+        }
         ChunkLoaderConfig chunkLoader = features.getValue(FeaturesConfig.CHUNK_LOADER_CONFIG);
         applyFix("Chunk loader", chunkLoader.getValue(ChunkLoaderConfig.ENABLED), () -> {
             chunkLoaderService = new ChunkLoaderService(dataDirectory);
@@ -323,6 +341,7 @@ public class Refixes extends JavaPlugin {
                 if (!event.isCancelled()) chunkLoaderService.unloadWorld(event.getWorld());
             });
         });
+        getCommandRegistry().registerCommand(new PatchCountersCommand());
         LOGGER.atInfo().log("=== Refixes runtime patches ===");
         for (String summary : fixSummary) LOGGER.atInfo().log(summary);
     }

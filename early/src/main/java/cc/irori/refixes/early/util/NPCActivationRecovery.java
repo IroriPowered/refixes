@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.util;
 
 import com.hypixel.hytale.component.Holder;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
@@ -31,7 +32,13 @@ public final class NPCActivationRecovery {
     public static void capture(Holder<EntityStore> holder) {
         Attempt attempt = ATTEMPT.get();
         if (attempt != null && attempt.holder == holder) {
-            attempt.saved = holder.cloneSerializable(EntityStore.REGISTRY.getData());
+            Holder<EntityStore> saved = holder.cloneSerializable(EntityStore.REGISTRY.getData());
+            TransformComponent transform = holder.getComponent(TransformComponent.getComponentType());
+            TransformComponent savedTransform = saved.getComponent(TransformComponent.getComponentType());
+            if (transform != null && savedTransform != null) {
+                savedTransform.setStorageState(transform.getStorageState());
+            }
+            attempt.saved = saved;
         }
     }
 

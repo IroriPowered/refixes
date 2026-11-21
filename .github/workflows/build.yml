@@ -16,8 +16,8 @@ jobs:
           distribution: "temurin"
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
-      - name: Build single JAR
-        run: ./gradlew singleJar
+      - name: Check formatting and build single JAR
+        run: ./gradlew spotlessCheck singleJar
       - name: Capture build artifacts
         uses: actions/upload-artifact@v7
         with:

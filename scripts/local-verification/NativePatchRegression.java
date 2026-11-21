@@ -18,30 +18,23 @@ import java.util.function.IntConsumer;
 public final class NativePatchRegression {
     private NativePatchRegression() {}
 
-    public static void main(String[] args) throws Exception {
-        if (args.length != 1 || !args[0].equals("native")) {
-            throw new IllegalArgumentException("Use native only with an uninstrumented server classpath");
+    public static void assertParallelTask() throws Exception {
+        if (!ParallelFailure.Managed.class.isAssignableFrom(ParallelTask.class)) {
+            throw new AssertionError("ParallelTask was not transformed");
         }
-        run(false);
+        empty(false);
+        empty(true);
+        failureDraining();
+        System.out.println("[LocalVerify] ParallelTask regressions PASS");
     }
 
-    public static void assertPatched() throws Exception {
-        run(true);
+    public static void assertLoadState() throws Exception {
+        loadStateRetry();
+        loadStateReentrancy();
+        System.out.println("[LocalVerify] Chunk load state regressions PASS");
     }
 
-    private static void run(boolean patched) throws Exception {
-        if (ParallelFailure.Managed.class.isAssignableFrom(ParallelTask.class) != patched) {
-            throw new AssertionError("Unexpected transformation state for native-patch control");
-        }
-        empty(patched, false);
-        empty(patched, true);
-        failureDraining(patched);
-        loadStateRetry(patched);
-        loadStateReentrancy(patched);
-        System.out.println("[LocalVerify] Native patch " + (patched ? "patched regressions" : "negative controls") + " PASS");
-    }
-
-    private static void empty(boolean patched, boolean range) {
+    private static void empty(boolean range) {
         try {
             if (range) {
                 new ParallelRangeTask<IntConsumer>(() -> ignored -> {}).init(0, 0).invoke();
@@ -50,13 +43,12 @@ public final class NativePatchRegression {
                 task.init();
                 task.doInvoke();
             }
-            if (!patched) throw new AssertionError("Native empty task unexpectedly completed normally");
         } catch (ArrayIndexOutOfBoundsException failure) {
-            if (patched) throw new AssertionError("Empty task must complete normally", failure);
+            throw new AssertionError("Empty task must complete normally", failure);
         }
     }
 
-    private static void failureDraining(boolean patched) throws Exception {
+    private static void failureDraining() throws Exception {
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch throwing = new CountDownLatch(1);
@@ -91,9 +83,8 @@ public final class NativePatchRegression {
         caller.start();
         try {
             if (!throwing.await(5, TimeUnit.SECONDS)) throw new AssertionError("Failure worker did not run");
-            boolean returnedBeforeDrain = finished.await(250, TimeUnit.MILLISECONDS);
-            if (returnedBeforeDrain == patched) {
-                throw new AssertionError("Unexpected completion before sibling drain: " + returnedBeforeDrain);
+            if (finished.await(250, TimeUnit.MILLISECONDS)) {
+                throw new AssertionError("Caller returned before the sibling worker drained");
             }
         } finally {
             release.countDown();
@@ -102,28 +93,18 @@ public final class NativePatchRegression {
         if (!(failure.get() instanceof IllegalStateException)) {
             throw new AssertionError("Worker failure was lost", failure.get());
         }
-        if (patched) {
-            if (work.get() != 1 || cleared.get() != 2) {
-                throw new AssertionError("Failed batch must drain both workers and discard both data objects");
-            }
-            task.init();
-            task.appendTask().init(0, 1).get(0).action = ignored -> work.incrementAndGet();
-            task.doInvoke();
-            if (work.get() != 2) throw new AssertionError("Drained task was not reusable");
-        } else {
-            try {
-                task.init();
-                throw new AssertionError("Native failed task unexpectedly recovered its running state");
-            } catch (IllegalStateException expected) {
-                if (cleared.get() != 0) throw new AssertionError("Native path unexpectedly discarded data");
-            }
+        if (work.get() != 1 || cleared.get() != 2) {
+            throw new AssertionError("Failed batch must drain both workers and discard both data objects");
         }
+        task.init();
+        task.appendTask().init(0, 1).get(0).action = ignored -> work.incrementAndGet();
+        task.doInvoke();
+        if (work.get() != 2) throw new AssertionError("Drained task was not reusable");
     }
 
-    private static void loadStateRetry(boolean patched) throws Exception {
+    private static void loadStateRetry() throws Exception {
         Object state = newLoadState();
         set(state, "flags", 7);
-        set(state, "cleanupAttached", true);
         set(state, "future", CompletableFuture.failedFuture(new IllegalStateException("stale")));
         set(state, "throwable", new IllegalStateException("stale"));
         set(state, "failedCounter", 1);
@@ -131,12 +112,11 @@ public final class NativePatchRegression {
         Method reset = state.getClass().getDeclaredMethod("checkAndResetBackoff");
         reset.setAccessible(true);
         if (Boolean.TRUE.equals(reset.invoke(state))) throw new AssertionError("Fixture backoff did not expire");
-        boolean fresh = get(state, "future") == null && ((Integer) get(state, "flags")) == 0
-                && !((Boolean) get(state, "cleanupAttached"));
-        if (fresh != patched) throw new AssertionError("Unexpected failed-chain reset: " + fresh);
+        boolean fresh = get(state, "future") == null && ((Integer) get(state, "flags")) == 0;
+        if (!fresh) throw new AssertionError("Failed load chain was not reset after backoff");
     }
 
-    private static void loadStateReentrancy(boolean patched) throws Exception {
+    private static void loadStateReentrancy() throws Exception {
         Object state = newLoadState();
         StampedLock lock = (StampedLock) get(state, "lock");
         Method fail = state.getClass().getDeclaredMethod("fail", Throwable.class);
@@ -161,9 +141,8 @@ public final class NativePatchRegression {
         caller.setDaemon(true);
         caller.start();
         if (!held.await(5, TimeUnit.SECONDS)) throw new AssertionError("Load-state caller did not start");
-        boolean completed = done.await(500, TimeUnit.MILLISECONDS);
-        if (completed != patched || failure.get() != null) {
-            throw new AssertionError("Unexpected reentrant failure completion: " + completed, failure.get());
+        if (!done.await(500, TimeUnit.MILLISECONDS) || failure.get() != null) {
+            throw new AssertionError("Reentrant load failure did not complete", failure.get());
         }
     }
 

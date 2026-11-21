@@ -88,8 +88,7 @@ public abstract class MixinChunkTrackerSectionFence implements ChunkTrackerSecti
         try {
             write.handler().writeNoCache(write.packet());
         } finally {
-            if (previous == null) PENDING.remove();
-            else PENDING.set(previous);
+            PENDING.set(previous);
         }
     }
 

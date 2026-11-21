@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.util.PatchCounters;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightDataBuilder;
@@ -24,7 +25,9 @@ public class MixinFloodLightCalculation {
             IntBinaryOperator fromIndex,
             IntBinaryOperator toIndex,
             CallbackInfo ci) {
+        if (PatchCounters.ENABLED) PatchCounters.SKIP_EMPTY_LIGHT_SECTIONS.countReached();
         if (fromSection != null && fromSection.isSolidAir() && fromSection.getLocalLight() == ChunkLightData.EMPTY) {
+            if (PatchCounters.ENABLED) PatchCounters.SKIP_EMPTY_LIGHT_SECTIONS.countEffect();
             ci.cancel();
         }
     }
@@ -38,7 +41,9 @@ public class MixinFloodLightCalculation {
             Int2IntFunction fromIndex,
             Int2IntFunction toIndex,
             CallbackInfo ci) {
+        if (PatchCounters.ENABLED) PatchCounters.SKIP_EMPTY_LIGHT_SECTIONS.countReached();
         if (fromSection != null && fromSection.isSolidAir() && fromSection.getLocalLight() == ChunkLightData.EMPTY) {
+            if (PatchCounters.ENABLED) PatchCounters.SKIP_EMPTY_LIGHT_SECTIONS.countEffect();
             ci.cancel();
         }
     }
@@ -52,7 +57,9 @@ public class MixinFloodLightCalculation {
             int fromBlockIndex,
             int toBlockIndex,
             CallbackInfo ci) {
+        if (PatchCounters.ENABLED) PatchCounters.SKIP_EMPTY_LIGHT_SECTIONS.countReached();
         if (fromSection != null && fromSection.isSolidAir() && fromSection.getLocalLight() == ChunkLightData.EMPTY) {
+            if (PatchCounters.ENABLED) PatchCounters.SKIP_EMPTY_LIGHT_SECTIONS.countEffect();
             ci.cancel();
         }
     }

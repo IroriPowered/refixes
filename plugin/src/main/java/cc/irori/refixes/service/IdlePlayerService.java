@@ -1,8 +1,8 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
 import cc.irori.refixes.early.util.RefixesScheduler;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Logs;
 import cc.irori.refixes.util.PlayerRadiusRevisions;
 import com.hypixel.hytale.component.Ref;
@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import org.joml.Vector3d;
 
 /**
@@ -32,6 +33,8 @@ import org.joml.Vector3d;
 public class IdlePlayerService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+    private static final LongAdder APPLIED = RefixesEvents.counter("IdlePlayer applied");
+    private static final LongAdder RESTORED = RefixesEvents.counter("IdlePlayer restored");
 
     private static final float LOOK_THRESHOLD_RADIANS = 0.05f;
 
@@ -59,7 +62,7 @@ public class IdlePlayerService {
                         5000,
                         intervalSec * 1000L,
                         TimeUnit.MILLISECONDS);
-        idleGauge = HyboxBridge.registerGauge("IdlePlayer idle", () -> getIdleCount());
+        idleGauge = RefixesEvents.gauge("IdlePlayer idle", () -> getIdleCount());
         if (IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
             LOGGER.atInfo().log(
                     "AFK minimum-loaded radius affects legacy columns only; independent sections use view/hot radii");
@@ -235,7 +238,7 @@ public class IdlePlayerService {
 
                         state.wasIdle = true;
                         LOGGER.atInfo().log("Applied idle settings for player %s", playerRef.getUuid());
-                        HyboxBridge.count("IdlePlayer applied", 1);
+                        APPLIED.increment();
                     } catch (Throwable t) {
                         LOGGER.atWarning().withCause(t).log(
                                 "Failed to apply idle settings for player %s", playerRef.getUuid());
@@ -312,7 +315,7 @@ public class IdlePlayerService {
                             playerStates.remove(playerRef.getUuid(), state);
                         }
                         LOGGER.atInfo().log("Restored settings for player %s", playerRef.getUuid());
-                        HyboxBridge.count("IdlePlayer restored", 1);
+                        RESTORED.increment();
                     } catch (Throwable t) {
                         LOGGER.atWarning().withCause(t).log(
                                 "Failed to restore settings for player %s", playerRef.getUuid());

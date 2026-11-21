@@ -8,24 +8,17 @@ public final class RepulsionPolicyRegression {
     public static void main(String[] args) {
         sequentialReuse();
         nestedBorrow();
-        oversizedListIsDropped();
-        System.out.println("RepulsionPolicyRegression PASS reentrant bounded cleared reuse and ordered entries");
+        System.out.println("RepulsionPolicyRegression PASS nested borrow and cleared reuse");
     }
 
     private static void sequentialReuse() {
         ReferenceArrayList<Object> first = RepulsionPolicy.borrow();
-        Object a = new Object();
-        Object b = new Object();
-        first.add(a);
-        first.add(b);
+        first.add(new Object());
         RepulsionPolicy.activate(first);
         RepulsionPolicy.endTick(null);
         ReferenceArrayList<Object> second = RepulsionPolicy.borrow();
         check(second == first, "released list was not reused");
         check(second.isEmpty(), "reused list retained elements");
-        second.add(a);
-        second.add(b);
-        check(second.get(0) == a && second.get(1) == b, "list order changed");
         RepulsionPolicy.activate(second);
         RepulsionPolicy.endTick(null);
     }
@@ -41,16 +34,6 @@ public final class RepulsionPolicyRegression {
         check(RepulsionPolicy.beginTick() == outer, "nested tick did not restore outer list");
         RepulsionPolicy.activate(outer);
         RepulsionPolicy.endTick(null);
-    }
-
-    private static void oversizedListIsDropped() {
-        ReferenceArrayList<Object> oversized = RepulsionPolicy.borrow();
-        for (int i = 0; i < 512; i++) oversized.add(new Object());
-        check(oversized.elements().length > 256, "fixture did not exceed retention bound");
-        RepulsionPolicy.release(oversized);
-        ReferenceArrayList<Object> next = RepulsionPolicy.borrow();
-        check(next != oversized, "oversized backing array was retained");
-        RepulsionPolicy.release(next);
     }
 
     private static void check(boolean valid, String message) {

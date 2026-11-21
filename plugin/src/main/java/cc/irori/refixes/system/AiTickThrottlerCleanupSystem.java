@@ -14,8 +14,8 @@ import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.server.core.entity.Frozen;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.components.NPCComponent;
 import com.hypixel.hytale.server.npc.components.StepComponent;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -77,12 +77,12 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         if (excluded.isEmpty()) {
             return false;
         }
-        ComponentType<EntityStore, NPCEntity> npcEntityType = NPCEntity.getComponentType();
-        if (npcEntityType == null) {
+        ComponentType<EntityStore, NPCComponent> npcComponentType = NPCComponent.getComponentType();
+        if (npcComponentType == null) {
             return false;
         }
-        NPCEntity npcEntity = commandBuffer.getComponent(ref, npcEntityType);
-        return npcEntity != null && excluded.contains(npcEntity.getNPCTypeId());
+        NPCComponent npcComponent = commandBuffer.getComponent(ref, npcComponentType);
+        return npcComponent != null && excluded.contains(npcComponent.getNPCTypeId());
     }
 
     @Override

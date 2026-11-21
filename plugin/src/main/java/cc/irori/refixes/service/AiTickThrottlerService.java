@@ -1,11 +1,11 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.early.accessor.MotionControllerAccess;
 import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.early.util.ThrottleOwnership;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.mounts.NPCMountComponent;
 import com.hypixel.hytale.component.ArchetypeChunk;
@@ -31,8 +31,8 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.components.NPCComponent;
 import com.hypixel.hytale.server.npc.components.StepComponent;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.movement.controllers.MotionControllerFly;
 import com.hypixel.hytale.server.npc.movement.controllers.MotionControllerWalk;
 import com.hypixel.hytale.server.npc.role.support.CombatSupport;
@@ -49,7 +49,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Distance-based LOD for AI entity ticking
@@ -63,6 +65,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AiTickThrottlerService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+    private static final LongAdder FROZE = RefixesEvents.counter("AiTickThrottler froze");
+    private static final LongAdder UNFROZE = RefixesEvents.counter("AiTickThrottler unfroze");
+    private static final LongAdder BUDGET_EXCEEDED = RefixesEvents.counter("AiTickThrottler budget exceeded");
 
     // Cached component types, resolved once via resolveComponentTypes()
     private ComponentType<EntityStore, ?> npcType;
@@ -72,7 +77,7 @@ public class AiTickThrottlerService {
     private ComponentType<EntityStore, StepComponent> stepType;
     private ComponentType<EntityStore, TickThrottled> tickThrottledType;
     private ComponentType<EntityStore, Player> playerType;
-    private ComponentType<EntityStore, NPCEntity> npcEntityType;
+    private ComponentType<EntityStore, NPCComponent> npcComponentType;
     private ComponentType<EntityStore, NPCMountComponent> mountType;
     private ComponentType<EntityStore, MovementStatesComponent> movementStatesType;
     private ComponentType<EntityStore, DeathComponent> deathType;
@@ -81,6 +86,7 @@ public class AiTickThrottlerService {
     private ComponentType<EntityStore, DamageDataComponent> damageDataType;
     private ComponentType<EntityStore, StateSupport> stateSupportType;
     private Query<EntityStore> npcQuery;
+    private final AtomicBoolean componentTypesFailureLogged = new AtomicBoolean();
 
     private final Map<World, WorldState> worldStates = new ConcurrentHashMap<>();
 
@@ -112,9 +118,9 @@ public class AiTickThrottlerService {
                         5000,
                         intervalMs,
                         TimeUnit.MILLISECONDS);
-        throttledGauge = HyboxBridge.registerGauge("AiTickThrottler throttled", () -> getThrottledCount());
-        activeGauge = HyboxBridge.registerGauge("AiTickThrottler active", () -> getActiveNpcCount());
-        cycleMsGauge = HyboxBridge.registerGauge("AiTickThrottler cycle ms", () -> lastCycleMs);
+        throttledGauge = RefixesEvents.gauge("AiTickThrottler throttled", () -> getThrottledCount());
+        activeGauge = RefixesEvents.gauge("AiTickThrottler active", () -> getActiveNpcCount());
+        cycleMsGauge = RefixesEvents.gauge("AiTickThrottler cycle ms", () -> lastCycleMs);
     }
 
     public void unregisterService() {
@@ -273,11 +279,11 @@ public class AiTickThrottlerService {
         if (stopped || !resolveComponentTypes()) {
             return;
         }
-        NPCEntity npcEntity = chunk.getComponent(index, npcEntityType);
-        if (npcEntity == null || npcEntity.getRole() == null) {
+        NPCComponent npcComponent = chunk.getComponent(index, npcComponentType);
+        if (npcComponent == null || npcComponent.getRole() == null) {
             return;
         }
-        var controller = npcEntity.getRole().getActiveMotionController();
+        var controller = npcComponent.getRole().getActiveMotionController();
         if (controller == null) {
             return;
         }
@@ -614,16 +620,16 @@ public class AiTickThrottlerService {
 
         int froze = Math.min(freezeCount.get(), maxFreezes);
         if (froze > 0) {
-            HyboxBridge.count("AiTickThrottler froze", froze);
+            FROZE.add(froze);
         }
         int unfroze = Math.min(unfreezeCount.get(), maxUnfreezes);
         if (unfroze > 0) {
-            HyboxBridge.count("AiTickThrottler unfroze", unfroze);
+            UNFROZE.add(unfroze);
         }
         long cycleNanos = System.nanoTime() - cycleStartNanos;
         lastCycleMs = cycleNanos / 1_000_000.0;
         if (cycleNanos > budgetNanos) {
-            HyboxBridge.count("AiTickThrottler budget exceeded", 1);
+            BUDGET_EXCEEDED.increment();
         }
     }
 
@@ -685,9 +691,9 @@ public class AiTickThrottlerService {
         if (excludeAirborneOrDead && archetypeChunk.getComponent(index, deathType) != null) {
             return true;
         }
-        NPCEntity npcEntity = archetypeChunk.getComponent(index, npcEntityType);
-        if ((excludeFlying || excludeAirborneOrDead) && npcEntity != null && npcEntity.getRole() != null) {
-            var controller = npcEntity.getRole().getActiveMotionController();
+        NPCComponent npcComponent = archetypeChunk.getComponent(index, npcComponentType);
+        if ((excludeFlying || excludeAirborneOrDead) && npcComponent != null && npcComponent.getRole() != null) {
+            var controller = npcComponent.getRole().getActiveMotionController();
             if ((excludeFlying && controller instanceof MotionControllerFly)
                     || (excludeAirborneOrDead
                             && controller != null
@@ -708,7 +714,7 @@ public class AiTickThrottlerService {
             }
         }
         if (!excludedNpcTypes.isEmpty()) {
-            if (npcEntity != null && excludedNpcTypes.contains(npcEntity.getNPCTypeId())) {
+            if (npcComponent != null && excludedNpcTypes.contains(npcComponent.getNPCTypeId())) {
                 return true;
             }
         }
@@ -841,7 +847,7 @@ public class AiTickThrottlerService {
                 && frozenType != null
                 && stepType != null
                 && tickThrottledType != null
-                && npcEntityType != null
+                && npcComponentType != null
                 && deathType != null) {
             return true;
         }
@@ -853,7 +859,7 @@ public class AiTickThrottlerService {
             if (stepType == null) stepType = StepComponent.getComponentType();
             if (tickThrottledType == null) tickThrottledType = TickThrottled.getComponentType();
             if (playerType == null) playerType = Player.getComponentType();
-            if (npcEntityType == null) npcEntityType = NPCEntity.getComponentType();
+            if (npcComponentType == null) npcComponentType = NPCComponent.getComponentType();
             if (mountType == null) mountType = NPCMountComponent.getComponentType();
             if (movementStatesType == null) movementStatesType = MovementStatesComponent.getComponentType();
             if (deathType == null) deathType = DeathComponent.getComponentType();
@@ -866,6 +872,10 @@ public class AiTickThrottlerService {
                 npcQuery = Query.and(npcType, transformType);
             }
         } catch (Throwable t) {
+            if (componentTypesFailureLogged.compareAndSet(false, true)) {
+                LOGGER.atWarning().withCause(t).log(
+                        "Could not resolve NPC component types, so AI tick throttling is skipped until they resolve");
+            }
             return false;
         }
         return npcType != null
@@ -874,7 +884,7 @@ public class AiTickThrottlerService {
                 && frozenType != null
                 && stepType != null
                 && tickThrottledType != null
-                && npcEntityType != null
+                && npcComponentType != null
                 && deathType != null;
     }
 

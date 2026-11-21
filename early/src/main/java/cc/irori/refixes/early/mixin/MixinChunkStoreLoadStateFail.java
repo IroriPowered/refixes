@@ -28,9 +28,6 @@ public abstract class MixinChunkStoreLoadStateFail {
     CompletableFuture<Ref<ChunkStore>> future;
 
     @Shadow
-    boolean cleanupAttached;
-
-    @Shadow
     Throwable throwable;
 
     @Shadow
@@ -46,7 +43,6 @@ public abstract class MixinChunkStoreLoadStateFail {
         }
         this.flags = GetChunkFlags.NONE;
         this.future = null;
-        this.cleanupAttached = false;
         this.throwable = cause;
         this.failedWhen = System.nanoTime();
         this.failedCounter++;
@@ -58,7 +54,6 @@ public abstract class MixinChunkStoreLoadStateFail {
         if (this.throwable != null) {
             this.flags = GetChunkFlags.NONE;
             this.future = null;
-            this.cleanupAttached = false;
         }
     }
 }

@@ -1,16 +1,19 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.duck.QuarantinedSection;
+import cc.irori.refixes.early.util.IncidentCounters;
 import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.RecoveryPolicy;
 import com.hypixel.hytale.codec.ExtraInfo;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.Options;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.palette.EmptySectionPalette;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import java.nio.file.Path;
+import joptsimple.OptionSet;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -70,7 +73,7 @@ public abstract class MixinBlockSectionSafety implements QuarantinedSection {
         try {
             original.call(bytes, extraInfo);
         } catch (Exception failure) {
-            if (refixes$isUnsupportedVersion(failure)) {
+            if (refixes$isUnsupportedVersion(failure) || refixes$verifyingWorlds()) {
                 throw failure;
             }
             try {
@@ -88,9 +91,11 @@ public abstract class MixinBlockSectionSafety implements QuarantinedSection {
                             invalidate();
                         });
                 refixes$quarantine = quarantine;
+                IncidentCounters.SECTIONS_QUARANTINED.increment();
                 refixes$LOGGER.atWarning().withCause(failure).log(
                         "BlockSection#deserialize(): Corrupt data reset to empty after quarantine at %s", quarantine);
             } catch (Exception quarantineFailure) {
+                IncidentCounters.QUARANTINE_FAILURES.increment();
                 failure.addSuppressed(quarantineFailure);
                 refixes$LOGGER.atSevere().withCause(failure).log(
                         "BlockSection#deserialize(): Quarantine failed. Corrupt section was not reset");
@@ -104,5 +109,11 @@ public abstract class MixinBlockSectionSafety implements QuarantinedSection {
         return failure instanceof IllegalArgumentException
                 && failure.getMessage() != null
                 && failure.getMessage().startsWith("Version not supported");
+    }
+
+    @Unique
+    private static boolean refixes$verifyingWorlds() {
+        OptionSet options = Options.getOptionSet();
+        return options != null && options.has(Options.VERIFY_WORLDS);
     }
 }

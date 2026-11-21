@@ -140,8 +140,29 @@ public final class SharedInstanceStorageRegression {
         if (callbacks.get() != beforeFailure + 4 || !queue.isEmpty()) {
             throw new AssertionError("Retry and skipped retry must each receive exactly one inline callback");
         }
+        assertRemovalsKeepStoredData((IChunkSaver.Cubic) storage, backend);
         System.out.println("[LocalVerify] SharedInstanceStorage saveSection callback regression PASS");
     }
+
+    private static void assertRemovalsKeepStoredData(IChunkSaver.Cubic storage, RecordingSaver backend) {
+        UUID uuid = UUID.randomUUID();
+        Object storageState = new Object();
+        requireKept("removeSection", storage.removeSection(1, -2, 3), backend);
+        requireKept("removeEntity", storage.removeEntity(uuid, storageState), backend);
+        requireKept("removeEntity without a storage state", storage.removeEntity(uuid, null), backend);
+        requireKept("removeEntityMembership", storage.removeEntityMembership(uuid, storageState), backend);
+        requireKept("removeHolder", storage.removeHolder(1, 3), backend);
+    }
+
+    private static void requireKept(String operation, CompletableFuture<Void> future, RecordingSaver backend) {
+        if (!future.isDone() || future.isCompletedExceptionally()) {
+            throw new AssertionError(operation + " must complete at once without deleting shared-instance data");
+        }
+        if (backend.removeCalls.get() != 0) {
+            throw new AssertionError(operation + " reached the backend: " + backend.removeCalls.get());
+        }
+    }
+
     public static void runWithRegistry(Store<ChunkStore> chunkStore) throws Exception {
         if (chunkStore == null) {
             throw new AssertionError("Booted ChunkStore is required for UUID-less holder preservation");
@@ -262,6 +283,7 @@ public final class SharedInstanceStorageRegression {
         final AtomicInteger saveCalls = new AtomicInteger();
         final AtomicReference<CompletableFuture<Void>> raw = new AtomicReference<>();
         final AtomicInteger entitySaveCalls = new AtomicInteger();
+        final AtomicInteger removeCalls = new AtomicInteger();
         final AtomicReference<CompletableFuture<Void>> entityRaw = new AtomicReference<>();
         volatile EntitySection lastEntitySection;
         volatile boolean throwNext;
@@ -315,7 +337,20 @@ public final class SharedInstanceStorageRegression {
         }
 
         @Override
-        public CompletableFuture<Void> removeEntity(UUID uuid) {
+        public CompletableFuture<Void> removeSection(int x, int y, int z) {
+            removeCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> removeEntity(UUID uuid, Object storageState) {
+            removeCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> removeEntityMembership(UUID uuid, Object storageState) {
+            removeCalls.incrementAndGet();
             return CompletableFuture.completedFuture(null);
         }
 
@@ -326,6 +361,7 @@ public final class SharedInstanceStorageRegression {
 
         @Override
         public CompletableFuture<Void> removeHolder(int x, int z) {
+            removeCalls.incrementAndGet();
             return CompletableFuture.completedFuture(null);
         }
 

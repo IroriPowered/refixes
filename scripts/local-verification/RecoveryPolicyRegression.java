@@ -2,6 +2,7 @@ package local.hyinit.verify;
 
 import cc.irori.refixes.early.mixin.MixinBlockSectionSafety;
 import com.hypixel.hytale.codec.ExtraInfo;
+import com.hypixel.hytale.server.core.Options;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.palette.EmptySectionPalette;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -13,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -22,21 +24,22 @@ public final class RecoveryPolicyRegression {
     private RecoveryPolicyRegression() {}
 
     public static void main(String[] args) throws Exception {
+        mixinKeepsSectionOnSuccessOrError();
         recoveryRunsOnlyAfterAtomicPreservation();
         failedPreservationDoesNotRecover();
         mixinResetsOnlyAfterPreservingBytes();
         mixinRefusesResetWhenPreservationFails();
         labelCarriesWorldAndSection();
+        mixinLeavesCorruptSectionToWorldVerification();
         System.out.println("RecoveryPolicyRegression PASS");
     }
 
     private static void recoveryRunsOnlyAfterAtomicPreservation() throws Exception {
         Path directory = Files.createTempDirectory("refixes-recovery-success-");
         byte[] original = {0, 1, -1, 42, 127};
-        RecoveryState state = new RecoveryState();
-        Path quarantined = quarantineThen(original, directory, state::reset);
-        require(state.isEmpty(), "recovery callback did not complete the full state reset");
-        require(state.resetCount == 1, "recovery did not run exactly once after preservation");
+        AtomicInteger recoveries = new AtomicInteger();
+        Path quarantined = quarantineThen(original, directory, recoveries::incrementAndGet);
+        require(recoveries.get() == 1, "recovery did not run exactly once after preservation");
         require(Files.exists(quarantined), "quarantine result does not exist");
         require(Arrays.equals(original, Files.readAllBytes(quarantined)), "returned quarantine path has different bytes");
         try (Stream<Path> files = Files.list(directory)) {
@@ -47,14 +50,29 @@ public final class RecoveryPolicyRegression {
     private static void failedPreservationDoesNotRecover() throws Exception {
         Path root = Files.createTempDirectory("refixes-recovery-failure-");
         Path notDirectory = Files.createFile(root.resolve("not-a-directory"));
-        RecoveryState state = new RecoveryState();
+        AtomicInteger recoveries = new AtomicInteger();
         try {
-            quarantineThen(new byte[] {1, 2, 3}, notDirectory, state::reset);
+            quarantineThen(new byte[] {1, 2, 3}, notDirectory, recoveries::incrementAndGet);
             throw new AssertionError("quarantine unexpectedly succeeded in a regular file path");
         } catch (IOException expected) {
-            require(!state.isEmpty(), "recovery reset state after quarantine failed");
-            require(state.resetCount == 0, "recovery ran without a successful quarantine");
+            require(recoveries.get() == 0, "recovery ran without a successful quarantine");
         }
+    }
+
+    private static void mixinKeepsSectionOnSuccessOrError() throws Exception {
+        SectionSafety safety = dirtySection();
+        invokeDeserialize(safety, new byte[] {1, 2, 3}, arguments -> null);
+        require(safety.invalidations == 0 && field(safety, "tickingBlocksCount").equals(3), "successful deserialize reset the section");
+        LinkageError error = new LinkageError("decode error");
+        try {
+            invokeDeserialize(safety, new byte[] {1, 2, 3}, arguments -> {
+                throw error;
+            });
+            throw new AssertionError("deserialize swallowed an Error");
+        } catch (LinkageError actual) {
+            require(actual == error, "deserialize replaced the Error");
+        }
+        require(safety.invalidations == 0 && field(safety, "tickingBlocksCount").equals(3), "an Error reset the section");
     }
 
     private static void mixinResetsOnlyAfterPreservingBytes() throws Exception {
@@ -83,6 +101,35 @@ public final class RecoveryPolicyRegression {
             require(preserved.equals(taken), "handed-over quarantine path differs from the preserved file");
             require(Arrays.equals(original, Files.readAllBytes(preserved)), "mixin quarantine did not preserve original bytes");
             Files.delete(preserved);
+        }
+    }
+
+    private static void mixinLeavesCorruptSectionToWorldVerification() throws Exception {
+        require(!Options.parse(new String[] {"--verify-worlds"}), "parsing --verify-worlds stopped the run");
+        require(Options.getOptionSet().has(Options.VERIFY_WORLDS), "--verify-worlds was not parsed");
+        Path directory = Files.createDirectories(RecoveryPolicyPath.blockSectionDirectory());
+        List<Path> before = quarantineFiles(directory);
+        SectionSafety safety = dirtySection();
+        IllegalStateException decodeFailure = new IllegalStateException("native decode failed");
+        try {
+            invokeDeserialize(safety, new byte[] {4, 0, -1, 31, 99}, arguments -> {
+                throw decodeFailure;
+            });
+            throw new AssertionError("deserialize swallowed a decode failure while verifying worlds");
+        } catch (IllegalStateException actual) {
+            require(actual == decodeFailure, "deserialize replaced the decode failure while verifying worlds");
+        }
+        require(
+                safety.invalidations == 0 && field(safety, "tickingBlocksCount").equals(3),
+                "a decode failure reset the section while verifying worlds");
+        require(safety.refixes$takeQuarantine() == null, "a quarantine path was handed over while verifying worlds");
+        require(quarantineFiles(directory).equals(before), "a quarantine file was written while verifying worlds");
+    }
+
+    private static List<Path> quarantineFiles(Path directory) throws IOException {
+        if (!Files.isDirectory(directory)) return List.of();
+        try (Stream<Path> files = Files.list(directory)) {
+            return files.sorted().toList();
         }
     }
 
@@ -188,44 +235,6 @@ public final class RecoveryPolicyRegression {
     private static final class RecoveryPolicyPath {
         private static Path blockSectionDirectory() {
             return Path.of("mods", "IroriPowered_Refixes", "quarantine", "block-sections");
-        }
-    }
-
-    private static final class RecoveryState {
-        private byte[] blocks = {3, 7};
-        private byte[] filler = {2};
-        private byte[] rotation = {1};
-        private int tickingCount = 2;
-        private int localLight = 3;
-        private int globalLight = 4;
-        private int localCounter = 5;
-        private int globalCounter = 6;
-        private int invalidations;
-        private int resetCount;
-
-        private void reset() {
-            blocks = new byte[0];
-            filler = new byte[0];
-            rotation = new byte[0];
-            tickingCount = 0;
-            localLight = 0;
-            globalLight = 0;
-            localCounter = 0;
-            globalCounter = 0;
-            invalidations++;
-            resetCount++;
-        }
-
-        private boolean isEmpty() {
-            return blocks.length == 0
-                    && filler.length == 0
-                    && rotation.length == 0
-                    && tickingCount == 0
-                    && localLight == 0
-                    && globalLight == 0
-                    && localCounter == 0
-                    && globalCounter == 0
-                    && invalidations == 1;
         }
     }
 

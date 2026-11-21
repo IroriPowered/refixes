@@ -1,7 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.duck.EntityAdmission;
-import cc.irori.refixes.early.util.CubicTransfer;
 import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.WorldTransferRecovery;
 import com.hypixel.hytale.component.AddReason;
@@ -156,7 +155,6 @@ public class MixinEntityTransferAdmission {
             if (future != null) future.completeExceptionally(failure);
             throw error;
         }
-        if (restored != null && id != null) CubicTransfer.restored(source, id);
         if (restored == null) {
             Logs.logger()
                     .atSevere()

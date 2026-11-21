@@ -3,6 +3,7 @@
     "Name": "Refixes-Early",
     "Version": "${version}",
     "Description": "Mixin-based patches for Hytale.",
+    "Website": "https://www.curseforge.com/hytale/mods/refixes",
     "Authors": [
         {
             "Name": "KabanFriends",

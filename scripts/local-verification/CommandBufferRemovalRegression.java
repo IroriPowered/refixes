@@ -6,16 +6,6 @@ import java.lang.reflect.Method;
 public final class CommandBufferRemovalRegression {
     private CommandBufferRemovalRegression() {}
 
-    public static void main(String[] args) {
-        try {
-            assertPatched();
-        } catch (Throwable failure) {
-            failure.printStackTrace(System.out);
-            System.exit(1);
-        }
-        System.out.println("CommandBufferRemovalRegression PASS");
-    }
-
     public static final class Marker implements Component<Object> {
         @Override
         public Component<Object> clone() {

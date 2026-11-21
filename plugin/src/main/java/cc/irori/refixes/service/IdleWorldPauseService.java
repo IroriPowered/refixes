@@ -1,9 +1,9 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
 import cc.irori.refixes.early.accessor.WorldPauseOwnerAccess;
 import cc.irori.refixes.early.util.RefixesScheduler;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -44,7 +44,7 @@ public class IdleWorldPauseService {
                         5000,
                         interval,
                         TimeUnit.MILLISECONDS);
-        pausedGauge = HyboxBridge.registerGauge("IdleWorldPause paused worlds", () -> getPausedWorldCount());
+        pausedGauge = RefixesEvents.gauge("IdleWorldPause paused worlds", () -> getPausedWorldCount());
     }
 
     public void unregisterService() {
@@ -91,7 +91,7 @@ public class IdleWorldPauseService {
                                 && world.getPlayerCount() == 0
                                 && !world.isPaused()) {
                             Owned.pause(world, generation);
-                            HyboxBridge.event("IdleWorldPause", "paused world '" + world.getName() + "'");
+                            RefixesEvents.action("IdleWorldPause", "paused world '" + world.getName() + "'");
                         }
                     });
                 } catch (RuntimeException ignored) {

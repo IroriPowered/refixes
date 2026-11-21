@@ -10,7 +10,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.components.FailedSpawnComponent;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.components.NPCComponent;
 import com.hypixel.hytale.server.npc.systems.RoleBuilderSystem;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -35,7 +35,7 @@ public abstract class MixinNPCRoleActivation {
     private void refixes$recoverSavedNPC(
             Holder<EntityStore> holder, AddReason reason, Store<EntityStore> store, Operation<Void> original) {
         EntitySection section = NPCActivationRecovery.section();
-        NPCEntity npc = holder.getComponent(NPCEntity.getComponentType());
+        NPCComponent npc = holder.getComponent(NPCComponent.getComponentType());
         if (section == null || reason != AddReason.LOAD || npc == null || npc.getRole() != null) {
             original.call(holder, reason, store);
             return;

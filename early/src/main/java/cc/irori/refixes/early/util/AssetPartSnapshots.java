@@ -23,13 +23,17 @@ public final class AssetPartSnapshots {
 
     public static CachedPacket<?> cache(ToClientPacket packet, Operation<CachedPacket<?>> original) {
         if (packet.getClass() != AssetPart.class) return original.call(packet);
+        if (PatchCounters.ENABLED) PatchCounters.ASSET_PART_SNAPSHOT_SHARING.countReached();
         byte[] part = ((AssetPart) packet).part;
         if (part == null) return original.call(packet);
         expunge();
         Key key = new Key(part.length, sample(part));
         Snapshot existing = SNAPSHOTS.get(key);
         CachedPacket<?> shared = existing == null ? null : existing.get();
-        if (shared != null && matches(shared, part)) return shared;
+        if (shared != null && matches(shared, part)) {
+            if (PatchCounters.ENABLED) PatchCounters.ASSET_PART_SNAPSHOT_SHARING.countEffect();
+            return shared;
+        }
         CachedPacket<?> created = original.call(packet);
         SNAPSHOTS.put(key, new Snapshot(created, key));
         return created;

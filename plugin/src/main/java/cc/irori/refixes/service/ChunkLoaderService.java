@@ -46,7 +46,7 @@ public class ChunkLoaderService {
         persistence = new CoalescingPersistence<>((worldName, snapshot) -> {
             try {
                 writeSnapshot(worldName, snapshot);
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 LOGGER.atSevere().withCause(e).log("Failed to save chunk loaders for world %s", worldName);
                 throw e;
             }

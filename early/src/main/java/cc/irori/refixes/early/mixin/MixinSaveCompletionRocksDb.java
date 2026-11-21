@@ -14,19 +14,50 @@ import org.spongepowered.asm.mixin.injection.At;
 public class MixinSaveCompletionRocksDb {
 
     @WrapOperation(
-            method = {"saveChunkColumn", "saveEntitySection", "saveBlockComponentSection"},
+            method = {"saveChunkColumn", "saveBlockComponentSection"},
             at =
                     @At(
                             value = "INVOKE",
                             target =
                                     "Ljava/util/concurrent/CompletableFuture;whenCompleteAsync(Ljava/util/function/BiConsumer;Ljava/util/concurrent/Executor;)Ljava/util/concurrent/CompletableFuture;"),
-            require = 3,
-            allow = 3)
+            require = 2,
+            allow = 2)
     private CompletableFuture<?> refixes$ownSaveCompletion(
             CompletableFuture<?> future,
             BiConsumer<?, ?> action,
             Executor executor,
             Operation<CompletableFuture<?>> original) {
         return SaveCompletions.whenCompleteAsync(future, action, executor, original);
+    }
+
+    @WrapOperation(
+            method = "settleSectionSnapshot",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Ljava/util/concurrent/CompletableFuture;whenCompleteAsync(Ljava/util/function/BiConsumer;Ljava/util/concurrent/Executor;)Ljava/util/concurrent/CompletableFuture;"),
+            require = 1,
+            allow = 1)
+    private static CompletableFuture<?> refixes$ownEntitySectionCompletion(
+            CompletableFuture<?> future,
+            BiConsumer<?, ?> action,
+            Executor executor,
+            Operation<CompletableFuture<?>> original) {
+        return SaveCompletions.whenCompleteAsync(future, action, executor, original);
+    }
+
+    @WrapOperation(
+            method = "resaveAfter",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Ljava/util/concurrent/CompletableFuture;thenRunAsync(Ljava/lang/Runnable;Ljava/util/concurrent/Executor;)Ljava/util/concurrent/CompletableFuture;"),
+            require = 1,
+            allow = 1)
+    private static CompletableFuture<?> refixes$ownSkippedEntityResave(
+            CompletableFuture<?> future, Runnable action, Executor executor, Operation<CompletableFuture<?>> original) {
+        return SaveCompletions.thenRunAsync(future, action, executor, original);
     }
 }

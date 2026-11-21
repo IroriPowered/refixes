@@ -5,8 +5,8 @@ import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.entity.reference.InvalidatablePersistentRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.components.NPCComponent;
 import com.hypixel.hytale.server.npc.components.SpawnMarkerReference;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.support.StateSupport;
 import com.hypixel.hytale.server.npc.systems.SpawnReferenceSystems;
 import com.hypixel.hytale.server.spawning.spawnmarkers.SpawnMarkerEntity;
@@ -32,7 +32,7 @@ public class MixinTickingSpawnMarkerSystem {
 
     @Shadow
     @Final
-    private ComponentType<EntityStore, NPCEntity> npcEntityComponentType;
+    private ComponentType<EntityStore, NPCComponent> npcComponentType;
 
     @Overwrite
     public void tick(
@@ -41,7 +41,7 @@ public class MixinTickingSpawnMarkerSystem {
             ArchetypeChunk<EntityStore> archetypeChunk,
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer) {
-        NPCEntity npcComponent = archetypeChunk.getComponent(index, npcEntityComponentType);
+        NPCComponent npcComponent = archetypeChunk.getComponent(index, npcComponentType);
         assert npcComponent != null;
         if (npcComponent.isDespawning() || npcComponent.isPlayingDespawnAnim()) {
             return;
@@ -71,7 +71,6 @@ public class MixinTickingSpawnMarkerSystem {
             return;
         }
         npcComponent.setToDespawn();
-        refixes$LOGGER.atWarning().log(
-                "NPCEntity despawning due to lost marker: %s", archetypeChunk.getReferenceTo(index));
+        refixes$LOGGER.atWarning().log("NPC despawning due to lost marker: %s", archetypeChunk.getReferenceTo(index));
     }
 }

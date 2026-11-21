@@ -9,11 +9,13 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
 
     private static final ConfigurationKey<EarlyConfig, CylinderVisibilityConfig> CYLINDER_VISIBILITY_CONFIG =
             ConfigurationKey.subConfig("CylinderVisibility", CylinderVisibilityConfig.get());
-    private static final ConfigurationKey<EarlyConfig, KDTreeOptimizationConfig> KDTREE_OPTIMIZATION_CONFIG =
-            ConfigurationKey.subConfig("KDTreeOptimization", KDTreeOptimizationConfig.get());
 
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_SECTIONS_PER_SECOND =
             new ConfigurationKey<>("MaxSectionsPerSecond", ConfigField.INTEGER, 360);
+    public static final ConfigurationKey<EarlyConfig, Integer> MAX_SECTIONS_PER_SECOND_LAN =
+            new ConfigurationKey<>("MaxSectionsPerSecondLan", ConfigField.INTEGER, 1280);
+    public static final ConfigurationKey<EarlyConfig, Integer> MAX_SECTIONS_PER_SECOND_LOCAL =
+            new ConfigurationKey<>("MaxSectionsPerSecondLocal", ConfigField.INTEGER, 2560);
     public static final ConfigurationKey<EarlyConfig, Integer> MAX_SECTIONS_PER_TICK =
             new ConfigurationKey<>("MaxSectionsPerTick", ConfigField.INTEGER, 40);
     public static final ConfigurationKey<EarlyConfig, Boolean> VANILLA_KEEP_SPAWN_LOADED =
@@ -39,14 +41,19 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
             new ConfigurationKey<>("OutgoingQueueMaxBytes", ConfigField.LONG, OutgoingQueueLimits.DEFAULT.maxBytes());
     public static final ConfigurationKey<EarlyConfig, Integer> OUTGOING_QUEUE_MAX_PACKETS = new ConfigurationKey<>(
             "OutgoingQueueMaxPackets", ConfigField.INTEGER, OutgoingQueueLimits.DEFAULT.maxPackets());
+    public static final ConfigurationKey<EarlyConfig, Long> OUTGOING_QUEUE_BROADCAST_WAIT_MS = new ConfigurationKey<>(
+            "OutgoingQueueBroadcastWaitMs", ConfigField.LONG, OutgoingQueueLimits.DEFAULT.broadcastWaitMs());
+    public static final ConfigurationKey<EarlyConfig, Long> OUTGOING_QUEUE_BROADCAST_STALL_MS = new ConfigurationKey<>(
+            "OutgoingQueueBroadcastStallMs", ConfigField.LONG, OutgoingQueueLimits.DEFAULT.broadcastStallMs());
 
     private static final EarlyConfig INSTANCE = new EarlyConfig();
 
     public EarlyConfig() {
         register(
                 CYLINDER_VISIBILITY_CONFIG,
-                KDTREE_OPTIMIZATION_CONFIG,
                 MAX_SECTIONS_PER_SECOND,
+                MAX_SECTIONS_PER_SECOND_LAN,
+                MAX_SECTIONS_PER_SECOND_LOCAL,
                 MAX_SECTIONS_PER_TICK,
                 VANILLA_KEEP_SPAWN_LOADED,
                 UNLOAD_DISTANCE_OFFSET,
@@ -57,7 +64,9 @@ public class EarlyConfig extends Configuration<EarlyConfig> {
                 PATHFINDING_MAX_NODE_EXPANSIONS_PER_TICK,
                 SHUTDOWN_SAVE_TIMEOUT_SECONDS,
                 OUTGOING_QUEUE_MAX_BYTES,
-                OUTGOING_QUEUE_MAX_PACKETS);
+                OUTGOING_QUEUE_MAX_PACKETS,
+                OUTGOING_QUEUE_BROADCAST_WAIT_MS,
+                OUTGOING_QUEUE_BROADCAST_STALL_MS);
     }
 
     public static EarlyConfig get() {

@@ -11,13 +11,16 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.logger.sentry.SkipSentryException;
+import com.hypixel.hytale.server.core.entity.EntityRemovalSystem;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.universe.world.storage.component.ChunkSavingSystems;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.components.NPCComponent;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.systems.RoleChangeSystem;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -26,7 +29,10 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.llamalad7.mixinextras.sugar.Share;
 import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -69,7 +75,7 @@ public abstract class MixinUnresolvedNPCRoleChange {
                 || access.refixes$isDetachFromSpawning()) {
             return false;
         }
-        NPCEntity npc = store.getComponent(ref, NPCEntity.getComponentType());
+        NPCComponent npc = store.getComponent(ref, NPCComponent.getComponentType());
         if (npc == null) {
             return false;
         }
@@ -129,7 +135,25 @@ public abstract class MixinUnresolvedNPCRoleChange {
             return original.call(store, holder, reason);
         } finally {
             NPCActivationRecovery.section(previous);
-            if (section.getEntityHolders().size() > held) section.markNeedsSaving();
+            if (section.getEntityHolders().size() > held) {
+                section.markNeedsSaving();
+                refixes$keepParkedRows(store, section.getEntityHolders(), held);
+            }
+        }
+    }
+
+    @Unique
+    private static void refixes$keepParkedRows(Store<EntityStore> store, List<Holder<EntityStore>> holders, int held) {
+        Set<UUID> parked = new HashSet<>();
+        for (int i = held; i < holders.size(); i++) {
+            UUIDComponent uuid = holders.get(i).getComponent(UUIDComponent.getComponentType());
+            if (uuid != null) parked.add(uuid.getUuid());
+        }
+        if (parked.isEmpty()) return;
+        ChunkSavingSystems.Data data =
+                store.getExternalData().getWorld().getChunkStore().getStore().getResource(ChunkStore.SAVE_RESOURCE);
+        for (EntityRemovalSystem.PendingRemoval removal : data.drainPendingEntityRemovals()) {
+            if (!parked.contains(removal.uuid())) data.queuePendingEntityRemoval(removal);
         }
     }
 }

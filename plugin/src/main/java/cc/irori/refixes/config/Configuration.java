@@ -2,8 +2,11 @@ package cc.irori.refixes.config;
 
 import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class Configuration<C extends Configuration<?>> {
 
@@ -46,5 +49,17 @@ public abstract class Configuration<C extends Configuration<?>> {
     @SuppressWarnings("unchecked")
     public final <T> void setValue(ConfigurationKey<C, T> key, T value) {
         values.put((ConfigurationKey<?, Object>) key, key.field().valueForStore(value));
+    }
+
+    public final void collectChangedValues(String prefix, List<String> out) {
+        for (Map.Entry<ConfigurationKey<?, Object>, Object> entry : values.entrySet()) {
+            String path = prefix + entry.getKey().name();
+            Object value = entry.getValue();
+            if (value instanceof Configuration<?> child) {
+                child.collectChangedValues(path + ".", out);
+            } else if (!Objects.deepEquals(value, entry.getKey().defaultValue())) {
+                out.add(path + "=" + (value instanceof Object[] array ? Arrays.toString(array) : value));
+            }
+        }
     }
 }

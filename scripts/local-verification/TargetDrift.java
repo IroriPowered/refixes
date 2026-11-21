@@ -26,10 +26,6 @@ import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.util.Textifier;
 import org.objectweb.asm.util.TraceMethodVisitor;
 
-/**
- * Compares the server members that mixins depend on between a baseline and a current server JAR.
- * Writes one TSV row per mixin, target class and dependency with the status ok, changed, missing or added.
- */
 public final class TargetDrift {
     private static final String MIXIN = "Lorg/spongepowered/asm/mixin/Mixin;";
     private static final String OVERWRITE = "Lorg/spongepowered/asm/mixin/Overwrite;";
@@ -55,7 +51,6 @@ public final class TargetDrift {
         }
     }
 
-    /** A member of the target class: a method selector for injectors, otherwise name and descriptor. */
     private record Dependency(Kind kind, String member, String name, String desc, boolean field, boolean lambdas) {}
 
     private TargetDrift() {}
@@ -145,7 +140,6 @@ public final class TargetDrift {
         return dependencies;
     }
 
-    /** Parses a Mixin target selector such as {@code Lowner;name+(desc) -> Lambda;sam()V}. */
     private static Dependency injector(String selector) {
         int arrow = selector.indexOf("->");
         String method = (arrow >= 0 ? selector.substring(0, arrow) : selector).trim();
@@ -196,7 +190,6 @@ public final class TargetDrift {
         return name.startsWith(text) ? name.substring(text.length()) : name;
     }
 
-    /** Fingerprints of the members a dependency selects: normalised bytecode for methods patched in place. */
     private static List<String> resolve(ClassNode target, Dependency dependency) {
         List<String> fingerprints = new ArrayList<>();
         if (target == null) return fingerprints;

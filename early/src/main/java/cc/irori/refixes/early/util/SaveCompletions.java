@@ -38,6 +38,16 @@ public final class SaveCompletions implements Executor {
             BiConsumer<?, ?> action,
             Executor executor,
             Operation<CompletableFuture<?>> original) {
+        return ownCompletion(future, action, executor, original);
+    }
+
+    public static CompletableFuture<?> thenRunAsync(
+            CompletableFuture<?> future, Runnable action, Executor executor, Operation<CompletableFuture<?>> original) {
+        return ownCompletion(future, action, executor, original);
+    }
+
+    private static CompletableFuture<?> ownCompletion(
+            CompletableFuture<?> future, Object action, Executor executor, Operation<CompletableFuture<?>> original) {
         if (!(executor instanceof SaveCompletionOwner owner)) return original.call(future, action, executor);
         SaveCompletions owned = owner.refixes$saveCompletions();
         CompletableFuture<?> stage = original.call(future, action, owned);

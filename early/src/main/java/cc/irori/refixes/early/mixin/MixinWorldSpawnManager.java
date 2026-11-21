@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.refixes.early.util.PatchCounters;
 import cc.irori.refixes.early.util.WorldPolicyTaskCoalescer;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -21,7 +22,9 @@ public abstract class MixinWorldSpawnManager {
     private static void refixes$coalesceEnvRecalc(CallbackInfo ci) {
         ci.cancel();
         Universe.get().getWorlds().forEach((name, world) -> {
-            WorldPolicyTaskCoalescer.submit(world, world, () -> onEnvironmentChanged(world));
+            boolean queued = WorldPolicyTaskCoalescer.submit(world, world, () -> onEnvironmentChanged(world));
+            if (PatchCounters.ENABLED) PatchCounters.SPAWN_MANAGER_RECALC.countReached();
+            if (PatchCounters.ENABLED && !queued) PatchCounters.SPAWN_MANAGER_RECALC.countEffect();
         });
     }
 }
