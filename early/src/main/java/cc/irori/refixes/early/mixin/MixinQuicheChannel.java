@@ -180,7 +180,18 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
     private void refixes$clearQueue() {
         CompletableFuture<Void> waiter;
         synchronized (refixes$queueLock) {
-            refixes$queueBudget.release(refixes$queuedBytes, refixes$queuedSizes.size());
+            int queued = refixes$queuedSizes.size();
+            long exemptBytes = 0L;
+            int exemptPackets = 0;
+            while (!refixes$queuedSizes.isEmpty()) {
+                long size = refixes$queuedSizes.dequeueLong();
+                if (size < 0L) {
+                    exemptBytes -= size;
+                    exemptPackets++;
+                }
+            }
+            refixes$queueBudget.releaseExempt(exemptBytes, exemptPackets);
+            refixes$queueBudget.release(refixes$queuedBytes - exemptBytes, queued - exemptPackets);
             packetQueue.clear();
             refixes$queuedSizes.clear();
             refixes$queuedSizes.trim();
@@ -277,6 +288,7 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
         long sent = original.call(connection, id, buffer, length, fin, error);
         if (sent > 0) {
             refixes$sentData = true;
+            refixes$queueBudget.sent(sent);
             return sent;
         }
         if (refixes$localShutdown) return sent;
@@ -406,13 +418,19 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
             }
             return added;
         }
-        long[] sizes = new long[Math.min(packets.size(), refixes$queueBudget.maxPackets())];
+        boolean waited = SetupAssetPacing.broadcastWaits(refixes$queueBudget)
+                && SetupAssetPacing.awaitQuicheBroadcast((QuicheChannel) (Object) this, refixes$queueBudget);
+        boolean lockExempt = !waited && SetupAssetPacing.broadcastExempt();
+        boolean uncapped = waited || lockExempt;
+        long[] sizes = new long[uncapped ? packets.size() : Math.min(packets.size(), refixes$queueBudget.maxPackets())];
         int index = 0;
         long total = 0L;
         for (ToClientPacket packet : packets) {
             if (packet == null) continue;
             long size = refixes$frameBytes(packet);
-            if (index == sizes.length || size == Long.MAX_VALUE || size > refixes$queueBudget.maxBytes() - total) {
+            if (index == sizes.length
+                    || size == Long.MAX_VALUE
+                    || !uncapped && size > refixes$queueBudget.maxBytes() - total) {
                 refixes$reserve(Long.MAX_VALUE, 0);
                 return false;
             }
@@ -423,17 +441,22 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
             packets = packets.stream().filter(packet -> packet != null).toList();
         synchronized (refixes$queueLock) {
             if (closed.get() || refixes$sendDead) return false;
-            if (!refixes$reserve(total, index)) return false;
+            boolean exempt = lockExempt || waited && !refixes$queueBudget.tryReserve(total, index);
+            if (!(exempt ? refixes$queueBudget.reserveExempt(total, index) : waited || refixes$reserve(total, index)))
+                return false;
             boolean added = false;
             try {
                 added = original.call(queue, packets);
                 if (added) {
-                    for (int i = 0; i < index; i++) refixes$queuedSizes.enqueue(sizes[i]);
+                    for (int i = 0; i < index; i++) refixes$queuedSizes.enqueue(exempt ? -sizes[i] : sizes[i]);
                     refixes$queuedBytes += total;
                 }
                 return added;
             } finally {
-                if (!added) refixes$queueBudget.release(total, index);
+                if (!added) {
+                    if (exempt) refixes$queueBudget.releaseExempt(total, index);
+                    else refixes$queueBudget.release(total, index);
+                }
             }
         }
     }
@@ -451,8 +474,13 @@ public abstract class MixinQuicheChannel implements QuicheTransportWritable, Qui
             packet = original.call(queue);
             if (packet != null) {
                 long bytes = refixes$queuedSizes.dequeueLong();
-                refixes$queuedBytes -= bytes;
-                refixes$queueBudget.release(bytes, 1);
+                if (bytes < 0L) {
+                    refixes$queuedBytes += bytes;
+                    refixes$queueBudget.releaseExempt(-bytes, 1);
+                } else {
+                    refixes$queuedBytes -= bytes;
+                    refixes$queueBudget.release(bytes, 1);
+                }
             }
             if (refixes$drainWaiter != null && refixes$queuedBytes < refixes$backlogBytes) {
                 waiter = refixes$drainWaiter;

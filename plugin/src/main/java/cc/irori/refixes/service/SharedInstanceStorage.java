@@ -54,9 +54,9 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
     }
 
     public static void registerEvents(JavaPlugin plugin) {
+        registerDeletionGuard(plugin);
         plugin.getEventRegistry().registerGlobal(StartWorldEvent.class, event -> {
             if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
-            SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
             InstanceDataResource instanceData =
                     event.getWorld().getChunkStore().getStore().getResource(InstanceDataResource.getResourceType());
             instanceData.setHadPlayer(false);
@@ -71,6 +71,13 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
             SharedInstanceStorage storage = new SharedInstanceStorage(cubic, chunks.getStore());
             gridAccess.refixes$setLoader(storage.new Loader(loader));
             storeAccess.refixes$setSaver(storage);
+        });
+    }
+
+    public static void registerDeletionGuard(JavaPlugin plugin) {
+        plugin.getEventRegistry().registerGlobal(StartWorldEvent.class, event -> {
+            if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;
+            SharedInstancePersistenceSystem.preserveStorage(event.getWorld().getWorldConfig());
         });
         plugin.getEventRegistry().registerGlobal(EventPriority.LAST, RemoveWorldEvent.class, event -> {
             if (!event.getWorld().getName().startsWith(SharedInstanceConstants.SHARED_INSTANCE_PREFIX)) return;

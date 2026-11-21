@@ -12,8 +12,10 @@ import com.hypixel.hytale.server.core.universe.world.worldmap.WorldMapManager;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
+import it.unimi.dsi.fastutil.longs.Long2LongLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +43,9 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
     private static final long REFIXES$FAR_RETRY_NANOS = 30_000_000_000L;
 
     @Unique
+    private static final int REFIXES$MAX_RECHECKS = 32;
+
+    @Unique
     private static final int REFIXES$MAX_TRACKED = 8192;
 
     @Shadow
@@ -57,7 +62,25 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
     private int lastChunkZ;
 
     @Unique
-    private final Long2LongOpenHashMap refixes$missingSince = new Long2LongOpenHashMap();
+    private final Long2LongLinkedOpenHashMap refixes$missingSince = new Long2LongLinkedOpenHashMap();
+
+    @Unique
+    private final Long2ObjectOpenHashMap<CompletableFuture<Boolean>> refixes$rechecks = new Long2ObjectOpenHashMap<>();
+
+    @Unique
+    private final LongArrayList refixes$due = new LongArrayList();
+
+    @Unique
+    private final LongArrayList refixes$dueFar = new LongArrayList();
+
+    @Unique
+    private int refixes$keptRadius = -1;
+
+    @Unique
+    private int refixes$keptChunkX;
+
+    @Unique
+    private int refixes$keptChunkZ;
 
     @Unique
     private final Long2ObjectOpenHashMap<CompletableFuture<MapImage>> refixes$requests = new Long2ObjectOpenHashMap<>();
@@ -139,9 +162,94 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
             allow = 1)
     private void refixes$forgetMissingTerrain(CallbackInfo ci) {
         refixes$missingSince.clear();
+        refixes$rechecks.clear();
         refixes$requests.clear();
         refixes$requestSeenAt.clear();
         refixes$terrainChecks.clear();
+    }
+
+    @Inject(
+            method = "processPendingReloadChunks",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target = "Ljava/util/concurrent/locks/ReentrantReadWriteLock$WriteLock;lock()V",
+                            shift = At.Shift.AFTER),
+            require = 1,
+            allow = 1)
+    private void refixes$recheckMissingTerrain(World world, CallbackInfo ci) {
+        if (world.getWorldMapManager().getWorldMapSettings().getWorldMapArea() != null) return;
+        long now = System.nanoTime();
+        LongArrayList due = refixes$due;
+        LongIterator checked = refixes$rechecks.keySet().iterator();
+        while (checked.hasNext()) {
+            long index = checked.nextLong();
+            if (refixes$rechecks.get(index).isDone()) due.add(index);
+        }
+        for (int i = 0; i < due.size(); i++) {
+            long index = due.getLong(i);
+            CompletableFuture<Boolean> check = refixes$rechecks.remove(index);
+            if (!refixes$missingSince.containsKey(index)) continue;
+            if (!check.isCompletedExceptionally() && check.getNow(false)) {
+                refixes$missingSince.remove(index);
+                refixes$terrainChecks.put(index, check);
+            } else {
+                refixes$missingSince.putAndMoveToLast(index, now);
+            }
+        }
+        due.clear();
+        int free = REFIXES$MAX_RECHECKS - refixes$rechecks.size();
+        if (free <= 0 || refixes$missingSince.isEmpty()) return;
+        long reach = Math.max(0, 2L * player.getViewRadius() - 3);
+        LongArrayList dueFar = refixes$dueFar;
+        LongIterator waiting = refixes$missingSince.keySet().iterator();
+        while (waiting.hasNext() && due.size() < free) {
+            long index = waiting.nextLong();
+            long waited = now - refixes$missingSince.get(index);
+            if (waited < REFIXES$NEAR_RETRY_NANOS) break;
+            if (refixes$rechecks.containsKey(index)) continue;
+            long dx = ChunkUtil.xOfChunkIndex(index) - lastChunkX;
+            long dz = ChunkUtil.zOfChunkIndex(index) - lastChunkZ;
+            if (4 * (dx * dx + dz * dz) <= reach * reach) {
+                due.add(index);
+            } else if (waited >= REFIXES$FAR_RETRY_NANOS && dueFar.size() < free) {
+                dueFar.add(index);
+            }
+        }
+        for (int i = 0; i < dueFar.size() && due.size() < free; i++) due.add(dueFar.getLong(i));
+        dueFar.clear();
+        ExistingTerrainAccess terrain = (ExistingTerrainAccess) world.getChunkStore();
+        for (int i = 0; i < due.size(); i++) {
+            long index = due.getLong(i);
+            refixes$rechecks.put(index, refixes$terrainPresent(terrain, index));
+        }
+        due.clear();
+    }
+
+    @Inject(
+            method = "unloadImages",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target = "Ljava/util/concurrent/locks/ReentrantReadWriteLock$WriteLock;lock()V",
+                            shift = At.Shift.AFTER),
+            require = 1,
+            allow = 1)
+    private void refixes$forgetHiddenTerrain(int viewRadius, int chunkX, int chunkZ, CallbackInfo ci) {
+        if (viewRadius == refixes$keptRadius && chunkX == refixes$keptChunkX && chunkZ == refixes$keptChunkZ) return;
+        refixes$keptRadius = viewRadius;
+        refixes$keptChunkX = chunkX;
+        refixes$keptChunkZ = chunkZ;
+        LongIterator waiting = refixes$missingSince.keySet().iterator();
+        while (waiting.hasNext()) {
+            long index = waiting.nextLong();
+            if (WorldMapTracker.shouldBeVisible(
+                    viewRadius, chunkX, chunkZ, ChunkUtil.xOfChunkIndex(index), ChunkUtil.zOfChunkIndex(index))) {
+                continue;
+            }
+            waiting.remove();
+            refixes$rechecks.remove(index);
+        }
     }
 
     @Inject(
@@ -158,6 +266,7 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
         while (iterator.hasNext()) {
             long index = iterator.nextLong();
             refixes$missingSince.remove(index);
+            refixes$rechecks.remove(index);
             refixes$requests.remove(index);
             refixes$requestSeenAt.remove(index);
             refixes$terrainChecks.remove(index);
@@ -170,7 +279,7 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
         if (manager.getWorldMapSettings().getWorldMapArea() != null) return original.call(manager, index);
         if (PatchCounters.ENABLED) PatchCounters.WORLD_MAP_EXISTING_TERRAIN.countReached();
         long now = System.nanoTime();
-        if (refixes$isWaiting(index, now)) {
+        if (refixes$missingSince.containsKey(index)) {
             if (PatchCounters.ENABLED) PatchCounters.WORLD_MAP_EXISTING_TERRAIN.countEffect();
             return REFIXES$MISSING;
         }
@@ -202,18 +311,6 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
     }
 
     @Unique
-    private boolean refixes$isWaiting(long index, long now) {
-        if (!refixes$missingSince.containsKey(index)) return false;
-        long dx = ChunkUtil.xOfChunkIndex(index) - lastChunkX;
-        long dz = ChunkUtil.zOfChunkIndex(index) - lastChunkZ;
-        long reach = Math.max(0, 2L * player.getViewRadius() - 3);
-        long wait = 4 * (dx * dx + dz * dz) <= reach * reach ? REFIXES$NEAR_RETRY_NANOS : REFIXES$FAR_RETRY_NANOS;
-        if (now - refixes$missingSince.get(index) < wait) return true;
-        refixes$missingSince.remove(index);
-        return false;
-    }
-
-    @Unique
     private CompletableFuture<MapImage> refixes$awaitTerrain(World world, long index, long now) {
         CompletableFuture<Boolean> check = refixes$terrainChecks.remove(index);
         if (check == null) check = refixes$terrainPresent((ExistingTerrainAccess) world.getChunkStore(), index);
@@ -228,8 +325,7 @@ public abstract class MixinWorldMapTrackerMissingTerrain {
     @Unique
     private CompletableFuture<MapImage> refixes$markMissing(long index, long now) {
         if (PatchCounters.ENABLED) PatchCounters.WORLD_MAP_EXISTING_TERRAIN.countEffect();
-        if (refixes$missingSince.size() >= REFIXES$MAX_TRACKED) refixes$missingSince.clear();
-        refixes$missingSince.put(index, now);
+        refixes$missingSince.putAndMoveToLast(index, now);
         return REFIXES$MISSING;
     }
 

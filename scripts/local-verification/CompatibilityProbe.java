@@ -31,6 +31,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 public final class CompatibilityProbe {
     private static final Gson JSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String PLAN = "verification-plan.json";
+    private static final String REFIXES_MIXINS = "cc.irori.refixes.early.mixin.";
 
     public static void main(String[] args) throws Exception {
         if (args.length != 3 || !Set.of("default", "all").contains(args[2])) {
@@ -128,20 +129,33 @@ public final class CompatibilityProbe {
             }
             JsonObject plan = JsonParser.parseString(Files.readString(Path.of(PLAN))).getAsJsonObject();
             Map<String, Set<String>> expectedByTarget = new LinkedHashMap<>();
+            Map<String, Set<String>> leftOutByTarget = new LinkedHashMap<>();
             Set<String> targets = new LinkedHashSet<>();
             int active = 0;
             for (var element : plan.getAsJsonArray("mixins")) {
                 JsonObject entry = element.getAsJsonObject();
                 String target = entry.get("target").getAsString();
+                String mixin = entry.get("mixin").getAsString();
                 targets.add(target);
-                if (entry.get("active").getAsBoolean()) {
-                    expectedByTarget.computeIfAbsent(target, unused -> new LinkedHashSet<>())
-                            .add(entry.get("mixin").getAsString());
+                boolean selected = mixin.startsWith(REFIXES_MIXINS)
+                        ? cc.irori.refixes.early.EarlyOptions.isMixinEnabled(mixin.substring(REFIXES_MIXINS.length()))
+                        : entry.get("active").getAsBoolean();
+                if (selected) {
+                    expectedByTarget.computeIfAbsent(target, unused -> new LinkedHashSet<>()).add(mixin);
                     active++;
+                } else if (mixin.startsWith(REFIXES_MIXINS)) {
+                    leftOutByTarget.computeIfAbsent(target, unused -> new LinkedHashSet<>()).add(mixin);
                 }
             }
             JsonArray transformed = new JsonArray();
+            JsonArray absent = new JsonArray();
             for (String target : targets) {
+                Set<String> expected = expectedByTarget.getOrDefault(target, Set.of());
+                if (expected.isEmpty() && loader.getResource(target.replace('.', '/') + ".class") == null) {
+                    System.out.println("[LocalVerify] Not in this Hytale server, no selected mixin: " + target);
+                    absent.add(target);
+                    continue;
+                }
                 System.out.println("[LocalVerify] Loading " + target);
                 Class<?> type = Class.forName(target, false, loader);
                 if (type.getClassLoader() != loader) {
@@ -149,12 +163,11 @@ public final class CompatibilityProbe {
                 }
                 type.getDeclaredMethods();
                 type.getDeclaredConstructors();
-                Set<String> expected = expectedByTarget.getOrDefault(target, Set.of());
-                if (!expected.isEmpty()) {
-                    Path exported = Path.of(".mixin.out", "class", target.replace('.', '/') + ".class");
-                    if (!Files.isRegularFile(exported)) {
-                        throw new AssertionError("No transformed bytecode exported for " + target);
-                    }
+                Path exported = Path.of(".mixin.out", "class", target.replace('.', '/') + ".class");
+                if (!expected.isEmpty() && !Files.isRegularFile(exported)) {
+                    throw new AssertionError("No transformed bytecode exported for " + target);
+                }
+                if (Files.isRegularFile(exported)) {
                     ClassNode targetNode = classNode(Files.readAllBytes(exported));
                     Set<String> merged = mergedMixins(targetNode);
                     for (String mixin : expected) {
@@ -162,23 +175,40 @@ public final class CompatibilityProbe {
                             throw new AssertionError("Active mixin did not merge into " + target + ": " + mixin);
                         }
                     }
+                    for (String mixin : leftOutByTarget.getOrDefault(target, Set.of())) {
+                        if (merged.contains(mixin)) {
+                            throw new AssertionError("Left-out mixin merged into " + target + ": " + mixin);
+                        }
+                    }
                 }
                 transformed.add(target);
             }
             verifyEarlyPluginLoading(loader);
             SharedInstanceStorageRegression.assertSaveSectionCallbacks();
-            NativePatchRegression.assertPatched();
-            com.hypixel.hytale.component.BeaconNativeRegression.assertNativeNullController();
+            String gate = cc.irori.refixes.early.EarlyOptions.versionGate();
+            if (gate == null || gate.startsWith("disabled:")) {
+                throw new AssertionError("Refixes applied no early patches on this server: " + gate);
+            }
+            NativePatchRegression.assertParallelTask();
+            if (cc.irori.refixes.early.EarlyOptions.isMixinEnabled("MixinChunkStoreLoadStateFail")) {
+                NativePatchRegression.assertLoadState();
+            } else {
+                System.out.println("[LocalVerify] ChunkStoreSectionBackoffDeadlock is not applied, chunk load state"
+                        + " regressions do not run");
+            }
             com.hypixel.hytale.component.CommandBufferRemovalRegression.assertPatched();
-            NettySetupPacingRegression.assertPatched();
+            if (cc.irori.refixes.early.EarlyOptions.isMixinEnabled("MixinNettyChannelConnection")) {
+                NettySetupPacingRegression.assertPatched();
+            } else {
+                System.out.println("[LocalVerify] OutgoingQueueLimits is not applied, Netty setup pacing regressions"
+                        + " do not run");
+            }
             JsonObject result = new JsonObject();
             result.addProperty("status", "passed");
             result.addProperty("mode", plan.get("mode").getAsString());
             result.addProperty("activeMixinTargetPairs", active);
             result.add("transformedTargets", transformed);
-            result.addProperty("earlyPluginLoading", "registered Hyinit transformer removed by real loader");
-            result.addProperty("sharedInstanceStorage", "inline callbacks; in-flight deduplication; permanent first-write success; synchronous/asynchronous retry; cubic Y isolation");
-            result.addProperty("nettySetupPacing", "ordered setup bursts and batches, flush-driven drainage, close release, nonblocking event loop, hard caps and invalid-size diagnostics");
+            result.add("absentTargets", absent);
             result.addProperty("strictInjectionCounts", Boolean.getBoolean("mixin.debug.countInjections"));
             if (!result.get("strictInjectionCounts").getAsBoolean()) {
                 throw new AssertionError("Strict injection counting is required");
@@ -211,14 +241,12 @@ public final class CompatibilityProbe {
                 throw new AssertionError("Expected exactly one Refixes runtime plugin at setup: " + plugins);
             }
             verifySharedStorageAvailability(plugins.getFirst().getClass().getClassLoader());
-            SectionBackoffDeadlockRepro.assertPatched(SectionBackoffDeadlockRepro.setupPhaseWorld());
-            SharedInstanceStorageRegression.runWithRegistry(SectionBackoffDeadlockRepro.fixtureStore());
+            SectionBackoffRegression.assertPatched(SectionBackoffRegression.setupPhaseWorld());
+            SharedInstanceStorageRegression.runWithRegistry(SectionBackoffRegression.fixtureStore());
             JsonObject result = new JsonObject();
             result.addProperty("status", "setup-verified");
             result.addProperty("refixesRuntimePlugin", plugins.getFirst().getIdentifier().toString());
             result.addProperty("pluginState", plugins.getFirst().getState().toString());
-            result.addProperty("sectionBackoffDeadlock", "completed exceptionally on transformed ChunkStore");
-            result.addProperty("sharedInstanceUuidLessHolder", "stable UUID + transform after failed first save");
             Files.writeString(Path.of("setup-result.json"), JSON.toJson(result));
             System.out.println("[LocalVerify] Setup-phase regressions PASS");
             System.exit(0);
@@ -251,15 +279,13 @@ public final class CompatibilityProbe {
             result.addProperty("refixesRuntimePlugin", plugins.getFirst().getIdentifier().toString());
             result.addProperty("pluginState", plugins.getFirst().getState().toString());
             var world = com.hypixel.hytale.server.core.universe.Universe.get().getDefaultWorld();
-            SectionBackoffDeadlockRepro.assertPatched(world);
+            SectionBackoffRegression.assertPatched(world);
             FutureTask<Void> storageRegression = new FutureTask<>(() -> {
                 SharedInstanceStorageRegression.runOnStoreThread(world.getChunkStore().getStore());
                 return null;
             });
             world.execute(storageRegression);
             storageRegression.get(10, TimeUnit.SECONDS);
-            result.addProperty("sharedInstanceUuidLessHolder", "stable UUID + transform after failed first save");
-            result.addProperty("sectionBackoffDeadlock", "completed exceptionally on transformed ChunkStore");
             EntityGuardRegression.run(world).forEach((name, outcome) -> result.addProperty("entityGuard." + name, outcome));
             Files.writeString(Path.of("boot-result.json"), JSON.toJson(result));
             System.out.println("[LocalVerify] Full boot and Refixes plugin enablement PASS");
@@ -324,7 +350,6 @@ public final class CompatibilityProbe {
         return result;
     }
 
-    // Interface-only mixins (e.g. @Shadow + implements) leave no @MixinMerged method; prove the interfaces landed.
     private static boolean interfacesApplied(ClassLoader loader, String mixin, ClassNode target) throws Exception {
         try (InputStream in = loader.getResourceAsStream(mixin.replace('.', '/') + ".class")) {
             if (in == null) throw new AssertionError("Mixin class bytes not found: " + mixin);

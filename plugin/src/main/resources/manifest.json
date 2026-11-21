@@ -3,6 +3,7 @@
     "Name": "Refixes",
     "Version": "${version}",
     "Description": "Runtime fixes and optimizations for Hytale.",
+    "Website": "https://www.curseforge.com/hytale/mods/refixes",
     "Main": "cc.irori.refixes.Refixes",
     "Authors": [
         {
@@ -12,8 +13,6 @@
     ],
     "ServerVersion": ">=${hytaleVersion}",
     "Dependencies": {},
-    "OptionalDependencies": {
-        "Xytronix:Hybox": "*"
-    },
+    "OptionalDependencies": {},
     "IncludesAssetPack": true
 }

@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.duck.QuicheDrainSignal;
+import cc.irori.refixes.early.util.IncidentCounters;
 import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.NettyQueueBudget;
 import cc.irori.refixes.early.util.SetupAssetPacing;
@@ -30,8 +31,7 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
 
     @Unique
-    private static final AttributeKey<NettyQueueBudget> refixes$QUEUE_BUDGET =
-            AttributeKey.valueOf("refixes.quic.queueBudget");
+    private static final AttributeKey<NettyQueueBudget> refixes$QUEUE_BUDGET = NettyQueueBudget.ATTRIBUTE;
 
     @Unique
     private static final AttributeKey<Boolean> refixes$QUEUE_REGISTERED =
@@ -100,6 +100,8 @@ public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
         NettyQueueBudget budget = refixes$budget(channel);
         ChannelConnection connection = (ChannelConnection) (Object) this;
         boolean paced = SetupAssetPacing.nettyWorker(budget);
+        boolean broadcast = !paced && SetupAssetPacing.broadcastWaits(budget);
+        boolean exempt = !paced && !broadcast && SetupAssetPacing.broadcastExempt();
         if (paced && !channel.isActive()) {
             try {
                 SetupAssetPacing.reserveNetty(connection, budget, 0L, 0);
@@ -132,11 +134,18 @@ public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
             throw failure;
         }
         if (packets == 0) return original.call(channel, message, promise);
-        boolean reserved;
+        boolean reserved = false;
         try {
-            reserved = paced
-                    ? SetupAssetPacing.reserveNetty(connection, budget, bytes, packets)
-                    : budget.reserve(bytes, packets);
+            if (broadcast && SetupAssetPacing.awaitNettyBroadcast(budget)) {
+                reserved = budget.tryReserveWithinLimits(bytes, packets);
+                exempt = !reserved;
+            }
+            if (!reserved)
+                reserved = exempt
+                        ? budget.reserveExempt(bytes, packets)
+                        : paced
+                                ? SetupAssetPacing.reserveNetty(connection, budget, bytes, packets)
+                                : budget.reserve(bytes, packets);
         } catch (RuntimeException | Error failure) {
             promise.tryFailure(failure);
             throw failure;
@@ -144,11 +153,12 @@ public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
         if (!reserved) return refixes$reject(channel, promise, budget);
         ChannelPromise tracked = null;
         try {
-            tracked = refixes$tracked(channel, budget, bytes, packets, promise, null);
+            tracked = refixes$tracked(channel, budget, bytes, packets, promise, null, exempt);
             return original.call(channel, message, tracked);
         } catch (RuntimeException | Error failure) {
             if (tracked == null) {
-                budget.release(bytes, packets, failure);
+                if (exempt) budget.releaseExempt(bytes, packets, failure);
+                else budget.release(bytes, packets, failure);
                 promise.tryFailure(failure);
             } else tracked.tryFailure(failure);
             throw failure;
@@ -179,7 +189,7 @@ public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
                 writes.add();
                 ChannelPromise tracked = null;
                 try {
-                    tracked = refixes$tracked(channel, budget, bytes, 1, null, writes);
+                    tracked = refixes$tracked(channel, budget, bytes, 1, null, writes, false);
                     channel.write(packet, tracked);
                 } catch (RuntimeException | Error failure) {
                     if (tracked == null) {
@@ -212,10 +222,12 @@ public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
             long bytes,
             int packets,
             ChannelPromise promise,
-            NettyQueueBudget.Batch batch) {
+            NettyQueueBudget.Batch batch,
+            boolean exempt) {
         ChannelPromise tracked = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
         tracked.addListener(result -> {
-            budget.release(bytes, packets, result.cause());
+            if (exempt) budget.releaseExempt(bytes, packets, result.cause());
+            else budget.release(bytes, packets, result.cause());
             if (batch != null) batch.complete(result.cause());
             if (promise == null) return;
             if (result.isSuccess()) promise.trySuccess();
@@ -249,8 +261,10 @@ public abstract class MixinNettyChannelConnection implements QuicheDrainSignal {
         if (failure == null) failure = new ClosedChannelException();
         promise.tryFailure(failure);
         if (failure instanceof ClosedChannelException || !budget.requestClose()) return promise;
-        if (failure instanceof IllegalStateException)
+        if (failure instanceof IllegalStateException) {
+            IncidentCounters.NETTY_QUEUE_LIMIT_DISCONNECTS.increment();
             Logs.logger().atWarning().log("%s for %s", failure.getMessage(), channel.remoteAddress());
+        }
         FormattedMessage reason = new FormattedMessage();
         reason.rawText = failure instanceof IllegalArgumentException
                 ? "Invalid outgoing packet size"

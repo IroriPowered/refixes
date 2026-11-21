@@ -16,19 +16,15 @@ public final class ConfigMigration {
 
     private static final List<Rename> TOGGLE_RENAMES = List.of(
             rename("Optimizations.CollectVisible", true, "Tuning.CylinderVisibility"),
-            rename("Optimizations.SkipSystemMetrics", false, "Diagnostics.SkipSystemMetrics"),
             rename("Optimizations.ChunkUnloadingSystem", true, "Features.OriginRetention"),
             rename("Optimizations.PlayerChunkTrackerSystems", true, "Tuning.ChunkStreaming"),
             rename("Experimental.ShutdownSaveTimeout", false, "Recovery.ShutdownSaveTimeout"),
-            rename("Experimental.SkipEmptyLightSections", false, "Optimizations.SkipEmptyLightSections"),
             rename("Experimental.SharedInstances", false, "Features.SharedInstances"),
             rename("Experimental.TickSurvival", false, "Recovery.TickSurvival"),
             rename("Crashfixes.BlockSectionSafety", true, "Recovery.CorruptSectionReset"),
             rename("Crashfixes.MotionControllerBase", true, "Recovery.MotionControllerBase"),
             rename("Crashfixes.TurnOffTeleportersSystem", true, "Recovery.TurnOffTeleportersSystem"),
-            rename("Crashfixes.EntityChunkLoadingSystem", true, "Recovery.InvalidSavedHolders"),
             rename("Crashfixes.CollisionModule", true, "Recovery.InvalidCollisionData"),
-            rename("Crashfixes.PageManager", true, "Compatibility.PageManager"),
             rename("Crashfixes.TeleportToPlayerCommand", true, "Correctness.TeleportToPlayerCommand"),
             rename("Crashfixes.DeployableOwnerComponent", true, "Correctness.DeployableOwnerComponent"),
             rename("Crashfixes.MountPlugin", true, "Correctness.MountPlugin"),
@@ -44,16 +40,15 @@ public final class ConfigMigration {
             rename("Helpers.PortalDeviceSummonPage", true, "Correctness.PortalDeviceSummonPage"),
             rename("Helpers.RemovalSystem", true, "Correctness.RemovalSystem"),
             rename("Helpers.ServerAuthManager", true, "Compatibility.ServerAuthManager"),
-            rename("Helpers.SetMemoriesCapacityInteraction", true, "Correctness.SetMemoriesCapacityInteraction"),
-            rename("Helpers.SpawnMarkerBlockStateHeartbeat", true, "Diagnostics.SpawnMarkerBlockStateHeartbeat"),
             rename("Helpers.StateSupport", true, "Correctness.StateSupport"),
             rename("Helpers.TickingSpawnMarkerSystem", true, "Correctness.TickingSpawnMarkerSystem"),
             rename("Helpers.TickSleep", true, "Tuning.TickWait"),
             rename("Helpers.TrackedPlacementOnAddRemove", true, "Correctness.TrackedPlacementOnAddRemove"),
-            rename("Helpers.UUIDSystem", true, "Correctness.UUIDSystem"),
             rename("Helpers.UpdateCheckCommand", true, "Compatibility.UpdateCheckCommand"),
             rename("Helpers.UpdateDownloadCommand", true, "Compatibility.UpdateDownloadCommand"),
             rename("Helpers.UpdateModule", true, "Compatibility.UpdateModule"),
+            rename("Crashfixes.UpdateModule", true, "Compatibility.UpdateModule"),
+            rename("Crashfixes.RepulsionTicker", true, "Optimizations.RepulsionTicker"),
             rename("Helpers.WorldPauseCommand", true, "Features.WorldPauseCommand"),
             rename("Helpers.WorldConfig", true, "Compatibility.WorldConfig"),
             rename("Helpers.WorldMapTracker", true, "Recovery.WorldMapTracker", "Correctness.WorldMapCache"),
@@ -75,16 +70,44 @@ public final class ConfigMigration {
                     "Correctness.WorldTransfer",
                     "Correctness.WorldReopenGuard",
                     "Correctness.StorageOrdering",
-                    "Correctness.TransferCombatClock"));
+                    "Correctness.TransferCombatClock"),
+            rename(
+                    "Correctness.LightSaveMarks",
+                    true,
+                    "Correctness.BlockChangeSaving",
+                    "Optimizations.SkipUnchangedLightSaves"),
+            rename("Optimizations.RepulsionNeighbours", false, "Optimizations.RepulsionNeighbors"));
 
     private static final Map<String, String> RETIRED_TOGGLES = Map.ofEntries(
-            Map.entry("Optimizations.FluidPlugin", "replaced by Mixins.Optimizations.FluidDiscovery"),
+            Map.entry("Optimizations.FluidPlugin", "no measurable gain"),
             Map.entry("Optimizations.BlockModule", "removed"),
             Map.entry("Optimizations.CollisionAirFastPath", "removed"),
             Map.entry("Optimizations.AStarBase", "limits moved to Mixins.Tuning.PathfindingLimits"),
             Map.entry("Optimizations.InteractionMetaSizing", "removed"),
             Map.entry("Optimizations.LegacySeparation", "removed"),
             Map.entry("Correctness.RespawnPointPage", "fixed in Hytale 0.7.7"),
+            Map.entry("Optimizations.KDTree", "no measurable gain"),
+            Map.entry("Optimizations.SkipSystemMetrics", "no measurable gain"),
+            Map.entry("Diagnostics.SkipSystemMetrics", "no measurable gain"),
+            Map.entry(
+                    "Helpers.SetMemoriesCapacityInteraction",
+                    "Hytale stops the server when the Memories plugin fails to start"),
+            Map.entry(
+                    "Correctness.SetMemoriesCapacityInteraction",
+                    "Hytale stops the server when the Memories plugin fails to start"),
+            Map.entry("Helpers.UUIDSystem", "Hytale cannot reach this case"),
+            Map.entry("Correctness.UUIDSystem", "Hytale cannot reach this case"),
+            Map.entry("Optimizations.FluidDiscovery", "no measurable gain"),
+            Map.entry("Optimizations.CollisionConfig", "no measurable gain"),
+            Map.entry("Experimental.SkipEmptyLightSections", "no measurable gain"),
+            Map.entry("Optimizations.SkipEmptyLightSections", "no measurable gain"),
+            Map.entry("Crashfixes.EntityChunkLoadingSystem", "Hytale drops these entities itself"),
+            Map.entry("Recovery.InvalidSavedHolders", "Hytale drops these entities itself"),
+            Map.entry("Helpers.SpawnMarkerBlockStateHeartbeat", "it only lowered the level of a Hytale error"),
+            Map.entry("Diagnostics.SpawnMarkerBlockStateHeartbeat", "it only lowered the level of a Hytale error"),
+            Map.entry("Crashfixes.PageManager", "Hytale catches and logs this error itself"),
+            Map.entry("Compatibility.PageManager", "Hytale catches and logs this error itself"),
+            Map.entry("Correctness.WorldNullGuard", "no Hytale code reaches this case"),
             Map.entry("Experimental.Parallel.SpatialCollection", "parallel ticking removed"),
             Map.entry("Experimental.Parallel.AllSystems", "parallel ticking removed"),
             Map.entry("Experimental.Parallel.Steering", "parallel ticking removed"),
@@ -107,16 +130,25 @@ public final class ConfigMigration {
             Map.entry("Helpers.TrackedPlacementAccessor", "part of Mixins.Correctness.TrackedPlacementOnAddRemove"),
             Map.entry(
                     "Helpers.World",
-                    "split into Mixins.Correctness.WorldNullGuard, Mixins.Experimental.PathfindingBudget"
-                            + " and Mixins.Recovery.ShutdownSaveTimeout"));
-
-    private static final List<String> LEGACY_MIXIN_CATEGORIES = List.of("Mixins.Crashfixes", "Mixins.Helpers");
-
-    private static final Map<String, Boolean> CHANGED_DEFAULTS = Map.of("Mixins.Optimizations.KDTree", true);
+                    "split into Mixins.Experimental.PathfindingBudget and Mixins.Recovery.ShutdownSaveTimeout"),
+            Map.entry("Crashfixes.AStarBase", "limits moved to Mixins.Tuning.PathfindingLimits"),
+            Map.entry("Crashfixes.ChunkLightDataSerializeSafety", "removed"),
+            Map.entry("Crashfixes.HideEntitySystems", "removed"),
+            Map.entry("Crashfixes.Player", "removed"),
+            Map.entry("Crashfixes.TriggerVolumesPlugin", "removed"),
+            Map.entry("Crashfixes.VoiceModule", "removed"),
+            Map.entry("Experimental.BlockSectionCache", "removed"),
+            Map.entry("Experimental.StatRecalcThrottle", "removed"),
+            Map.entry("Experimental.ParallelEntityTicking", "parallel ticking removed"),
+            Map.entry("Experimental.ParallelSpatialCollection", "parallel ticking removed"),
+            Map.entry("Experimental.FluidReplicateChanges", "parallel ticking removed"),
+            Map.entry("Experimental.ChunkReplicateChanges", "parallel ticking removed"),
+            Map.entry("Helpers.CraftingManagerAccessor", "removed"),
+            Map.entry("Helpers.PrefabLoader", "removed"),
+            Map.entry("Helpers.Universe", "removed"),
+            Map.entry("Optimizations.ChunkSavingSystems", "removed"));
 
     private static final List<Move> RUNTIME_MOVES = List.of(
-            new Move("HyboxIntegration", "Runtime.Diagnostics.HyboxIntegration"),
-            new Move("BlackboxIntegration", "Runtime.Diagnostics.HyboxIntegration"),
             new Move("Listeners.UnknownBlockCleaner", "Runtime.Recovery.UnknownBlockCleaner.Enabled"),
             new Move("Listeners.UnknownBlockCleanerScanFluids", "Runtime.Recovery.UnknownBlockCleaner.ScanFluids"),
             new Move(
@@ -155,15 +187,36 @@ public final class ConfigMigration {
             new Move("Watchdog.RestartSaveTimeoutMs", "Runtime.Recovery.Watchdog.RestartSaveTimeoutMs"),
             new Move("Watchdog.AutoRestartingWorldFilter", "Runtime.Recovery.Watchdog.AutoRestartingWorldFilter"));
 
-    private static final Map<String, String> RETIRED_RUNTIME = Map.of(
-            "Systems.EntityDespawnTimer",
-            "the despawn timer system now runs when one of its actions is enabled",
-            "Early.BackpressureMaxOutboundBytes",
-            "replaced by Early.OutgoingQueueMaxBytes",
-            "Early.BackpressureGraceMs",
-            "replaced by Early.OutgoingQueueMaxBytes and Early.OutgoingQueueMaxPackets",
-            "Experimental.ParallelSteeringThreshold",
-            "parallel ticking removed");
+    private static final String JFR_INSTEAD =
+            "Refixes records JDK Flight Recorder events instead, controlled by Runtime.Diagnostics.JfrEvents.";
+
+    private static final Map<String, String> RETIRED_RUNTIME = Map.ofEntries(
+            Map.entry(
+                    "Systems.EntityDespawnTimer",
+                    "the despawn timer system now runs when one of its actions is enabled"),
+            Map.entry("Early.BackpressureMaxOutboundBytes", "replaced by Early.OutgoingQueueMaxBytes"),
+            Map.entry(
+                    "Early.BackpressureGraceMs",
+                    "replaced by Early.OutgoingQueueMaxBytes and Early.OutgoingQueueMaxPackets"),
+            Map.entry("Experimental.ParallelSteeringThreshold", "parallel ticking removed"),
+            Map.entry("Early.KDTreeOptimization", "no measurable gain"),
+            Map.entry("Runtime.Diagnostics.HyboxIntegration", JFR_INSTEAD),
+            Map.entry("HyboxIntegration", JFR_INSTEAD),
+            Map.entry("BlackboxIntegration", JFR_INSTEAD),
+            Map.entry("Early.MaxChunksPerSecond", "replaced by Early.MaxSectionsPerSecond"),
+            Map.entry("Early.MaxChunksPerTick", "replaced by Early.MaxSectionsPerTick"),
+            Map.entry("Early.TickSleepOptimization", "replaced by Mixins.Tuning.TickWait"),
+            Map.entry("Early.ForceSkipModValidation", "removed"),
+            Map.entry("Early.StatRecalcInterval", "removed"),
+            Map.entry("Listeners.InstancePositionTracker", "removed"),
+            Map.entry("Systems.RespawnBlock", "removed"),
+            Map.entry("Services.ChunkUnloader", "removed"),
+            Map.entry(
+                    "Services.ConnectionBackpressure",
+                    "replaced by Early.OutgoingQueueMaxBytes and Early.OutgoingQueueMaxPackets"),
+            Map.entry("Services.PerPlayerHotRadius.TPSLow", "replaced by TPSLowFraction"),
+            Map.entry("Services.PerPlayerHotRadius.TPSHigh", "replaced by TPSHighFraction"),
+            Map.entry("Services.PerPlayerHotRadius.AdjustmentStep", "removed"));
 
     private static final List<String> LEGACY_RUNTIME_ROOTS = List.of(
             "Listeners", "Systems", "Services", "ChunkLoader", "SharedInstanceWorlds", "Watchdog", "Experimental");
@@ -179,17 +232,73 @@ public final class ConfigMigration {
         return new Rename("Mixins." + from, oldDefault, List.copyOf(targets));
     }
 
-    public static List<String> migrateMixins(JsonObject config, Set<String> currentToggles) {
+    private static final String ALLOW_UNSUPPORTED_SERVER_VERSION = "AllowUnsupportedServerVersion";
+    private static final String UNCHANGED_PATCHES = "ApplyUnchangedPatchesOnUnsupportedServerVersion";
+
+    public static List<String> migrateOtherServerVersions(JsonObject config) {
+        String key = RefixesMixinPlugin.OTHER_SERVER_VERSIONS;
         List<String> log = new ArrayList<>();
-        if (LEGACY_MIXIN_CATEGORIES.stream().anyMatch(category -> get(config, category) != null)) {
-            for (Map.Entry<String, Boolean> changed : CHANGED_DEFAULTS.entrySet()) {
-                JsonElement value = get(config, changed.getKey());
-                if (!isBoolean(value) || value.getAsBoolean() != changed.getValue()) continue;
-                remove(config, changed.getKey());
-                log.add("Removed " + changed.getKey() + "=" + value + " (old default); " + changed.getKey()
-                        + " uses the current default");
+        JsonElement allow = config.remove(ALLOW_UNSUPPORTED_SERVER_VERSION);
+        JsonElement unchanged = config.remove(UNCHANGED_PATCHES);
+        String current = otherServerVersions(config.get(key));
+        boolean allPatches = isBoolean(allow) && allow.getAsBoolean();
+        if (allow != null) {
+            if (allPatches) {
+                log.add(carryOver(
+                        config, ALLOW_UNSUPPORTED_SERVER_VERSION, allow, current, RefixesMixinPlugin.ALL_PATCHES));
+            } else if (isBoolean(allow)) {
+                log.add("Removed " + ALLOW_UNSUPPORTED_SERVER_VERSION + "=false (old default)");
+            } else {
+                log.add("Removed invalid value " + ALLOW_UNSUPPORTED_SERVER_VERSION + "=" + allow);
             }
         }
+        if (unchanged != null) {
+            String value = isBoolean(unchanged)
+                    ? (unchanged.getAsBoolean() ? null : RefixesMixinPlugin.NEVER)
+                    : otherServerVersions(unchanged);
+            if (allPatches) {
+                log.add("Removed " + UNCHANGED_PATCHES + "=" + unchanged + ", " + ALLOW_UNSUPPORTED_SERVER_VERSION
+                        + "=true takes precedence");
+            } else if (isBoolean(unchanged) && unchanged.getAsBoolean()) {
+                log.add("Removed " + UNCHANGED_PATCHES + "=true (old default), " + key + " uses the default "
+                        + RefixesMixinPlugin.OTHER_SERVER_VERSIONS_DEFAULT);
+            } else if (value == null) {
+                log.add("Removed invalid value " + UNCHANGED_PATCHES + "=" + unchanged);
+            } else {
+                log.add(carryOver(config, UNCHANGED_PATCHES, unchanged, current, value));
+            }
+        }
+        JsonElement value = config.get(key);
+        if (value == null) return log;
+        String accepted = otherServerVersions(value);
+        if (accepted == null) {
+            config.remove(key);
+            log.add("Replaced invalid value " + key + "=" + value + " with the default");
+        } else {
+            config.addProperty(key, accepted);
+        }
+        return log;
+    }
+
+    private static String carryOver(JsonObject config, String from, JsonElement old, String current, String value) {
+        String key = RefixesMixinPlugin.OTHER_SERVER_VERSIONS;
+        if (current != null) return "Ignored " + from + "=" + old + ": " + key + " is already set to " + current;
+        config.addProperty(key, value);
+        return "Migrated " + from + "=" + old + " to " + key + "=" + value;
+    }
+
+    private static String otherServerVersions(JsonElement value) {
+        if (value == null
+                || !value.isJsonPrimitive()
+                || !value.getAsJsonPrimitive().isString()) return null;
+        for (String accepted : RefixesMixinPlugin.OTHER_SERVER_VERSIONS_VALUES) {
+            if (accepted.equalsIgnoreCase(value.getAsString().trim())) return accepted;
+        }
+        return null;
+    }
+
+    public static List<String> migrateMixins(JsonObject config, Set<String> currentToggles) {
+        List<String> log = new ArrayList<>();
         for (Rename rename : TOGGLE_RENAMES) {
             boolean split = rename.to.contains(rename.from);
             if (split && rename.to.stream().allMatch(target -> get(config, target) != null)) continue;
@@ -255,14 +364,14 @@ public final class ConfigMigration {
                 move(config, "Services.AiTickThrottler.CleanupFrozenEntities", target, cleanup, log);
             }
         }
-        for (Move move : RUNTIME_MOVES) {
-            JsonElement value = remove(config, move.from);
-            if (value != null) move(config, move.from, move.to, value, log);
-        }
         for (Map.Entry<String, String> retired : RETIRED_RUNTIME.entrySet()) {
             JsonElement value = remove(config, retired.getKey());
             if (value != null)
                 log.add("Removed retired setting " + retired.getKey() + "=" + value + " (" + retired.getValue() + ")");
+        }
+        for (Move move : RUNTIME_MOVES) {
+            JsonElement value = remove(config, move.from);
+            if (value != null) move(config, move.from, move.to, value, log);
         }
         for (String root : LEGACY_RUNTIME_ROOTS) {
             JsonElement value = config.remove(root);

@@ -5,7 +5,7 @@ import java.util.concurrent.locks.StampedLock;
 
 public final class SectionLockHold {
     private static final ThreadLocal<IdentityHashMap<StampedLock, Integer>> HELD =
-            ThreadLocal.withInitial(IdentityHashMap::new);
+            ThreadLocal.withInitial(() -> new IdentityHashMap<>(2));
 
     private SectionLockHold() {}
 
@@ -20,9 +20,6 @@ public final class SectionLockHold {
         Integer n = map.get(lock);
         if (n == null || n <= 1) {
             map.remove(lock);
-            if (map.isEmpty()) {
-                HELD.remove();
-            }
             return;
         }
         map.put(lock, n - 1);

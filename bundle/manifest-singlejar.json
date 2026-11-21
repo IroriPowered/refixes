@@ -3,6 +3,7 @@
     "Name": "Refixes",
     "Version": "${modVersion}",
     "Description": "Patches and optimizations for Hytale server (single-jar build).",
+    "Website": "https://www.curseforge.com/hytale/mods/refixes",
     "Main": "cc.irori.refixes.Refixes",
     "HyinitSharedPackages": [
         "cc.irori.refixes.early"
@@ -15,9 +16,7 @@
     ],
     "ServerVersion": ">=${hytaleVersion}",
     "Dependencies": {},
-    "OptionalDependencies": {
-        "Xytronix:Hybox": "*"
-    },
+    "OptionalDependencies": {},
     "IncludesAssetPack": true,
     "Mixins": [
         "refixes.mixins.json"

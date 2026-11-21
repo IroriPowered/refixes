@@ -12,21 +12,158 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.Attributes;
 import org.spongepowered.asm.launch.MixinInitialisationError;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
+import org.spongepowered.asm.service.ServiceNotAvailableError;
 
 public class RefixesMixinPlugin implements IMixinConfigPlugin {
 
     private static final Path CONFIG_PATH = Paths.get("mods", "IroriPowered_Refixes", "Refixes.json");
     private static final Path RUNTIME_CONFIG_PATH = CONFIG_PATH.resolveSibling("config.json");
-    private static final String ALLOW_UNSUPPORTED_SERVER_VERSION = "AllowUnsupportedServerVersion";
+    static final String OTHER_SERVER_VERSIONS = "OtherServerVersions";
+    static final String NEVER = "Never";
+    static final String SAME_MINOR_VERSION = "SameMinorVersion";
+    static final String ALL_NEWER_VERSIONS = "AllNewerVersions";
+    static final String ALL_PATCHES = "AllPatches";
+    static final String OTHER_SERVER_VERSIONS_DEFAULT = SAME_MINOR_VERSION;
+    static final List<String> OTHER_SERVER_VERSIONS_VALUES =
+            List.of(NEVER, SAME_MINOR_VERSION, ALL_NEWER_VERSIONS, ALL_PATCHES);
+    private static final Set<String> SAME_VERSION_CATEGORIES = Set.of("Recovery");
+    private static final String SAME_VERSION_REASON = "Recovery switches change how Hytale handles failures, and Hytale"
+            + " changes that handling between versions, so they apply only on the version Refixes was built for";
+
+    private record WorldData(boolean destructive, String reason) {}
+
+    private static WorldData additive(String reason) {
+        return new WorldData(false, reason);
+    }
+
+    private static WorldData destructive(String reason) {
+        return new WorldData(true, reason);
+    }
+
+    private static final Map<String, WorldData> WORLD_DATA_SWITCHES = Map.ofEntries(
+            Map.entry(
+                    "Mixins.Correctness.StorageOrdering",
+                    destructive("defers deleting removed world folders and can stop waiting for storage to close at"
+                            + " shutdown")),
+            Map.entry(
+                    "Mixins.Correctness.ChunkSaveQueueOrder",
+                    additive("only puts requeued chunks at the back of the save queue")),
+            Map.entry(
+                    "Mixins.Correctness.BlockChangeSaving",
+                    additive("only marks block sections dirty when their blocks change")),
+            Map.entry(
+                    "Mixins.Correctness.FluidChangeSaving",
+                    additive("only marks sections dirty when their fluids change")),
+            Map.entry(
+                    "Mixins.Optimizations.SkipUnchangedLightSaves",
+                    destructive("skips section saves the light pass would have queued")),
+            Map.entry(
+                    "Mixins.Correctness.ChunkStoreSectionBackoffDeadlock",
+                    additive("only avoids a lock deadlock when a chunk load fails")),
+            Map.entry(
+                    "Mixins.Correctness.EntitySectionLoad",
+                    additive("only stops duplicate section loads and stale section moves for entities")),
+            Map.entry(
+                    "Mixins.Correctness.SerializableArchetype",
+                    additive("only fixes the start index of the saved component list without changing which"
+                            + " components are saved")),
+            Map.entry(
+                    "Mixins.Correctness.StoredFlockSaving",
+                    additive("only marks spawn markers and their flock sections dirty")),
+            Map.entry(
+                    "Mixins.Correctness.WorldEventSaving",
+                    additive("only orders world event saves and waits for the last one at shutdown")),
+            Map.entry(
+                    "Mixins.Correctness.RocksDbFlush",
+                    additive("only flushes every RocksDB column family before closing")),
+            Map.entry(
+                    "Mixins.Correctness.RocksDbColumnRemoval",
+                    destructive("range deletes RocksDB columns and their stored entities")),
+            Map.entry(
+                    "Mixins.Correctness.RocksDbScanBounds",
+                    destructive("changes which stored RocksDB rows are read when chunks load")),
+            Map.entry(
+                    "Mixins.Optimizations.RocksDbCompression",
+                    destructive("changes the RocksDB compression that chunks are stored with")),
+            Map.entry(
+                    "Mixins.Features.SharedInstanceStorage",
+                    destructive("replaces the chunk saver so each shared instance chunk is written once and later"
+                            + " saves and removals are dropped")),
+            Map.entry(
+                    "Mixins.Features.SharedInstances",
+                    destructive("resets shared instance worlds by deleting their saved folders")),
+            Map.entry(
+                    "Mixins.Correctness.RemovalSystem",
+                    destructive("starts the saved portal timer of shared instance worlds and changes when they are"
+                            + " removed")),
+            Map.entry(
+                    "Mixins.Features.OriginRetention",
+                    additive("only keeps the origin chunk loaded so it is never unloaded early")),
+            Map.entry(
+                    "Mixins.Tuning.WorldMapExistingTerrain",
+                    additive("only reads chunks that already exist for the world map and never generates or rewrites"
+                            + " them")),
+            Map.entry(
+                    "Mixins.Correctness.WorldGenReload",
+                    destructive("changes how the world generation reload deletes stored chunks and when saving"
+                            + " resumes")),
+            Map.entry(
+                    "Mixins.Correctness.WorldTransfer", destructive("moves players and entities between world saves")),
+            Map.entry(
+                    "Mixins.Correctness.WorldOwnership",
+                    additive("only makes each world register and stop once by its owner")),
+            Map.entry(
+                    "Mixins.Correctness.WorldReopenGuard",
+                    additive("only waits for a removed world to release its folder before reopening it")),
+            Map.entry(
+                    "Mixins.Correctness.WorldRetirement",
+                    destructive("deletes removed world folders after their storage goes idle")),
+            Map.entry(
+                    "Mixins.Correctness.WorldTaskQueueClose",
+                    additive("only cancels world tasks that could never run after shutdown so waiters do not hang")),
+            Map.entry(
+                    "Mixins.Correctness.UniverseDeletedCleanup",
+                    additive("only keeps startup going when cleanup of already deleted worlds fails")),
+            Map.entry(
+                    "Mixins.Correctness.ServerConfigSaveChain",
+                    additive("only runs server config saves one after another")),
+            Map.entry("Mixins.Backports.ShutdownRemoval", destructive("deletes delete-on-remove worlds at shutdown")),
+            Map.entry(
+                    "Mixins.Backports.ShutdownSaveFailure",
+                    additive("only finishes shutdown after a chunk save fails")),
+            Map.entry(
+                    "Mixins.Compatibility.AiTickThrottler",
+                    destructive("strips Frozen components from the NPC data it writes")),
+            Map.entry(
+                    "Mixins.Optimizations.CodecMetadata",
+                    destructive("changes codec metadata handling while data is saved and loaded")),
+            Map.entry(
+                    "Mixins.Correctness.TickingThreadAbandon",
+                    additive("only makes sure a stuck world runs its shutdown save exactly once")),
+            Map.entry(
+                    "Mixins.Correctness.PrefabPasteLoaded",
+                    destructive("cancels prefab pastes and removes prefab editing worlds, whose removal deletes their"
+                            + " folders")),
+            Map.entry(
+                    "Mixins.Correctness.PortalDeviceWorldClose",
+                    destructive("changes when portal worlds are removed, whose removal deletes their folders")));
+    private static final Map<String, String> RUNTIME_RECOVERY_SWITCHES = Map.of(
+            "Mixins.Compatibility.UnknownBlockCleaner", "lets the runtime cleaner rewrite stored blocks",
+            "Mixins.Compatibility.Watchdog", "lets the watchdog save, remove and reload crashed worlds");
     private static final List<String> CATEGORIES = List.of(
             "Correctness",
+            "Backports",
             "Optimizations",
             "Tuning",
             "Features",
@@ -35,7 +172,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             "Diagnostics",
             "Experimental");
 
-    private static final String SUPPORTED_SERVER_VERSION = "0\\.7\\.\\d+";
+    private static final String TARGET_SERVER_VERSION = "0.7.7";
 
     private record MixinToggle(
             String[] jsonPath,
@@ -44,19 +181,37 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             boolean runtimeDependency,
             List<String> uses) {}
 
+    private record Dependency(String feature, String dependency) {}
+
+    private static final List<Dependency> DEPENDENCIES = List.of(
+            new Dependency("Mixins.Experimental.Parallel.CollectVisible", "Mixins.Correctness.ParallelTaskLifecycle"),
+            new Dependency("Mixins.Correctness.WorldTransfer", "Mixins.Correctness.StorageOrdering"),
+            new Dependency("Mixins.Correctness.WorldRetirement", "Mixins.Correctness.WorldReopenGuard"),
+            new Dependency("Mixins.Correctness.OutgoingQueueLimits", "Mixins.Correctness.SetupPacing"),
+            new Dependency("Mixins.Features.SharedInstances", "Mixins.Features.SharedInstanceStorage"),
+            new Dependency("Mixins.Optimizations.SkipUnchangedLightSaves", "Mixins.Correctness.BlockChangeSaving"),
+            new Dependency("Mixins.Optimizations.SkipUnchangedLightSaves", "Mixins.Correctness.FluidChangeSaving"));
+
     private static final List<MixinToggle> TOGGLES = List.of(
-            toggle("Optimizations", "CollisionConfig", true, "MixinCollisionConfig"),
-            toggle("Optimizations", "KDTree", false, "MixinKDTree"),
-            toggle("Optimizations", "SpawnManagerRecalc", true, "MixinWorldSpawnManager", "MixinWorldSpawnLifecycle"),
-            toggle("Optimizations", "RepulsionTicker", true, "MixinRepulsionTicker"),
-            toggle("Optimizations", "SkipEmptyLightSections", true, "MixinFloodLightCalculation"),
-            toggle("Optimizations", "RocksDbCompression", false, "MixinRocksDbCompression"),
+            toggle("Optimizations", "SpawnManagerRecalc", false, "MixinWorldSpawnManager", "MixinWorldSpawnLifecycle"),
+            toggle("Optimizations", "RepulsionTicker", false, "MixinRepulsionTicker"),
+            toggle("Optimizations", "RepulsionNeighbors", false, "MixinRepulsionNeighbors"),
             toggle(
                     "Optimizations",
-                    "FluidDiscovery",
-                    true,
-                    "MixinFluidPluginDiscovery",
-                    "MixinFluidSectionPaletteAccess"),
+                    "LightNeutralBlocks",
+                    false,
+                    "MixinBlockSectionLightNeutral",
+                    "MixinFloodLightNeutral",
+                    "MixinFluidSectionLightNeutral",
+                    "MixinBlockTypeAssetMapLightGeneration"),
+            toggle(
+                    "Optimizations",
+                    "SkipUnchangedLightSaves",
+                    false,
+                    "MixinFloodLightSaveMarks",
+                    "MixinBlockSectionStoredLight",
+                    "MixinChunkLightDataAccess"),
+            toggle("Optimizations", "RocksDbCompression", false, "MixinRocksDbCompression"),
             toggle(
                     "Optimizations",
                     "SoundHeaderValidation",
@@ -69,12 +224,13 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle(
                     "Optimizations",
                     "AssetPartSnapshotSharing",
-                    true,
+                    false,
                     "MixinPacketHandlerAssetParts",
                     "MixinCachedPacketAccess"),
-            toggle("Diagnostics", "SkipSystemMetrics", false, "MixinStoreSystemMetrics"),
+            toggle("Optimizations", "NPCComponentType", false, "MixinNPCComponentType"),
+            toggle("Optimizations", "DefaultMovementResistance", false, "MixinDefaultMovementResistance"),
+            toggle("Optimizations", "CodecMetadata", true, "MixinCodecMetadata"),
             toggle("Diagnostics", "HytaleServer", true, "MixinHytaleServer"),
-            toggle("Diagnostics", "SpawnMarkerBlockStateHeartbeat", true, "MixinSpawnMarkerBlockStateHeartbeat"),
             toggle("Diagnostics", "PatchCounters", false),
             toggle("Tuning", "CylinderVisibility", false, "MixinCollectVisible"),
             toggle("Tuning", "ChunkStreaming", false, "MixinPlayerChunkTrackerSystems", "MixinPlayerViewRadius"),
@@ -87,7 +243,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "MixinWorldMapTrackerMissingTerrain",
                     "MixinChunkGridExistingTerrain",
                     "MixinLoadStateAccess"),
-            toggle("Tuning", "TickWait", false, "MixinTickSleep"),
+            toggle("Tuning", "TickWait", true, "MixinTickSleep"),
             toggle("Tuning", "PathfindingLimits", false, "MixinAStarLimits"),
             toggle("Features", "OriginRetention", false, "MixinChunkUnloadingSystem"),
             toggle(
@@ -113,7 +269,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Recovery", "CorruptSectionReset", false, "MixinBlockSectionSafety", "MixinBlockSectionQuarantine"),
             toggle("Recovery", "MotionControllerBase", false, "MixinMotionControllerBase"),
             toggle("Recovery", "TurnOffTeleportersSystem", false, "MixinTurnOffTeleportersSystem"),
-            toggle("Recovery", "InvalidSavedHolders", false, "MixinEntityChunkLoadingSystem"),
             toggle(
                     "Recovery",
                     "UnresolvedNPCRoles",
@@ -141,7 +296,10 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     true,
                     "MixinQuicheChannel",
                     "MixinQuicheConnection",
-                    "MixinNettyChannelConnection"),
+                    "MixinNettyChannelConnection",
+                    "MixinCommonAssetBroadcast",
+                    "MixinCommonAssetMonitorBroadcast",
+                    "MixinQuicStreamProgress"),
             toggle(
                     "Correctness",
                     "SetupPacing",
@@ -181,7 +339,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Recovery", "DuplicateComponentReferences", false, "MixinBlockComponentChunk"),
             toggle("Correctness", "TrackedPlacementOnAddRemove", true, "MixinTrackedPlacementOnAddRemove"),
             toggle("Compatibility", "DisableLiveConfig", false, "MixinLiveConfigModule"),
-            toggle("Compatibility", "PageManager", true, "MixinPageManager"),
             toggle("Compatibility", "ServerAuthManager", true, "MixinServerAuthManager", "MixinOptions"),
             toggle("Compatibility", "UpdateCheckCommand", true, "MixinUpdateCheckCommand"),
             toggle("Compatibility", "UpdateDownloadCommand", true, "MixinUpdateDownloadCommand"),
@@ -198,7 +355,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             runtimeToggle("UnknownBlockCleaner", "MixinBlockComponentSectionAccess", "MixinFluidSection"),
             runtimeToggle("Watchdog", "MixinTickingThreadAccess"),
             toggle("Correctness", "WindowManager", true, "MixinWindowManager", "MixinWindowAccess"),
-            toggle("Correctness", "WorldNullGuard", true, "MixinWorld"),
             toggle(
                     "Correctness",
                     "ConfigLoad",
@@ -243,6 +399,14 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "MixinIndexedProviderLifetime",
                     "MixinWorldTransferCleanup",
                     "MixinRocksDbColumnSaveOrder"),
+            toggle("Correctness", "ChunkSaveQueueOrder", true, "MixinChunkSaveQueueOrder", "MixinChunkSaveQueueData"),
+            toggle(
+                    "Correctness",
+                    "BlockChangeSaving",
+                    true,
+                    "MixinBlockSectionSaveMarks",
+                    "MixinChunkGridSectionSaveOwner",
+                    "MixinFloodLightSaveOwner"),
             toggle("Correctness", "TransferCombatClock", true, "MixinTransferCombatClock"),
             toggle(
                     "Correctness",
@@ -267,9 +431,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Correctness", "NPCKillsEntitySystem", true, "MixinNPCKillsEntitySystem"),
             toggle("Correctness", "PortalDeviceSummonPage", true, "MixinPortalDeviceSummonPage"),
             toggle("Correctness", "RemovalSystem", true, "MixinRemovalSystem", "MixinPortalWorldAccessor"),
-            toggle("Correctness", "SetMemoriesCapacityInteraction", true, "MixinSetMemoriesCapacityInteraction"),
             toggle("Correctness", "StateSupport", true, "MixinStateSupport"),
-            toggle("Correctness", "UUIDSystem", true, "MixinUUIDSystem"),
             toggle("Correctness", "DeployableOwnerComponent", true, "MixinDeployableOwnerComponent"),
             toggle("Correctness", "TeleportToPlayerCommand", true, "MixinTeleportToPlayerCommand"),
             toggle("Correctness", "TeleportInstanceInteraction", true, "MixinTeleportInstanceInteraction"),
@@ -349,7 +511,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "RocksDbScanBounds",
                     true,
                     "MixinRocksDbScanBounds",
-                    "MixinRocksDbBlockComponentScanBounds"));
+                    "MixinRocksDbBlockComponentScanBounds"),
+            toggle("Backports", "ShutdownRemoval", true, "MixinShutdownWorldRemoval", "MixinWorldAliveAccess"),
+            toggle("Backports", "ShutdownSaveFailure", true, "MixinShutdownChunkSaveFailure"),
+            toggle("Backports", "StaticLayers", true, "MixinStaticLayerGeneration"),
+            toggle("Backports", "ModelParticleScale", true, "MixinModelParticleScale"));
 
     private static final Set<String> ALL_MIXINS = allMixins();
 
@@ -406,49 +572,79 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
     private void load() {
         String serverVersion = readServerVersion();
         JsonObject config = readConfig(CONFIG_PATH);
-        boolean unsupportedServerVersion = serverVersion == null || !serverVersion.matches(SUPPORTED_SERVER_VERSION);
-        if (unsupportedServerVersion && !getBoolean(config, ALLOW_UNSUPPORTED_SERVER_VERSION)) {
-            EarlyOptions.setMixinSelection(Set.of());
-            initialized = true;
-            System.out.println("[Refixes] Early mixins disabled for Hytale "
-                    + (serverVersion == null ? "unknown" : serverVersion)
-                    + ". Refixes supports Hytale 0.7.7. Update Refixes for this server version.");
+        List<String> settingMigrated = ConfigMigration.migrateOtherServerVersions(config);
+        ServerVersion.Relation relation = ServerVersion.relation(TARGET_SERVER_VERSION, serverVersion);
+        String versionLabel = serverVersion == null ? "unknown" : serverVersion;
+        boolean unsupportedServerVersion = relation != ServerVersion.Relation.TARGET;
+        String otherServerVersions = otherServerVersions(config);
+        boolean overridden = unsupportedServerVersion && otherServerVersions.equals(ALL_PATCHES);
+        boolean unchangedOnly = !overridden
+                && switch (relation) {
+                    case NEWER_SAME_MINOR -> !otherServerVersions.equals(NEVER);
+                    case NEWER_MINOR -> otherServerVersions.equals(ALL_NEWER_VERSIONS);
+                    default -> false;
+                };
+        if (unsupportedServerVersion && !overridden && !unchangedOnly) {
+            for (String line : settingMigrated)
+                System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
+            System.out.println("[Refixes] " + refusal(relation, versionLabel));
+            disable(config, versionLabel);
             return;
         }
         requireFabricMixinSupport(RefixesMixinPlugin.class.getClassLoader());
         JsonObject runtimeConfig = readConfig(RUNTIME_CONFIG_PATH);
         Set<String> currentToggles = new HashSet<>();
         for (MixinToggle toggle : TOGGLES) currentToggles.add(path(toggle));
-        List<String> migrated = ConfigMigration.migrateMixins(config, currentToggles);
+        List<String> migrated = new ArrayList<>(settingMigrated);
+        migrated.addAll(ConfigMigration.migrateMixins(config, currentToggles));
         List<String> runtimeMigrated = ConfigMigration.migrateRuntime(runtimeConfig);
-        for (String line : migrated) System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
-        for (String line : runtimeMigrated)
-            System.out.println("[Refixes] " + RUNTIME_CONFIG_PATH.getFileName() + ": " + line);
         try {
             EarlyOptions.initializeOutgoingQueueLimits(runtimeConfig);
         } catch (IllegalStateException failure) {
             throw new IllegalStateException(RUNTIME_CONFIG_PATH + ": " + failure.getMessage(), failure);
         }
         Set<String> required = runtimeDependencies(runtimeConfig);
-        Set<String> enabled = new HashSet<>();
-        for (MixinToggle toggle : TOGGLES) {
-            if (!toggleEnabled(config, toggle)) continue;
-            for (String mixin : toggle.mixins) {
-                if (!toggle.runtimeDependency || required.contains(mixin)) enabled.add(mixin);
+        validateDependencies(config);
+        Set<String> selected = selection(config, required, Set.of());
+        Map<String, List<String>> skipped = Map.of();
+        boolean sameMinor = relation == ServerVersion.Relation.NEWER_SAME_MINOR;
+        if (unchangedOnly) {
+            TargetFingerprints.Baseline baseline;
+            TargetFingerprints.Result result;
+            try {
+                baseline = TargetFingerprints.baseline();
+                result = TargetFingerprints.compare(baseline, selected, TargetFingerprints.mixinBytecode());
+            } catch (IOException | RuntimeException | LinkageError | ServiceNotAvailableError failure) {
+                System.out.println("[Refixes] Could not compare the Hytale " + versionLabel
+                        + " code with the code Refixes was built for (" + failure + ").");
+                failure.printStackTrace(System.out);
+                disable(config, versionLabel);
+                return;
             }
-            enabled.addAll(toggle.uses);
+            skipped = skippedSwitches(config, required, result.changes(), sameMinor);
+            int switches = 0;
+            for (MixinToggle toggle : TOGGLES) {
+                if (toggleEnabled(config, toggle)
+                        && !toggleMixins(toggle, required).isEmpty()) switches++;
+            }
+            selected = selection(config, required, skipped.keySet());
+            printUnchanged(versionLabel, result, switches, skipped);
         }
-        validateDependencies(config, enabled);
-        Set<String> selected = Set.copyOf(enabled);
         enabledMixins = selected;
         EarlyOptions.setMixinSelection(selected);
         EarlyOptions.setPatchCounters(toggleEnabled(config, "Diagnostics", "PatchCounters"));
+        EarlyOptions.setVersionGate(
+                (unchangedOnly ? "unchanged:" : overridden ? "overridden:" : "passed:") + versionLabel);
+        EarlyOptions.setChangedSwitches(changedSwitches(config));
+        EarlyOptions.setSkippedSwitches(List.copyOf(skipped.keySet()));
         initialized = true;
-        if (unsupportedServerVersion) {
-            System.out.println("[Refixes] Version gate overridden for Hytale "
-                    + (serverVersion == null ? "unknown" : serverVersion)
-                    + ". Applying configured mixins.");
+        if (overridden) {
+            System.out.println("[Refixes] Version gate overridden for Hytale " + versionLabel + " by "
+                    + OTHER_SERVER_VERSIONS + "=" + ALL_PATCHES + ". Applying configured mixins.");
         }
+        for (String line : migrated) System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
+        for (String line : runtimeMigrated)
+            System.out.println("[Refixes] " + RUNTIME_CONFIG_PATH.getFileName() + ": " + line);
         writeConfig(CONFIG_PATH, serializeMixins(config));
         if (!runtimeMigrated.isEmpty()) writeConfig(RUNTIME_CONFIG_PATH, runtimeConfig);
         System.out.println("[Refixes] === Early mixin patches ===");
@@ -456,6 +652,135 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             System.out.println("[Refixes]   - " + (selected.contains(mixin) ? "[x] " : "[ ] ") + mixin);
         if (EarlyOptions.patchCountersEnabled())
             System.out.println("[Refixes] Patch counters are on. Run /patchcounters to read them.");
+    }
+
+    private void disable(JsonObject config, String versionLabel) {
+        EarlyOptions.setMixinSelection(Set.of());
+        EarlyOptions.setVersionGate("disabled:" + versionLabel);
+        EarlyOptions.setChangedSwitches(changedSwitches(config));
+        initialized = true;
+        System.out.println("[Refixes] Early mixins disabled for Hytale " + versionLabel + ". Refixes supports Hytale "
+                + TARGET_SERVER_VERSION + ". Update Refixes for this server version.");
+    }
+
+    private static String refusal(ServerVersion.Relation relation, String versionLabel) {
+        String target = ", the version this Refixes build was made for.";
+        return switch (relation) {
+            case OLDER ->
+                "Hytale " + versionLabel + " is older than " + TARGET_SERVER_VERSION + target
+                        + " Early patches apply on older versions only when " + OTHER_SERVER_VERSIONS + " is "
+                        + ALL_PATCHES + ".";
+            case NEWER_SAME_MINOR ->
+                "Hytale " + versionLabel + " is newer than " + TARGET_SERVER_VERSION + target + " "
+                        + OTHER_SERVER_VERSIONS + " is " + NEVER + ".";
+            case NEWER_MINOR ->
+                "Hytale " + versionLabel + " is newer than " + TARGET_SERVER_VERSION + target
+                        + " On versions after Hytale " + ServerVersion.minor(TARGET_SERVER_VERSION)
+                        + " early patches apply only when " + OTHER_SERVER_VERSIONS + " is " + ALL_NEWER_VERSIONS
+                        + " or " + ALL_PATCHES + ".";
+            default ->
+                "Refixes cannot compare the Hytale version " + versionLabel + " with " + TARGET_SERVER_VERSION + target;
+        };
+    }
+
+    private static String otherServerVersions(JsonObject config) {
+        JsonElement value = config.get(OTHER_SERVER_VERSIONS);
+        return value != null
+                        && value.isJsonPrimitive()
+                        && value.getAsJsonPrimitive().isString()
+                        && OTHER_SERVER_VERSIONS_VALUES.contains(value.getAsString())
+                ? value.getAsString()
+                : OTHER_SERVER_VERSIONS_DEFAULT;
+    }
+
+    private static Set<String> toggleMixins(MixinToggle toggle, Set<String> required) {
+        Set<String> mixins = new LinkedHashSet<>();
+        for (String mixin : toggle.mixins) {
+            if (!toggle.runtimeDependency || required.contains(mixin)) mixins.add(mixin);
+        }
+        mixins.addAll(toggle.uses);
+        return mixins;
+    }
+
+    private static Set<String> selection(JsonObject config, Set<String> required, Set<String> skipped) {
+        Set<String> enabled = new HashSet<>();
+        for (MixinToggle toggle : TOGGLES) {
+            if (toggleEnabled(config, toggle) && !skipped.contains(path(toggle)))
+                enabled.addAll(toggleMixins(toggle, required));
+        }
+        return Set.copyOf(enabled);
+    }
+
+    private static Map<String, List<String>> skippedSwitches(
+            JsonObject config, Set<String> required, Map<String, List<String>> changes, boolean sameMinor) {
+        Map<String, List<String>> skipped = new LinkedHashMap<>();
+        for (MixinToggle toggle : TOGGLES) {
+            if (!toggleEnabled(config, toggle)) continue;
+            Set<String> mixins = toggleMixins(toggle, required);
+            if (mixins.isEmpty()) continue;
+            if (SAME_VERSION_CATEGORIES.contains(toggle.jsonPath[1])) {
+                skipped.put(path(toggle), List.of(SAME_VERSION_REASON));
+                continue;
+            }
+            String runtimeRecovery = RUNTIME_RECOVERY_SWITCHES.get(path(toggle));
+            if (runtimeRecovery != null) {
+                skipped.put(
+                        path(toggle),
+                        List.of("it " + runtimeRecovery + " for a Runtime.Recovery feature, and Recovery switches"
+                                + " apply only on the version Refixes was built for"));
+                continue;
+            }
+            WorldData worldData = WORLD_DATA_SWITCHES.get(path(toggle));
+            if (worldData != null && worldData.destructive()) {
+                skipped.put(
+                        path(toggle),
+                        List.of("it " + worldData.reason() + ", and switches that delete, move or rewrite world data"
+                                + " apply only on Hytale " + TARGET_SERVER_VERSION));
+                continue;
+            }
+            if (worldData != null && !sameMinor) {
+                skipped.put(
+                        path(toggle),
+                        List.of("it " + worldData.reason() + ", and switches that write, load or order world data"
+                                + " apply only on Hytale " + ServerVersion.minor(TARGET_SERVER_VERSION) + " versions"));
+                continue;
+            }
+            List<String> reasons = new ArrayList<>();
+            for (String mixin : mixins.stream().sorted().toList()) {
+                for (String change : changes.getOrDefault(mixin, List.of())) reasons.add(mixin + ": " + change);
+            }
+            if (!reasons.isEmpty()) skipped.put(path(toggle), reasons);
+        }
+        for (boolean cascaded = true; cascaded; ) {
+            cascaded = false;
+            for (Dependency dependency : DEPENDENCIES) {
+                if (skipped.containsKey(dependency.dependency())
+                        && !skipped.containsKey(dependency.feature())
+                        && toggleEnabled(config, toggle(dependency.feature()))) {
+                    skipped.put(
+                            dependency.feature(), List.of("needs " + dependency.dependency() + ", which is skipped"));
+                    cascaded = true;
+                }
+            }
+        }
+        return skipped;
+    }
+
+    private static void printUnchanged(
+            String versionLabel, TargetFingerprints.Result result, int switches, Map<String, List<String>> skipped) {
+        System.out.println("[Refixes] Hytale " + versionLabel + " is newer than " + TARGET_SERVER_VERSION
+                + ", the version this Refixes build was made for. Applied " + (switches - skipped.size())
+                + " patches whose Hytale code is unchanged, skipped " + skipped.size() + ".");
+        for (Map.Entry<String, List<String>> entry : skipped.entrySet()) {
+            System.out.println("[Refixes]   - " + entry.getKey());
+            for (String reason : entry.getValue()) System.out.println("[Refixes]       " + reason);
+        }
+        for (Map.Entry<String, List<String>> entry : result.changes().entrySet()) {
+            if (!entry.getKey().startsWith(TargetFingerprints.PLUGIN_GROUP)) continue;
+            System.out.println("[Refixes] Hytale members that changed for runtime plugin class "
+                    + entry.getKey().substring(TargetFingerprints.PLUGIN_GROUP.length()) + ":");
+            for (String change : entry.getValue()) System.out.println("[Refixes]       " + change);
+        }
     }
 
     private static String readServerVersion() {
@@ -501,39 +826,21 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         return required;
     }
 
-    private static void validateDependencies(JsonObject config, Set<String> selected) {
-        for (String key : List.of("CollectVisible")) {
-            if (toggleEnabled(config, "Experimental", "Parallel", key)) {
+    private static void validateDependencies(JsonObject config) {
+        for (Dependency dependency : DEPENDENCIES) {
+            if (toggleEnabled(config, toggle(dependency.feature())))
                 requireDependency(
-                        selected.contains("MixinParallelTask"),
-                        "Mixins.Experimental.Parallel." + key,
-                        "Mixins.Correctness.ParallelTaskLifecycle");
-            }
+                        toggleEnabled(config, toggle(dependency.dependency())),
+                        dependency.feature(),
+                        dependency.dependency());
         }
-        if (selected.contains("MixinCubicTransferShutdown")) {
-            requireDependency(
-                    selected.contains("MixinSaveCompletionWorld"),
-                    "Mixins.Correctness.WorldTransfer",
-                    "Mixins.Correctness.StorageOrdering");
+    }
+
+    private static MixinToggle toggle(String path) {
+        for (MixinToggle toggle : TOGGLES) {
+            if (path(toggle).equals(path)) return toggle;
         }
-        if (selected.contains("MixinWorldRetirement")) {
-            requireDependency(
-                    selected.contains("MixinUniverseRetirement"),
-                    "Mixins.Correctness.WorldRetirement",
-                    "Mixins.Correctness.WorldReopenGuard");
-        }
-        if (selected.contains("MixinQuicheChannel")) {
-            requireDependency(
-                    selected.contains("MixinSetupStagePacing"),
-                    "Mixins.Correctness.OutgoingQueueLimits",
-                    "Mixins.Correctness.SetupPacing");
-        }
-        if (selected.contains("MixinInstancesPlugin")) {
-            requireDependency(
-                    selected.contains("MixinChunkStoreAccess") && selected.contains("MixinChunkGridAccess"),
-                    "Mixins.Features.SharedInstances",
-                    "Mixins.Features.SharedInstanceStorage");
-        }
+        throw new IllegalArgumentException("Unknown mixin policy: " + path);
     }
 
     private static void requireDependency(boolean available, String feature, String dependency) {
@@ -550,18 +857,20 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         throw new IllegalArgumentException("Unknown mixin policy: " + category + "." + key);
     }
 
-    private static boolean toggleEnabled(JsonObject config, String category, String group, String key) {
-        for (MixinToggle toggle : TOGGLES) {
-            String[] path = toggle.jsonPath;
-            if (path.length == 4 && path[1].equals(category) && path[2].equals(group) && path[3].equals(key))
-                return toggleEnabled(config, toggle);
-        }
-        throw new IllegalArgumentException("Unknown mixin policy: " + category + "." + group + "." + key);
-    }
-
     private static boolean toggleEnabled(JsonObject config, MixinToggle toggle) {
         Boolean value = getOptionalBoolean(config, toggle.jsonPath);
         return value == null ? toggle.defaultEnabled : value;
+    }
+
+    private static List<String> changedSwitches(JsonObject config) {
+        List<String> changed = new ArrayList<>();
+        if (!otherServerVersions(config).equals(OTHER_SERVER_VERSIONS_DEFAULT))
+            changed.add(OTHER_SERVER_VERSIONS + "=" + otherServerVersions(config));
+        for (MixinToggle toggle : TOGGLES) {
+            boolean enabled = toggleEnabled(config, toggle);
+            if (enabled != toggle.defaultEnabled) changed.add(path(toggle) + "=" + enabled);
+        }
+        return changed;
     }
 
     private static void requireFabricMixinSupport(ClassLoader loader) {
@@ -609,7 +918,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     mixins,
                     java.util.Arrays.copyOfRange(toggle.jsonPath, 1, toggle.jsonPath.length),
                     toggleEnabled(config, toggle));
-        config.addProperty(ALLOW_UNSUPPORTED_SERVER_VERSION, getBoolean(config, ALLOW_UNSUPPORTED_SERVER_VERSION));
+        config.addProperty(OTHER_SERVER_VERSIONS, otherServerVersions(config));
         config.add("Mixins", mixins);
         return config;
     }

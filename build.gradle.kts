@@ -99,6 +99,9 @@ tasks {
         from(pluginShadow.flatMap { it.archiveFile }.map { zipTree(it) }) {
             exclude("manifest.json", "META-INF/MANIFEST.MF")
         }
+        from(project(":early").tasks.named("targetFingerprints")) {
+            into("cc/irori/refixes/early")
+        }
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
 }

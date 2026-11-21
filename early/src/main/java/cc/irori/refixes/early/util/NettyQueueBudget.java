@@ -3,12 +3,15 @@ package cc.irori.refixes.early.util;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.quic.QuicChannel;
+import io.netty.util.AttributeKey;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public final class NettyQueueBudget {
+
+    public static final AttributeKey<NettyQueueBudget> ATTRIBUTE = AttributeKey.valueOf("refixes.quic.queueBudget");
 
     private static final long SOFT_BYTES = 512L * 1024;
     private static final int SOFT_PACKETS = 1024;
@@ -29,6 +32,14 @@ public final class NettyQueueBudget {
         this.owner = owner;
         softBytes = Math.min(SOFT_BYTES, pending.maxBytes());
         softPackets = Math.min(SOFT_PACKETS, pending.maxPackets());
+    }
+
+    public void sent(long bytes) {
+        pending.sent(bytes);
+    }
+
+    public long progress() {
+        return pending.progress();
     }
 
     public long maxBytes() {
@@ -58,8 +69,8 @@ public final class NettyQueueBudget {
             long pendingBytes = pending.pendingBytes();
             int pendingPackets = pending.pendingPackets();
             if (pending.reserve(bytes, packets)) return true;
-            boolean byteLimit = bytes == Long.MAX_VALUE || bytes > pending.maxBytes() - pendingBytes;
-            boolean packetLimit = packets > pending.maxPackets() - pendingPackets;
+            boolean byteLimit = bytes == Long.MAX_VALUE || bytes > pending.maxBytes() - pending.cappedBytes();
+            boolean packetLimit = packets > pending.maxPackets() - pending.cappedPackets();
             failure = new IllegalStateException("Outgoing packet queue "
                     + (byteLimit && packetLimit ? "byte and packet" : byteLimit ? "byte" : "packet")
                     + " limit exceeded: pendingBytes=" + pendingBytes + ", pendingPackets=" + pendingPackets
@@ -83,10 +94,27 @@ public final class NettyQueueBudget {
         return pending.reserve(bytes, packets);
     }
 
+    public synchronized boolean reserveExempt(long bytes, int packets) {
+        return failure == null && pending.reserveExempt(bytes, packets);
+    }
+
+    public synchronized boolean tryReserveWithinLimits(long bytes, int packets) {
+        return failure == null && pending.tryReserve(bytes, packets);
+    }
+
     public void release(long bytes, int packets, Throwable writeFailure) {
+        release(bytes, packets, writeFailure, false);
+    }
+
+    public void releaseExempt(long bytes, int packets, Throwable writeFailure) {
+        release(bytes, packets, writeFailure, true);
+    }
+
+    private void release(long bytes, int packets, Throwable writeFailure, boolean exempt) {
         CompletableFuture<Void> ready = null;
         synchronized (this) {
-            pending.release(bytes, packets);
+            if (exempt) pending.releaseExempt(bytes, packets);
+            else pending.release(bytes, packets);
             if (waiter != null && (writeFailure != null || !waiting())) {
                 ready = waiter;
                 waiter = null;
@@ -105,9 +133,8 @@ public final class NettyQueueBudget {
                         || pending.pendingPackets() >= softPackets
                         || bytes != Long.MAX_VALUE
                                 && bytes <= pending.maxBytes()
-                                && bytes > pending.maxBytes() - pending.pendingBytes()
-                        || packets <= pending.maxPackets()
-                                && packets > pending.maxPackets() - pending.pendingPackets());
+                                && bytes > pending.maxBytes() - pending.cappedBytes()
+                        || packets <= pending.maxPackets() && packets > pending.maxPackets() - pending.cappedPackets());
     }
 
     public CompletableFuture<Void> drained() {

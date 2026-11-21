@@ -444,7 +444,7 @@ public abstract class MixinServerAuthManager {
 
     @Inject(method = "shutdown", at = @At("TAIL"))
     private void refixes$terminateExternalSession(CallbackInfo ci) {
-        if (isSingleplayer()) return;
+        if (getAuthMode() != ServerAuthManager.AuthMode.EXTERNAL_SESSION || isSingleplayer()) return;
         String currentSessionToken = getSessionToken();
         if (currentSessionToken != null && !currentSessionToken.isEmpty()) {
             if (sessionServiceClient == null) {

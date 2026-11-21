@@ -3,6 +3,7 @@
     "Name": "Refixes-Bundle",
     "Version": "${version}",
     "Description": "Patches and optimizations for Hytale server.",
+    "Website": "https://www.curseforge.com/hytale/mods/refixes",
     "Authors": [
         {
             "Name": "KabanFriends",

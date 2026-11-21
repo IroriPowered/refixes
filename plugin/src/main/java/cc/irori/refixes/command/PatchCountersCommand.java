@@ -27,8 +27,7 @@ public class PatchCountersCommand extends CommandBase {
         }
         if (!PatchCounters.ENABLED) {
             context.sender()
-                    .sendMessage(Message.raw(
-                                    "Patch counters are off. Set Mixins.Diagnostics.PatchCounters to true in Refixes.json and restart the server.")
+                    .sendMessage(Message.raw("Patch counters are " + PatchCounters.OFF_MESSAGE)
                             .color(Color.YELLOW));
             return;
         }
@@ -36,9 +35,8 @@ public class PatchCountersCommand extends CommandBase {
                 .sendMessage(Message.raw("Patch counters since server start:").color(Color.CYAN));
         for (PatchCounters.Snapshot counter : PatchCounters.snapshot()) {
             context.sender()
-                    .sendMessage(Message.raw("  - " + counter.key() + (counter.enabled() ? " (on): " : " (off): ")
-                            + counter.reachedLabel() + " " + counter.reached() + ", " + counter.effectLabel() + " "
-                            + counter.effect()));
+                    .sendMessage(Message.raw(
+                            "  - " + counter.key() + (counter.enabled() ? " (on): " : " (off): ") + counter.counts()));
         }
     }
 }

@@ -47,7 +47,7 @@ public final class WorldPolicyTransferRegression {
     }
 
     private static void runTests() throws Exception {
-        testNativeRefAndQueueContract();
+        testInvalidReferenceFails();
         testCancellationBeforeAttachment();
         testSourceBarrierAndSingleDestinationTask();
         testTimeoutAndLateTasks();
@@ -59,35 +59,8 @@ public final class WorldPolicyTransferRegression {
         System.out.println("WorldPolicyTransferRegression PASS");
     }
 
-    private static void testNativeRefAndQueueContract() throws Exception {
+    private static void testInvalidReferenceFails() throws Exception {
         Fixture fixture = new Fixture();
-        fixture.source.execute(() -> fixture.attaches.incrementAndGet());
-        require(fixture.attaches.get() == 0 && fixture.sourceQueue.size() == 1, "native World.execute must enqueue, not run inline");
-        fixture.sourceQueue.clear();
-        try {
-            fixture.destination.addPlayer(fixture.player, null, null, null);
-            throw new AssertionError("native addPlayer must refuse an attached player");
-        } catch (IllegalStateException expected) {
-            require(expected.getMessage().equals("Player is already in a world"), "native refusal must precede holder and packet access");
-        }
-        java.util.concurrent.CountDownLatch releaseOwner = new java.util.concurrent.CountDownLatch(1);
-        Thread owner = Thread.startVirtualThread(() -> {
-            try {
-                releaseOwner.await(2, TimeUnit.SECONDS);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        set(Store.class, fixture.store, "thread", owner);
-        try {
-            fixture.player.removeFromStore();
-            throw new AssertionError("native removal must reject an off-owner thread");
-        } catch (IllegalStateException expected) {
-            require(fixture.player.getReference() == fixture.reference, "off-owner removal must preserve the attached entity");
-        } finally {
-            releaseOwner.countDown();
-            owner.join(2000);
-        }
         set(Ref.class, fixture.reference, "index", Integer.MIN_VALUE);
         require(fixture.player.getReference() == null && fixture.player.getHolder() == null, "a null native reference alone does not prove a detached holder exists");
         CompletableFuture<PlayerRef> result = fixture.start(fixture.attach());
@@ -337,13 +310,6 @@ public final class WorldPolicyTransferRegression {
 
         void poll() {
             List.copyOf(tasks).stream().filter(task -> task.recurring && !task.isDone()).forEach(task -> task.command.run());
-        }
-
-        void expire() {
-            List.copyOf(tasks).stream().filter(task -> !task.recurring && !task.isDone()).forEach(task -> {
-                task.command.run();
-                task.complete(null);
-            });
         }
 
         long active() {

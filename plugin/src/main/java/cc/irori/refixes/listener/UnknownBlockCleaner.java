@@ -1,9 +1,9 @@
 package cc.irori.refixes.listener;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.UnknownBlockCleanerConfig;
 import cc.irori.refixes.early.accessor.BlockComponentSectionAccess;
 import cc.irori.refixes.early.duck.UnknownFluidScannable;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.assetstore.map.BlockTypeAssetMap;
@@ -50,10 +50,12 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 
 public final class UnknownBlockCleaner {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+    private static final LongAdder REMOVED = RefixesEvents.counter("UnknownBlockCleaner removed");
     private static final Queue<PendingSection> pendingSections = new ArrayDeque<>();
     private static ScheduledFuture<?> cleanerTask;
     private static volatile long generation;
@@ -197,7 +199,7 @@ public final class UnknownBlockCleaner {
                     section.getZ(),
                     world.getName(),
                     removedCounts);
-            HyboxBridge.count("UnknownBlockCleaner removed", total);
+            REMOVED.add(total);
         }
     }
 
@@ -387,7 +389,7 @@ public final class UnknownBlockCleaner {
             LOGGER.atInfo().log(
                     "Cleaned %d unknown items (%d types) from a player's inventory in world '%s': %s",
                     total, removedCounts.size(), world.getName(), removedCounts);
-            HyboxBridge.count("UnknownBlockCleaner removed", total);
+            REMOVED.add(total);
         }
     }
 

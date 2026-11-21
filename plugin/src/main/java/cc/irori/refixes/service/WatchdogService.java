@@ -1,9 +1,10 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.config.impl.WatchdogRecoveryConfig;
+import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.accessor.TickingThreadAccess;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
@@ -50,8 +51,9 @@ public class WatchdogService {
     private final Set<String> worldsRejectingTasks = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean armed = new AtomicBoolean();
 
-    private final boolean canRestartWorlds =
-            Early.hasMixins("MixinTickingThreadAccess") && TickingThreadAccess.class.isAssignableFrom(World.class);
+    private final boolean canRestartWorlds = Early.hasMixins("MixinTickingThreadAccess")
+            && TickingThreadAccess.class.isAssignableFrom(World.class)
+            && !EarlyOptions.skippedSwitches().contains("Mixins.Compatibility.Watchdog");
     private volatile boolean stopped;
     private Thread watchdogThread;
     private World lastDefaultWorld;
@@ -102,7 +104,7 @@ public class WatchdogService {
         if (event.getRemovalReason() == RemoveWorldEvent.RemovalReason.EXCEPTIONAL) {
             return;
         }
-        if (event.isCancelled()) {
+        if (event.isCancelled() || HytaleServer.get().isShuttingDown()) {
             return;
         }
         String name = event.getWorld().getName();
@@ -112,8 +114,16 @@ public class WatchdogService {
         }
         worldResponseMap.remove(name);
         restartCandidates.remove(name);
-        intentionallyRemoved.add(name);
+        if (!name.startsWith(InstancesPlugin.INSTANCE_PREFIX) || inRestartFilter(name)) intentionallyRemoved.add(name);
         LOGGER.atInfo().log("World '%s' removed externally; watchdog will not auto-restart it", name);
+    }
+
+    private static boolean inRestartFilter(String name) {
+        for (String worldName :
+                WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.AUTO_RESTARTING_WORLD_FILTER)) {
+            if (worldName.trim().equals(name)) return true;
+        }
+        return false;
     }
 
     private void onAddWorld(AddWorldEvent event) {
@@ -303,7 +313,7 @@ public class WatchdogService {
 
                 LOGGER.atSevere().log("========== AUTO WORLD RESTART ==========");
                 LOGGER.atSevere().log("World: %s", worldName);
-                HyboxBridge.event("Watchdog", "auto-restarting world '" + worldName + "'");
+                RefixesEvents.action("Watchdog", "auto-restarting world '" + worldName + "'");
                 dumpThreads(worldName);
 
                 World worldToRestart = Universe.get().getWorld(worldName);
@@ -314,7 +324,7 @@ public class WatchdogService {
                         LOGGER.atSevere().log(
                                 "Aborting auto-restart of '%s': save or shutdown did not safely complete within %dms",
                                 worldName, saveTimeout);
-                        HyboxBridge.event(
+                        RefixesEvents.action(
                                 "Watchdog", "gave up on '" + worldName + "': save/shutdown not safely completed");
                         worldsGivenUp.add(worldName);
                         continue;
@@ -339,7 +349,7 @@ public class WatchdogService {
                 try {
                     Universe.get().loadWorld(worldName).join();
                     LOGGER.atInfo().log("World %s loaded", worldName);
-                    HyboxBridge.event("Watchdog", "world '" + worldName + "' restarted");
+                    RefixesEvents.action("Watchdog", "world '" + worldName + "' restarted");
                     worldRestartFailures.remove(worldName);
                 } catch (Exception e) {
                     int failures = worldRestartFailures.merge(worldName, 1, Integer::sum);
@@ -350,7 +360,8 @@ public class WatchdogService {
                         LOGGER.atSevere().log(
                                 "Giving up on auto-restarting world '%s' after %d failures. Resolve the underlying issue and restart the server.",
                                 worldName, failures);
-                        HyboxBridge.event("Watchdog", "gave up on '" + worldName + "' after " + failures + " failures");
+                        RefixesEvents.action(
+                                "Watchdog", "gave up on '" + worldName + "' after " + failures + " failures");
                     }
                 }
             }
@@ -507,7 +518,7 @@ public class WatchdogService {
     private static void triggerWatchdog(String reason, @Nullable Throwable cause) throws InterruptedException {
         LOGGER.atSevere().log("========== WATCHDOG ALERT ==========");
         LOGGER.atSevere().withCause(cause).log("Reason: %s", reason);
-        HyboxBridge.event("Watchdog", reason);
+        RefixesEvents.action("Watchdog", reason);
         if (WatchdogConfig.get().getValue(WatchdogConfig.ENABLED)) dumpThreads();
         if (!WatchdogRecoveryConfig.get().getValue(WatchdogRecoveryConfig.SHUTDOWN_ON_DEFAULT_WORLD_CRASH)) return;
         LOGGER.atSevere().log("Shutting down the server after watchdog alert");

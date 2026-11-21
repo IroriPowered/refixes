@@ -2,6 +2,7 @@ package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.duck.QuicheQueueOwner;
 import cc.irori.refixes.early.duck.QuicheTransportWritable;
+import cc.irori.refixes.early.util.IncidentCounters;
 import cc.irori.refixes.early.util.QuicheQueueBudget;
 import com.hypixel.hytale.lib.quiche.QuicheChannel;
 import com.hypixel.hytale.lib.quiche.QuicheNative;
@@ -69,6 +70,7 @@ public abstract class MixinQuicheConnection implements QuicheQueueOwner {
         if (!refixes$queueBudget.overflowed() || refixes$queueCloseRequested) return stopping;
         refixes$queueCloseRequested = true;
         if (!QuicheNative.connIsClosed(connHandle) && !QuicheNative.connIsDraining(connHandle)) {
+            IncidentCounters.QUICHE_QUEUE_LIMIT_DISCONNECTS.increment();
             LOGGER.atWarning().log("Outgoing packet queue limit exceeded for %s", dcidLabel);
             FormattedMessage message = new FormattedMessage();
             message.rawText = "Outgoing packet queue limit exceeded";

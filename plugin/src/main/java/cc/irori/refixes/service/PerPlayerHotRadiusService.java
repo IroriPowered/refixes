@@ -1,8 +1,8 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
 import cc.irori.refixes.early.accessor.ServerViewRadiusAccess;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.HeapPressureMonitor;
 import cc.irori.refixes.util.Logs;
@@ -131,7 +131,7 @@ public class PerPlayerHotRadiusService {
                 5000,
                 interval,
                 TimeUnit.MILLISECONDS);
-        radiusGauge = HyboxBridge.registerGauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
+        radiusGauge = RefixesEvents.gauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
     }
 
     public synchronized void unregisterService() {
@@ -263,7 +263,7 @@ public class PerPlayerHotRadiusService {
                 LOGGER.atInfo().log(
                         "Adjusted per-player hot radius: %d -> %d (TPS: %.1f, players: %d)",
                         currentTargetRadius, lowestTarget, lowestTps, appliedAtLowest);
-                HyboxBridge.event(
+                RefixesEvents.action(
                         "PerPlayerHotRadius",
                         String.format(
                                 java.util.Locale.ROOT,
@@ -460,7 +460,7 @@ public class PerPlayerHotRadiusService {
                 if (target < current) {
                     setMemoryViewRadius(serverConfig, target);
                     LOGGER.atWarning().log("Memory pressure: reducing max view radius %d -> %d", current, target);
-                    HyboxBridge.event(
+                    RefixesEvents.action(
                             "PerPlayerHotRadius",
                             String.format(java.util.Locale.ROOT, "memory view radius %d to %d", current, target));
                     lastViewAdjustmentMs = now;
@@ -554,7 +554,7 @@ public class PerPlayerHotRadiusService {
             Files.writeString(VIEW_RADIUS_RESTORE_FILE, Integer.toString(value), StandardCharsets.UTF_8);
         } catch (Exception e) {
             LOGGER.atWarning().withCause(e).log(
-                    "Failed to save max view radius %d; it cannot be restored after an unclean shutdown", value);
+                    "Failed to save max view radius %d, so it cannot be restored after an unclean shutdown", value);
         }
     }
 
@@ -563,7 +563,7 @@ public class PerPlayerHotRadiusService {
             Files.deleteIfExists(VIEW_RADIUS_RESTORE_FILE);
         } catch (Exception e) {
             LOGGER.atWarning().withCause(e).log(
-                    "Failed to delete the saved max view radius; it is applied again at the next start");
+                    "Failed to delete the saved max view radius, so it is applied again at the next start");
         }
     }
 }

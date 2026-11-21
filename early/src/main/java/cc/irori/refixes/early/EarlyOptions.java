@@ -2,6 +2,7 @@ package cc.irori.refixes.early;
 
 import com.google.gson.JsonObject;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -11,6 +12,9 @@ public final class EarlyOptions {
     private static boolean available = false;
     private static final String MIXIN_SELECTION_PROPERTY = "cc.irori.refixes.early.enabledMixins";
     private static final String PATCH_COUNTERS_PROPERTY = "cc.irori.refixes.early.patchCounters";
+    private static final String VERSION_GATE_PROPERTY = "cc.irori.refixes.early.versionGate";
+    private static final String CHANGED_SWITCHES_PROPERTY = "cc.irori.refixes.early.changedSwitches";
+    private static final String SKIPPED_SWITCHES_PROPERTY = "cc.irori.refixes.early.skippedSwitches";
 
     private record MixinSelection(String encoded, Set<String> mixins) {}
 
@@ -20,12 +24,11 @@ public final class EarlyOptions {
     /* Cylinder Visibility */
     public static final Value<Double> CYLINDER_VISIBILITY_HEIGHT_MULTIPLIER = new Value<>(2.0);
     public static final Value<Integer> MAX_SECTIONS_PER_SECOND = new Value<>(360);
+    public static final Value<Integer> MAX_SECTIONS_PER_SECOND_LAN = new Value<>(1280);
+    public static final Value<Integer> MAX_SECTIONS_PER_SECOND_LOCAL = new Value<>(2560);
     public static final Value<Integer> MAX_SECTIONS_PER_TICK = new Value<>(40);
     public static final Value<Integer> CHUNK_UNLOAD_OFFSET = new Value<>(4);
     public static final Value<Boolean> VANILLA_KEEP_SPAWN_LOADED = new Value<>(true);
-
-    /* KDTree Optimization */
-    public static final Value<Integer> KDTREE_OPTIMIZATION_THRESHOLD = new Value<>(64);
 
     /* Shared Instances */
     public static final Value<Boolean> SHARED_INSTANCES_STORAGE_AVAILABLE = new Value<>(false);
@@ -69,7 +72,36 @@ public final class EarlyOptions {
     static void clearMixinSelection() {
         System.clearProperty(MIXIN_SELECTION_PROPERTY);
         System.clearProperty(PATCH_COUNTERS_PROPERTY);
+        System.clearProperty(VERSION_GATE_PROPERTY);
+        System.clearProperty(CHANGED_SWITCHES_PROPERTY);
+        System.clearProperty(SKIPPED_SWITCHES_PROPERTY);
         selection = new MixinSelection(null, Set.of());
+    }
+
+    static void setVersionGate(String state) {
+        System.setProperty(VERSION_GATE_PROPERTY, state);
+    }
+
+    public static String versionGate() {
+        return System.getProperty(VERSION_GATE_PROPERTY);
+    }
+
+    static void setChangedSwitches(List<String> switches) {
+        System.setProperty(CHANGED_SWITCHES_PROPERTY, String.join("\n", switches));
+    }
+
+    public static List<String> changedSwitches() {
+        String encoded = System.getProperty(CHANGED_SWITCHES_PROPERTY);
+        return encoded == null || encoded.isEmpty() ? List.of() : List.of(encoded.split("\\n"));
+    }
+
+    static void setSkippedSwitches(List<String> switches) {
+        System.setProperty(SKIPPED_SWITCHES_PROPERTY, String.join("\n", switches));
+    }
+
+    public static List<String> skippedSwitches() {
+        String encoded = System.getProperty(SKIPPED_SWITCHES_PROPERTY);
+        return encoded == null || encoded.isEmpty() ? List.of() : List.of(encoded.split("\\n"));
     }
 
     static void setPatchCounters(boolean enabled) {
@@ -85,9 +117,16 @@ public final class EarlyOptions {
     }
 
     public static boolean isMixinEnabled(String simpleName) {
-        if (simpleName == null) return false;
+        return simpleName != null && selectedMixins().contains(simpleName);
+    }
+
+    public static int enabledMixinCount() {
+        return selectedMixins().size();
+    }
+
+    private static Set<String> selectedMixins() {
         String encoded = System.getProperty(MIXIN_SELECTION_PROPERTY);
-        if (encoded == null) return false;
+        if (encoded == null) return Set.of();
         MixinSelection current = selection;
         if (!encoded.equals(current.encoded)) {
             Set<String> selected = new HashSet<>();
@@ -97,7 +136,7 @@ public final class EarlyOptions {
             current = new MixinSelection(encoded, Set.copyOf(selected));
             selection = current;
         }
-        return current.mixins.contains(simpleName);
+        return current.mixins;
     }
 
     public static final class Value<T> {

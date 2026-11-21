@@ -1,10 +1,10 @@
 package cc.irori.refixes.service;
 
-import cc.irori.refixes.compat.HyboxBridge;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.early.accessor.MotionControllerAccess;
 import cc.irori.refixes.early.util.ThrottleOwnership;
+import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.builtin.mounts.NPCMountComponent;
 import com.hypixel.hytale.component.ArchetypeChunk;
@@ -51,6 +51,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Distance-based LOD for AI entity ticking
@@ -64,6 +65,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AiTickThrottlerService {
 
     private static final HytaleLogger LOGGER = Logs.logger();
+    private static final LongAdder FROZE = RefixesEvents.counter("AiTickThrottler froze");
+    private static final LongAdder UNFROZE = RefixesEvents.counter("AiTickThrottler unfroze");
+    private static final LongAdder BUDGET_EXCEEDED = RefixesEvents.counter("AiTickThrottler budget exceeded");
 
     // Cached component types, resolved once via resolveComponentTypes()
     private ComponentType<EntityStore, ?> npcType;
@@ -113,9 +117,9 @@ public class AiTickThrottlerService {
                 5000,
                 intervalMs,
                 TimeUnit.MILLISECONDS);
-        throttledGauge = HyboxBridge.registerGauge("AiTickThrottler throttled", () -> getThrottledCount());
-        activeGauge = HyboxBridge.registerGauge("AiTickThrottler active", () -> getActiveNpcCount());
-        cycleMsGauge = HyboxBridge.registerGauge("AiTickThrottler cycle ms", () -> lastCycleMs);
+        throttledGauge = RefixesEvents.gauge("AiTickThrottler throttled", () -> getThrottledCount());
+        activeGauge = RefixesEvents.gauge("AiTickThrottler active", () -> getActiveNpcCount());
+        cycleMsGauge = RefixesEvents.gauge("AiTickThrottler cycle ms", () -> lastCycleMs);
     }
 
     public void unregisterService() {
@@ -615,16 +619,16 @@ public class AiTickThrottlerService {
 
         int froze = Math.min(freezeCount.get(), maxFreezes);
         if (froze > 0) {
-            HyboxBridge.count("AiTickThrottler froze", froze);
+            FROZE.add(froze);
         }
         int unfroze = Math.min(unfreezeCount.get(), maxUnfreezes);
         if (unfroze > 0) {
-            HyboxBridge.count("AiTickThrottler unfroze", unfroze);
+            UNFROZE.add(unfroze);
         }
         long cycleNanos = System.nanoTime() - cycleStartNanos;
         lastCycleMs = cycleNanos / 1_000_000.0;
         if (cycleNanos > budgetNanos) {
-            HyboxBridge.count("AiTickThrottler budget exceeded", 1);
+            BUDGET_EXCEEDED.increment();
         }
     }
 
@@ -869,7 +873,7 @@ public class AiTickThrottlerService {
         } catch (Throwable t) {
             if (componentTypesFailureLogged.compareAndSet(false, true)) {
                 LOGGER.atWarning().withCause(t).log(
-                        "Could not resolve NPC component types; AI tick throttling is skipped until they resolve");
+                        "Could not resolve NPC component types, so AI tick throttling is skipped until they resolve");
             }
             return false;
         }

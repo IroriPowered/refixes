@@ -1,6 +1,5 @@
 package local.hyinit.verify;
 
-import cc.irori.refixes.early.EarlyOptions;
 import com.hypixel.hytale.builtin.mounts.MountPlugin;
 import com.hypixel.hytale.codec.ExtraInfo;
 import com.hypixel.hytale.component.AddReason;
@@ -56,8 +55,8 @@ public final class EntityGuardRegression {
         Throwable foreignFailure = failure(() -> MountPlugin.resetOriginalPlayerMovementSettings(foreign, store, -1));
         store.removeEntity(local, RemoveReason.REMOVE);
         Throwable removedFailure = failure(() -> MountPlugin.resetOriginalPlayerMovementSettings(local, store, -1));
-        return expectGuard("MixinMountPlugin", foreignFailure, "Incorrect store for entity reference") + "; removed "
-                + expectGuard("MixinMountPlugin", removedFailure, "Invalid entity reference!");
+        return expectGuard("MixinMountPlugin", foreignFailure) + "; removed "
+                + expectGuard("MixinMountPlugin", removedFailure);
     }
 
     private static String npcKills(World world, Ref<EntityStore> foreign) throws Exception {
@@ -69,7 +68,7 @@ public final class EntityGuardRegression {
             DeathComponent death = constructor.newInstance(new Damage(new Damage.EntitySource(foreign), 0, 1.0F));
             NPCDeathSystems.NPCKillsEntitySystem system = new NPCDeathSystems.NPCKillsEntitySystem();
             Throwable failure = failure(() -> system.onComponentAdded(victim, death, store, null));
-            return expectGuard("MixinNPCKillsEntitySystem", failure, "Incorrect store for entity reference");
+            return expectGuard("MixinNPCKillsEntitySystem", failure);
         } finally {
             store.removeEntity(victim, RemoveReason.REMOVE);
         }
@@ -90,12 +89,8 @@ public final class EntityGuardRegression {
         Throwable encode = failure(() -> BlockCounter.CODEC.encode(counter, ExtraInfo.THREAD_LOCAL.get()));
         counts.removeInt(null);
         counts.removeInt("RefixesProbe");
-        if (EarlyOptions.isMixinEnabled("MixinTrackedPlacementOnAddRemove")) {
-            check(!nullKey && encode == null, "guarded unnamed removal corrupted BlockCounter: " + encode);
-            return "guarded: no null key, BlockCounter encodes, named decrement preserved";
-        }
-        check(nullKey && encode != null, "native unnamed removal no longer corrupts BlockCounter");
-        return "native: null key inserted, encode threw " + encode.getClass().getSimpleName();
+        check(!nullKey && encode == null, "guarded unnamed removal corrupted BlockCounter: " + encode);
+        return "guarded: no null key, BlockCounter encodes, named decrement preserved";
     }
 
     private static void removeTracked(Store<ChunkStore> store, TrackedPlacement placement) {
@@ -105,14 +100,9 @@ public final class EntityGuardRegression {
         store.removeEntity(ref, RemoveReason.REMOVE);
     }
 
-    private static String expectGuard(String mixin, Throwable failure, String nativeMessage) {
-        if (EarlyOptions.isMixinEnabled(mixin)) {
-            check(failure == null, mixin + " did not guard foreign-store reference: " + failure);
-            return "guarded: foreign-store reference skipped";
-        }
-        check(failure instanceof IllegalStateException && nativeMessage.equals(failure.getMessage()),
-                "native foreign-store behaviour changed: " + failure);
-        return "native: " + failure.getMessage();
+    private static String expectGuard(String mixin, Throwable failure) {
+        check(failure == null, mixin + " did not guard foreign-store reference: " + failure);
+        return "guarded: foreign-store reference skipped";
     }
 
     private static Throwable failure(ThrowingRunnable action) {

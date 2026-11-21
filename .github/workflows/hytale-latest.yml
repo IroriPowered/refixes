@@ -47,37 +47,38 @@ jobs:
       - name: Patches apply on Hytale ${{ steps.server.outputs.newest }}
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: >-
-          python3 scripts/verify-local.py --skip-build --java-home "$JAVA_HOME"
+          python3 scripts/verify.py apply --java-home "$JAVA_HOME"
           --server-jar "$RUNNER_TEMP/Server-newest.jar" --hyinit-jar "$RUNNER_TEMP/Hyinit.jar"
-          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify-local"
+          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify"
       - name: Regressions on Hytale ${{ steps.server.outputs.newest }}
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: >-
-          python3 scripts/verify-regressions.py --java-home "$JAVA_HOME"
+          python3 scripts/verify.py regressions --java-home "$JAVA_HOME"
           --server-jar "$RUNNER_TEMP/Server-newest.jar" --hyinit-jar "$RUNNER_TEMP/Hyinit.jar"
-          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify-regressions"
+          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify"
       - name: Queue limits on Hytale ${{ steps.server.outputs.newest }}
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: >-
-          python3 scripts/verify-queue-limits.py --java-home "$JAVA_HOME"
+          python3 scripts/verify.py queue-limits --java-home "$JAVA_HOME"
           --server-jar "$RUNNER_TEMP/Server-newest.jar" --hyinit-jar "$RUNNER_TEMP/Hyinit.jar"
-          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify-queue-limits"
+          --refixes-jar "$RUNNER_TEMP/Refixes.jar" --output-dir "$RUNNER_TEMP/verify"
       - name: Compiles against Hytale ${{ steps.server.outputs.newest }}
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: ./gradlew singleJar -PhytaleServerJar="$RUNNER_TEMP/Server-newest.jar"
       - name: Patched methods unchanged since Hytale ${{ steps.server.outputs.pinned }}
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: >-
-          python3 scripts/verify-target-drift.py --java-home "$JAVA_HOME"
+          python3 scripts/verify.py drift --java-home "$JAVA_HOME"
           --baseline-server-jar "$RUNNER_TEMP/Server-pinned.jar" --server-jar "$RUNNER_TEMP/Server-newest.jar"
           --hyinit-jar "$RUNNER_TEMP/Hyinit.jar" --refixes-jar "$RUNNER_TEMP/Refixes.jar"
-          --output-dir "$RUNNER_TEMP/verify-target-drift"
+          --output-dir "$RUNNER_TEMP/verify"
       - name: Capture verification evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: Verification-${{ steps.server.outputs.newest }}
           path: |
-            ${{ runner.temp }}/verify-*
-            !${{ runner.temp }}/verify-*/**/HytaleServer.jar
+            ${{ runner.temp }}/verify
+            !${{ runner.temp }}/verify/**/HytaleServer.jar
+            !${{ runner.temp }}/verify/**/server-as-built.jar
           if-no-files-found: ignore

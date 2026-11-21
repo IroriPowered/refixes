@@ -1,6 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.duck.QuarantinedSection;
+import cc.irori.refixes.early.util.IncidentCounters;
 import cc.irori.refixes.early.util.Logs;
 import cc.irori.refixes.early.util.RecoveryPolicy;
 import com.hypixel.hytale.codec.ExtraInfo;
@@ -88,9 +89,11 @@ public abstract class MixinBlockSectionSafety implements QuarantinedSection {
                             invalidate();
                         });
                 refixes$quarantine = quarantine;
+                IncidentCounters.SECTIONS_QUARANTINED.increment();
                 refixes$LOGGER.atWarning().withCause(failure).log(
                         "BlockSection#deserialize(): Corrupt data reset to empty after quarantine at %s", quarantine);
             } catch (Exception quarantineFailure) {
+                IncidentCounters.QUARANTINE_FAILURES.increment();
                 failure.addSuppressed(quarantineFailure);
                 refixes$LOGGER.atSevere().withCause(failure).log(
                         "BlockSection#deserialize(): Quarantine failed. Corrupt section was not reset");

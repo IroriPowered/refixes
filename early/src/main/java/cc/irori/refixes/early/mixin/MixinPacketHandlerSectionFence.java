@@ -24,7 +24,7 @@ public abstract class MixinPacketHandlerSectionFence {
             @Share("refixes$fence") LocalRef<ChunkTrackerSectionFence.Write> fence) {
         ChunkTrackerSectionFence.Write write = ChunkTrackerSectionFence.PENDING.get();
         if (write == null) return;
-        ChunkTrackerSectionFence.PENDING.remove();
+        ChunkTrackerSectionFence.PENDING.set(null);
         if (write.packet() == packet && write.handler() == (Object) this) fence.set(write);
     }
 
