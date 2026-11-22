@@ -140,33 +140,41 @@ Measured on test servers with one switch on versus off. Your results depend on p
 
 Scenarios:
 - **Boot:** a server boot.
-- **N NPCs:** 250 or 800 NPCs on a flat world with one simulated player, **repulsion** if each NPC was given a repulsion component, which stock Hytale never does.
+- **N NPCs:** 250 or 800 NPCs on a flat world with one simulated player, **repulsion** if each NPC was given a repulsion component, which stock Hytale never does. **Saving** if the world saved chunks as Hytale does by default. Otherwise chunk saving was off.
 - **Flight:** one player flying at 13 blocks per second over a RocksDB world, view radius 12 or 24.
 - **Spawn file change:** a world NPC spawn file changes on a server with 20 worlds and 2,420 loaded chunks.
 
-Results on Hytale 0.8.0-pre.5 were not measured again on 0.8.0-pre.6.
-
-| Switch | Scenario | Hytale 0.7.7 | Hytale 0.8.0-pre.5 |
+| Switch | Scenario | Hytale 0.7.7 | Hytale 0.8.0-pre.6 |
 |--------|----------|--------------|--------------------|
-| `SoundHeaderValidation` | Boot | Boot 6.8 percent faster. 33 percent less read from disk before boot. | Not in this build. |
-| `RepulsionTicker` | 250 NPCs, repulsion | World-thread allocation 2.7 percent lower. | World-thread allocation 2.9 percent lower. |
-| `RepulsionNeighbors` | 250 NPCs, repulsion | World-thread CPU 1.4 percent, world-thread allocation 15.7 percent and process allocation 4.8 percent lower. | World-thread busy time 5.1 percent, world-thread CPU 2.8 percent, world-thread allocation 15.9 percent and process allocation 7.8 percent lower. |
-| `DefaultMovementResistance` | 250 NPCs, repulsion | World-thread allocation 15.5 percent and process allocation 4.7 percent lower. | World-thread allocation 15.5 percent and process allocation 7.3 percent lower. |
-| `CodecMetadata` | 250 NPCs, repulsion | World-thread allocation 1.5 percent and process allocation 3.5 percent lower. | World-thread allocation 1.3 percent and process allocation 5.7 percent lower. |
-| `CodecMetadata` | 250 NPCs | World-thread allocation 2.0 percent and process allocation 4.0 percent lower. | World-thread allocation 3.6 percent and process allocation 7.5 percent lower. |
-| `TickWait` | 250 NPCs, repulsion | World-thread CPU 35.3 percent lower. | World-thread CPU 35.3 percent lower. |
-| `TickWait` | 800 NPCs, repulsion | World-thread CPU 3.1 percent lower. | World-thread CPU 3.0 percent lower. |
-| `TickWait` | Flight, radius 12 | None listed. | World-thread CPU 34.4 percent and process CPU 8.9 percent lower. |
-| `LightNeutralBlocks` | 250 NPCs, repulsion | Lighting CPU time about 20 seconds without the switch and none with it. Process CPU time 73.0 percent and world-thread CPU 1.0 percent lower. | Lighting CPU time about 20 seconds without the switch and none with it. Process CPU time 68.4 percent lower. |
-| `LightNeutralBlocks` | Flight, radius 12 | Lighting CPU 6.5 percent and process CPU 1.5 percent lower. | Lighting CPU 13.2 percent lower. |
-| `LightNeutralBlocks` | Flight, radius 24 | None listed. | Lighting CPU 12.0 percent lower. |
-| `SpawnManagerRecalc` | Spawn file change | In the next 30 seconds, process CPU 20.4 percent and world-thread CPU 18.3 percent lower. | In the next 30 seconds, process CPU 10.2 percent lower. |
-| `WorldMapExistingTerrain` | Flight, radius 12 | Generated columns per second halved. Process CPU 25.5 percent, world-thread CPU 3.8 percent, garbage collection pause time 60 percent and collections 64 percent lower. 701 map images instead of 1,793. | Generated columns per second halved. Process CPU 14.5 percent, world-thread CPU 4.7 percent, garbage collection pause time 40 percent and collections 44 percent lower. 701 map images instead of 1,793. |
-| `WorldMapExistingTerrain` | Flight, radius 24 | Generated columns per second 27 percent lower. Process CPU 18.7 percent, world-thread CPU 3.2 percent, garbage collection pause time 29 percent and collections 34 percent lower. 2,155 map images instead of 3,209. | Generated columns per second 27 percent lower. Garbage collection pause time 55 percent and collections 46 percent lower. 2,155 map images instead of 3,209. |
-| `WorldHeightBounds` | Flight, radius 12 | World-thread allocation 3.3 percent lower. Section bytes sent 1.4 percent lower. | Not in this build. |
-| `WorldHeightBounds` | Flight, radius 24 | World-thread CPU 4.2 percent and allocation 10.7 percent lower. Section bytes sent 5.0 percent lower. | Not in this build. |
+| `SoundHeaderValidation` | Boot | Boot 4.2 percent faster. 30.9 percent less read from disk before boot. | Not in this build. |
+| `RepulsionTicker` | 250 NPCs, repulsion | World-thread allocation 4.8 percent and process allocation 4.8 percent lower. | World-thread allocation 3.2 percent and process allocation 2.4 percent lower. |
+| `RepulsionNeighbors` | 250 NPCs, repulsion | World-thread CPU 4.5 percent, world-thread allocation 17.3 percent and process allocation 15.2 percent lower. | World-thread busy time 4.6 percent, world-thread CPU 4.4 percent, process CPU 0.8 percent, world-thread allocation 16.1 percent and process allocation 12.6 percent lower. |
+| `DefaultMovementResistance` | 250 NPCs, repulsion | Process CPU 1.5 percent, world-thread allocation 16.9 percent and process allocation 15.5 percent lower. | World-thread allocation 15.6 percent and process allocation 12.9 percent lower. |
+| `NPCComponentType` | 250 NPCs, repulsion | Process CPU 0.8 percent lower. | Not in this build. |
+| `CodecMetadata` | 250 NPCs, repulsion, saving | Process allocation 2.9 percent lower. | Process CPU 1.1 percent and process allocation 4.0 percent lower. |
+| `CodecMetadata` | 250 NPCs, saving | World-thread allocation 2.4 percent and process allocation 3.8 percent lower. | Process allocation 6.8 percent lower. |
+| `TickWait` | 250 NPCs, repulsion | World-thread CPU 41.2 percent and process CPU 9.0 percent lower. | World-thread CPU 43.1 percent and process CPU 9.1 percent lower. |
+| `TickWait` | 800 NPCs, repulsion | World-thread CPU 2.6 percent lower. | World-thread CPU 4.5 percent lower. |
+| `TickWait` | Flight, radius 12 | World-thread CPU 33.1 percent and process CPU 7.3 percent lower. | World-thread CPU 33.8 percent and process CPU 10.3 percent lower. |
+| `TickWait` | Flight, radius 24 | World-thread CPU 24.7 percent lower. | World-thread CPU 27.6 percent and process CPU 6.9 percent lower. |
+| `LightNeutralBlocks` | 250 NPCs, repulsion | Lighting CPU time about 20 seconds without the switch and none with it. Process CPU time 86.8 percent and process allocation 13.2 percent lower. | Lighting CPU time about 20 seconds without the switch and none with it. Process CPU time 79.1 percent and process allocation 9.2 percent lower. |
+| `LightNeutralBlocks` | Flight, radius 12 | Lighting CPU 6.9 percent and process CPU 2.3 percent lower. | Lighting CPU 12.5 percent lower. |
+| `LightNeutralBlocks` | Flight, radius 24 | None listed. | Lighting CPU 16.2 percent lower. |
+| `SpawnManagerRecalc` | Spawn file change | In the next 30 seconds, process CPU 1.7 percent, world-thread CPU 26.4 percent and process allocation 7.1 percent lower. | None listed. |
+| `WorldMapExistingTerrain` | Flight, radius 12 | Generated columns per second halved. Process CPU 27.5 percent, world-thread CPU 6.1 percent, garbage collection pause time 52.9 percent and collections 63.9 percent lower. 701 map images instead of 1,793. | Generated columns per second halved. Process CPU 17.1 percent, world-thread CPU 7.0 percent, garbage collection pause time 36.4 percent and collections 37.5 percent lower. 701 map images instead of 1,793. |
+| `WorldMapExistingTerrain` | Flight, radius 24 | Generated columns per second 26.9 percent lower. Process CPU 19.3 percent, world-thread CPU 4.3 percent, world-thread allocation 8.4 percent, garbage collection pause time 38.4 percent and collections 35.1 percent lower. 2,155 map images instead of 3,209. | Generated columns per second 26.9 percent lower. Process CPU 8.1 percent, world-thread CPU 3.5 percent, garbage collection pause time 31.8 percent and collections 42.6 percent lower. 2,155 map images instead of 3,209. |
+| `WorldHeightBounds` | Flight, radius 12 | Section bytes sent 1.4 percent lower. | Not in this build. |
+| `WorldHeightBounds` | Flight, radius 24 | World-thread allocation 14.6 percent lower. Section bytes sent 5.0 percent lower. | Not in this build. |
+| `RocksDbCompression` | Flight, radius 24 | Process CPU 4.1 percent lower. | Not in this build. |
+| `ChunkStreaming` | Flight, radius 24 | World-thread CPU 60.6 percent, process CPU 31.7 percent, lighting CPU 86.5 percent and world-thread allocation 52.8 percent lower. | None listed. |
 
-`TickWait` saves CPU only in worlds with players.
+`TickWait` saves CPU only in worlds with players. In exchange each tick runs about 0.3 milliseconds longer, so world busy time is 5.9 to 8.0 percent higher. On Hytale 0.8.0-pre.6 lighting CPU at radius 24 is also 5.9 percent higher.
+
+`ChunkSaveQueueOrder` on Hytale 0.8.0-pre.6 costs world-thread allocation 10.5 percent and process allocation 15.8 percent. That is the cost of saving the NPC columns this version never saves without the switch.
+
+`WorldMapExistingTerrain` on Hytale 0.8.0-pre.6 costs lighting CPU 47.3 percent at radius 12 and 73.0 percent at radius 24.
+
+With the full mod loaded versus absent, world busy time is 6.5 to 12.5 percent higher and allocation 3 to 14 percent higher, mostly the same column-saving cost.
 
 To see what the performance patches do on your server, use `/patchcounters`, see [Diagnostics](#diagnostics).
 

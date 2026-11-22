@@ -214,7 +214,7 @@ def apply(ctx):
               ["MixinCompatibilityMain", "MixinCompatibilitySetup", "MixinCompatibilityServer"])
     java = [ctx.java_home / "bin/java", f"-Xmx{ctx.args.server_heap}", "-Xms128m", "-Xverify:all",
             "-XX:ActiveProcessorCount=2", f"-XX:MaxDirectMemorySize={ctx.args.direct_memory}",
-            "-Djava.awt.headless=true", "--add-opens", "java.base/sun.misc=ALL-UNNAMED",
+            "-Djava.awt.headless=true", "-Djoml.nounsafe=true", "--add-opens", "java.base/sun.misc=ALL-UNNAMED",
             "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
             "-Dmixin.debug.export=true", "-Dmixin.debug.countInjections=true"]
     launch = ["-jar", ctx.hyinit, "--server-jar", ctx.server, "--accept-early-plugins", "--disable-sentry"]
@@ -281,7 +281,7 @@ def queue_limits(ctx):
         (config / "config.json").write_text(json.dumps({"Early": {**QUEUE_BASE, **early}}) + "\n")
         run(ctx, name, [ctx.java_home / "bin/java", "-Xmx1g", "-XX:MaxDirectMemorySize=256m",
                         "--enable-native-access=ALL-UNNAMED", "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
-                        "-Djava.awt.headless=true",
+                        "-Djava.awt.headless=true", "-Djoml.nounsafe=true",
                         *([f"-Djava.util.concurrent.ForkJoinPool.common.parallelism={expected['commonParallelism']}"]
                           if "commonParallelism" in expected else []),
                         *(f"-Dqueue-limits.{key}={value}" for key, value in expected.items()),
