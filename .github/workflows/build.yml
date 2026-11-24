@@ -14,6 +14,8 @@ jobs:
         with:
           java-version: "25"
           distribution: "temurin"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
       - name: Check formatting and build single JAR
