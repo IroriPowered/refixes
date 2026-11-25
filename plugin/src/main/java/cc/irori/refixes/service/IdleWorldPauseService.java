@@ -2,11 +2,11 @@ package cc.irori.refixes.service;
 
 import cc.irori.refixes.config.impl.IdleWorldPauseConfig;
 import cc.irori.refixes.early.accessor.WorldPauseOwnerAccess;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import java.util.HashSet;
@@ -32,17 +32,18 @@ public class IdleWorldPauseService {
     public void registerService() {
         owner = new Object();
         int interval = Math.max(1000, IdleWorldPauseConfig.get().getValue(IdleWorldPauseConfig.CHECK_INTERVAL_MS));
-        task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        execute();
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error while pausing idle worlds");
-                    }
-                },
-                5000,
-                interval,
-                TimeUnit.MILLISECONDS);
+        task = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                execute();
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error while pausing idle worlds");
+                            }
+                        },
+                        5000,
+                        interval,
+                        TimeUnit.MILLISECONDS);
         pausedGauge = RefixesEvents.gauge("IdleWorldPause paused worlds", () -> getPausedWorldCount());
     }
 

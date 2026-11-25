@@ -29,18 +29,22 @@ repositories {
     maven("https://maven.hytale.com/pre-release")
 }
 
+fun hytaleServer(property: String, library: String): Any {
+    val localJar = (findProperty(property) as String?)?.trim().orEmpty()
+    return if (localJar.isNotEmpty()) files(localJar) else libs.findLibrary(library).get()
+}
+
+val hytale07 = hytaleServer("hytaleServerJar", "hytale")
+extra["hytale07"] = hytale07
+extra["hytale08"] = hytaleServer("hytaleServerJar08", "hytale-pre")
+
 dependencies {
-    val localHytaleJar = (findProperty("hytaleServerJar") as String?)?.trim().orEmpty()
-    if (localHytaleJar.isNotEmpty()) {
-        compileOnly(files(localHytaleJar))
-    } else {
-        compileOnly(libs.findLibrary("hytale").get())
-    }
+    compileOnly(hytale07)
 }
 
 tasks {
     processResources {
-        val hytaleVersion = rootProject.property("hytale_server_version") as String
+        val hytaleVersion = rootProject.property("hytale_server_range") as String
 
         inputs.property("version", version)
         inputs.property("hytaleVersion", hytaleVersion)

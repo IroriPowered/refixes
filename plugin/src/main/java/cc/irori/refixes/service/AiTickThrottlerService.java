@@ -3,9 +3,11 @@ package cc.irori.refixes.service;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.impl.AiTickThrottlerConfig;
 import cc.irori.refixes.early.accessor.MotionControllerAccess;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.early.util.ThrottleOwnership;
 import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Logs;
+import cc.irori.refixes.version.HytaleVersion;
 import com.hypixel.hytale.builtin.mounts.NPCMountComponent;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
@@ -17,7 +19,6 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Transform;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.entity.Frozen;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.damage.DamageDataComponent;
@@ -30,11 +31,12 @@ import com.hypixel.hytale.server.core.modules.time.TimeResource;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.npc.INonPlayerCharacter;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.StepComponent;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.movement.controllers.MotionControllerFly;
 import com.hypixel.hytale.server.npc.movement.controllers.MotionControllerWalk;
+import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.role.support.CombatSupport;
 import com.hypixel.hytale.server.npc.role.support.MarkedEntitySupport;
 import com.hypixel.hytale.server.npc.role.support.StateSupport;
@@ -77,7 +79,7 @@ public class AiTickThrottlerService {
     private ComponentType<EntityStore, StepComponent> stepType;
     private ComponentType<EntityStore, TickThrottled> tickThrottledType;
     private ComponentType<EntityStore, Player> playerType;
-    private ComponentType<EntityStore, NPCEntity> npcEntityType;
+    private ComponentType<EntityStore, ? extends INonPlayerCharacter> npcEntityType;
     private ComponentType<EntityStore, NPCMountComponent> mountType;
     private ComponentType<EntityStore, MovementStatesComponent> movementStatesType;
     private ComponentType<EntityStore, DeathComponent> deathType;
@@ -104,19 +106,20 @@ public class AiTickThrottlerService {
     public void registerService() {
         int intervalMs = Math.max(20, AiTickThrottlerConfig.get().getValue(AiTickThrottlerConfig.UPDATE_INTERVAL_MS));
         pollNanos = TimeUnit.MILLISECONDS.toNanos(intervalMs);
-        task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        if (resolveComponentTypes()) {
-                            throttle();
-                        }
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error in AI tick throttler");
-                    }
-                },
-                5000,
-                intervalMs,
-                TimeUnit.MILLISECONDS);
+        task = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                if (resolveComponentTypes()) {
+                                    throttle();
+                                }
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error in AI tick throttler");
+                            }
+                        },
+                        5000,
+                        intervalMs,
+                        TimeUnit.MILLISECONDS);
         throttledGauge = RefixesEvents.gauge("AiTickThrottler throttled", () -> getThrottledCount());
         activeGauge = RefixesEvents.gauge("AiTickThrottler active", () -> getActiveNpcCount());
         cycleMsGauge = RefixesEvents.gauge("AiTickThrottler cycle ms", () -> lastCycleMs);
@@ -278,11 +281,12 @@ public class AiTickThrottlerService {
         if (stopped || !resolveComponentTypes()) {
             return;
         }
-        NPCEntity npcEntity = chunk.getComponent(index, npcEntityType);
-        if (npcEntity == null || npcEntity.getRole() == null) {
+        INonPlayerCharacter npcEntity = chunk.getComponent(index, npcEntityType);
+        Role role = npcEntity == null ? null : HytaleVersion.get().role(npcEntity);
+        if (role == null) {
             return;
         }
-        var controller = npcEntity.getRole().getActiveMotionController();
+        var controller = role.getActiveMotionController();
         if (controller == null) {
             return;
         }
@@ -690,9 +694,10 @@ public class AiTickThrottlerService {
         if (excludeAirborneOrDead && archetypeChunk.getComponent(index, deathType) != null) {
             return true;
         }
-        NPCEntity npcEntity = archetypeChunk.getComponent(index, npcEntityType);
-        if ((excludeFlying || excludeAirborneOrDead) && npcEntity != null && npcEntity.getRole() != null) {
-            var controller = npcEntity.getRole().getActiveMotionController();
+        INonPlayerCharacter npcEntity = archetypeChunk.getComponent(index, npcEntityType);
+        Role role = npcEntity == null ? null : HytaleVersion.get().role(npcEntity);
+        if ((excludeFlying || excludeAirborneOrDead) && role != null) {
+            var controller = role.getActiveMotionController();
             if ((excludeFlying && controller instanceof MotionControllerFly)
                     || (excludeAirborneOrDead
                             && controller != null
@@ -858,7 +863,7 @@ public class AiTickThrottlerService {
             if (stepType == null) stepType = StepComponent.getComponentType();
             if (tickThrottledType == null) tickThrottledType = TickThrottled.getComponentType();
             if (playerType == null) playerType = Player.getComponentType();
-            if (npcEntityType == null) npcEntityType = NPCEntity.getComponentType();
+            if (npcEntityType == null) npcEntityType = HytaleVersion.get().npcComponentType();
             if (mountType == null) mountType = NPCMountComponent.getComponentType();
             if (movementStatesType == null) movementStatesType = MovementStatesComponent.getComponentType();
             if (deathType == null) deathType = DeathComponent.getComponentType();

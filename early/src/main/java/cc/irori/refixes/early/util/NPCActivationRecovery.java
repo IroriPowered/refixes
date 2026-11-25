@@ -3,6 +3,7 @@ package cc.irori.refixes.early.util;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import java.util.function.Consumer;
 
 public final class NPCActivationRecovery {
     private static final ThreadLocal<EntitySection> SECTION = new ThreadLocal<>();
@@ -29,9 +30,15 @@ public final class NPCActivationRecovery {
     }
 
     public static void capture(Holder<EntityStore> holder) {
+        capture(holder, saved -> {});
+    }
+
+    public static void capture(Holder<EntityStore> holder, Consumer<Holder<EntityStore>> prepare) {
         Attempt attempt = ATTEMPT.get();
         if (attempt != null && attempt.holder == holder) {
-            attempt.saved = holder.cloneSerializable(EntityStore.REGISTRY.getData());
+            Holder<EntityStore> saved = holder.cloneSerializable(EntityStore.REGISTRY.getData());
+            prepare.accept(saved);
+            attempt.saved = saved;
         }
     }
 

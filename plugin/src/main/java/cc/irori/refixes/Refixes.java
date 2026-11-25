@@ -25,7 +25,9 @@ import cc.irori.refixes.config.impl.UnknownBlockCleanerConfig;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.accessor.ChunkGridAccess;
 import cc.irori.refixes.early.accessor.ChunkStoreAccess;
+import cc.irori.refixes.early.util.ChunkLoaderColumns;
 import cc.irori.refixes.early.util.PathfindingBudget;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.listener.ChunkLoaderWorldListener;
 import cc.irori.refixes.listener.SharedInstanceBootUnloader;
@@ -48,6 +50,7 @@ import cc.irori.refixes.system.SharedInstanceChunkSaveSkipSystem;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
+import cc.irori.refixes.version.HytaleVersion;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -110,6 +113,10 @@ public class Refixes extends JavaPlugin {
                         "Failed to pass config values to the early mixins, they will use their default values.");
             }
         }
+        if (!Early.isEnabled() || !EarlyOptions.hasMixinSelection()) {
+            LOGGER.atWarning().log("Early patches are off because Refixes was not loaded as an early plugin."
+                    + " Put the Refixes JAR in earlyplugins and start the server with Hyinit to apply them.");
+        }
         if (SharedInstanceConfig.get().getValue(SharedInstanceConfig.RESET_ON_EMPTY)
                 && !(Early.isEnabled() && EarlyOptions.isMixinEnabled("MixinInstancesPlugin"))) {
             LOGGER.atWarning().log("Shared instance reset is inactive without Mixins.Features.SharedInstances");
@@ -153,8 +160,10 @@ public class Refixes extends JavaPlugin {
     protected void shutdown() {
         if (Early.isEnabled()) EarlyOptions.SHARED_INSTANCES_STORAGE_AVAILABLE.setSupplier(() -> false);
         UnknownBlockCleaner.shutdown();
-        if (chunkLoaderService != null)
+        if (chunkLoaderService != null) {
+            if (Early.hasMixins("MixinChunkUnloadCommand")) ChunkLoaderColumns.set(null);
             chunkLoaderService.shutdown(HytaleServer.get().isShuttingDown());
+        }
         if (perPlayerHotRadiusService != null) {
             perPlayerHotRadiusService.unregisterService();
         }
@@ -179,6 +188,7 @@ public class Refixes extends JavaPlugin {
             pathfindingDeferralsGauge = null;
         }
         RefixesEvents.stop();
+        RefixesScheduler.shutdown();
     }
 
     private void registerEarlyOptions() {
@@ -328,13 +338,14 @@ public class Refixes extends JavaPlugin {
         }
         ChunkLoaderConfig chunkLoader = features.getValue(FeaturesConfig.CHUNK_LOADER_CONFIG);
         applyFix("Chunk loader", chunkLoader.getValue(ChunkLoaderConfig.ENABLED), () -> {
-            chunkLoaderService = new ChunkLoaderService(dataDirectory);
+            chunkLoaderService = HytaleVersion.get().chunkLoaderService(dataDirectory);
             getCommandRegistry().registerCommand(new ChunkLoaderCommand(chunkLoaderService));
             getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionSystem(chunkLoaderService));
             getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionLifecycleSystem(chunkLoaderService));
             getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionLifecycleSystem.Changes(chunkLoaderService));
             getChunkStoreRegistry().registerSystem(new ChunkLoaderSectionLifecycleSystem.Stores(chunkLoaderService));
             new ChunkLoaderWorldListener(chunkLoaderService).registerEvents(this);
+            if (Early.hasMixins("MixinChunkUnloadCommand")) ChunkLoaderColumns.set(chunkLoaderService::getKeptChunks);
             getEventRegistry().registerGlobal(EventPriority.LAST, RemoveWorldEvent.class, event -> {
                 if (!event.isCancelled()) chunkLoaderService.unloadWorld(event.getWorld());
             });

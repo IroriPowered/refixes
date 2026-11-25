@@ -3,6 +3,7 @@ package cc.irori.refixes.system;
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.config.ConfigurationKey;
 import cc.irori.refixes.config.impl.TickThrottledCleanupConfig;
+import cc.irori.refixes.version.HytaleVersion;
 import com.hypixel.hytale.component.AddReason;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
@@ -13,9 +14,9 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.server.core.entity.Frozen;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.universe.world.npc.INonPlayerCharacter;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.components.StepComponent;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -77,11 +78,12 @@ public class AiTickThrottlerCleanupSystem extends RefSystem<EntityStore> {
         if (excluded.isEmpty()) {
             return false;
         }
-        ComponentType<EntityStore, NPCEntity> npcEntityType = NPCEntity.getComponentType();
+        ComponentType<EntityStore, ? extends INonPlayerCharacter> npcEntityType =
+                HytaleVersion.get().npcComponentType();
         if (npcEntityType == null) {
             return false;
         }
-        NPCEntity npcEntity = commandBuffer.getComponent(ref, npcEntityType);
+        INonPlayerCharacter npcEntity = commandBuffer.getComponent(ref, npcEntityType);
         return npcEntity != null && excluded.contains(npcEntity.getNPCTypeId());
     }
 

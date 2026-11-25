@@ -1,0 +1,18 @@
+package cc.irori.refixes.early.util;
+
+import cc.irori.hyinit.api.IfHytale;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
+import com.hypixel.hytale.server.core.universe.world.worldgen.IWorldGen;
+
+@IfHytale("<0.8.0-pre.1")
+public final class WorldHeight {
+
+    private WorldHeight() {}
+
+    public static boolean isUnbounded(ChunkStore store, boolean cubicStorage) {
+        boolean unbounded = cubicStorage && store.getGenerator() instanceof IWorldGen.Cubic;
+        if (PatchCounters.ENABLED) PatchCounters.WORLD_HEIGHT_BOUNDS.countReached();
+        if (PatchCounters.ENABLED && cubicStorage && !unbounded) PatchCounters.WORLD_HEIGHT_BOUNDS.countEffect();
+        return unbounded;
+    }
+}

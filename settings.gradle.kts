@@ -8,5 +8,6 @@ includeBuild("build-logic")
 
 include(
     "early",
-    "plugin"
+    "plugin",
+    "shared"
 )

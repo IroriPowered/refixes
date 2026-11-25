@@ -10,9 +10,11 @@
             "Url": "https://github.com/KabanFriends"
         }
     ],
-    "ServerVersion": ">=${hytaleVersion}",
+    "ServerVersion": "${hytaleVersion}",
     "Dependencies": {},
     "OptionalDependencies": {},
+    "HyinitChangedTargets": "compare",
+    "HyinitFingerprintAtTargets": true,
     "Mixins": [
         "refixes.mixins.json"
     ]

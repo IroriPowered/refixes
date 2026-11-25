@@ -332,16 +332,23 @@ public class WatchdogService {
                 }
 
                 LOGGER.atInfo().log("Attempting to unload world: " + worldName);
-                if (Universe.get().getWorld(worldName) != null) {
+                World removing = Universe.get().getWorld(worldName);
+                if (removing != null) {
+                    boolean stillStopping = false;
                     selfInitiatedRemovals.add(worldName);
                     try {
-                        Universe.get().removeWorld(worldName);
+                        stillStopping = Universe.get().removeWorld(worldName)
+                                && Universe.get().getWorld(worldName) == removing;
                     } catch (Exception e) {
                         LOGGER.atWarning().withCause(e).log("Exception on unloading world %s", worldName);
                     } finally {
                         // Defensive: cleared by the event listener on success; this covers the case
                         // where the listener never ran (e.g. removeWorld threw before dispatching).
                         selfInitiatedRemovals.remove(worldName);
+                    }
+                    if (stillStopping) {
+                        LOGGER.atWarning().log("World %s is still stopping, so its restart is postponed", worldName);
+                        continue;
                     }
                 }
 

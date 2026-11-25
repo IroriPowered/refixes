@@ -1,5 +1,7 @@
 package cc.irori.refixes.early.mixin;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.util.RepulsionPolicy;
 
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
@@ -17,8 +19,8 @@ public final class RepulsionPolicyRegression {
         RepulsionPolicy.activate(first);
         RepulsionPolicy.endTick(null);
         ReferenceArrayList<Object> second = RepulsionPolicy.borrow();
-        check(second == first, "released list was not reused");
-        check(second.isEmpty(), "reused list retained elements");
+        require(second == first, "released list was not reused");
+        require(second.isEmpty(), "reused list retained elements");
         RepulsionPolicy.activate(second);
         RepulsionPolicy.endTick(null);
     }
@@ -28,15 +30,11 @@ public final class RepulsionPolicyRegression {
         RepulsionPolicy.activate(outer);
         ReferenceArrayList<Object> previous = RepulsionPolicy.beginTick();
         ReferenceArrayList<Object> inner = RepulsionPolicy.borrow();
-        check(inner != outer, "nested tick borrowed active list");
+        require(inner != outer, "nested tick borrowed active list");
         RepulsionPolicy.activate(inner);
         RepulsionPolicy.endTick(previous);
-        check(RepulsionPolicy.beginTick() == outer, "nested tick did not restore outer list");
+        require(RepulsionPolicy.beginTick() == outer, "nested tick did not restore outer list");
         RepulsionPolicy.activate(outer);
         RepulsionPolicy.endTick(null);
-    }
-
-    private static void check(boolean valid, String message) {
-        if (!valid) throw new AssertionError(message);
     }
 }

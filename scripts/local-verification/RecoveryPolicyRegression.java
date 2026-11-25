@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.mixin.MixinBlockSectionSafety;
 import com.hypixel.hytale.codec.ExtraInfo;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkLightData;
@@ -213,9 +215,5 @@ public final class RecoveryPolicyRegression {
         public void invalidate() {
             invalidations++;
         }
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }

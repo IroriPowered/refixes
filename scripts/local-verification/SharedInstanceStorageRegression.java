@@ -1,5 +1,8 @@
 package local.hyinit.verify;
 
+import cc.irori.refixes.version.HytaleLine;
+import cc.irori.refixes.version.HytaleVersion;
+import cc.irori.refixes.version.HytaleVersions;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
@@ -13,7 +16,6 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.universe.world.storage.IChunkSaver;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import org.joml.Vector3d;
 import java.util.UUID;
@@ -27,11 +29,9 @@ public final class SharedInstanceStorageRegression {
     private SharedInstanceStorageRegression() {}
 
     public static void assertSaveSectionCallbacks() throws Exception {
-        RecordingSaver backend = new RecordingSaver();
-        Class<?> type = Class.forName("cc.irori.refixes.service.SharedInstanceStorage");
-        Constructor<?> ctor = type.getDeclaredConstructor(IChunkSaver.Cubic.class, Store.class);
-        ctor.setAccessible(true);
-        Object storage = ctor.newInstance(backend, null);
+        RecordingSaver backend = saver();
+        Object storage = HytaleVersion.get().sharedInstanceStorage(backend, null);
+        Class<?> type = storage.getClass();
         Method saveSection = type.getMethod(
                 "saveSection",
                 int.class,
@@ -140,8 +140,17 @@ public final class SharedInstanceStorageRegression {
         if (callbacks.get() != beforeFailure + 4 || !queue.isEmpty()) {
             throw new AssertionError("Retry and skipped retry must each receive exactly one inline callback");
         }
+        backend.assertRemovalsKeepStoredData((IChunkSaver.Cubic) storage);
         System.out.println("[LocalVerify] SharedInstanceStorage saveSection callback regression PASS");
     }
+
+    private static RecordingSaver saver() throws Exception {
+        String line = HytaleLine.nearest(HytaleVersions.running()).name();
+        return (RecordingSaver) Class.forName(SharedInstanceStorageRegression.class.getName() + line)
+                .getDeclaredConstructor()
+                .newInstance();
+    }
+
     public static void runWithRegistry(Store<ChunkStore> chunkStore) throws Exception {
         if (chunkStore == null) {
             throw new AssertionError("Booted ChunkStore is required for UUID-less holder preservation");
@@ -156,11 +165,9 @@ public final class SharedInstanceStorageRegression {
     }
 
     static void runOnStoreThread(Store<ChunkStore> chunkStore) throws Exception {
-        RecordingSaver backend = new RecordingSaver();
-        Class<?> type = Class.forName("cc.irori.refixes.service.SharedInstanceStorage");
-        Constructor<?> ctor = type.getDeclaredConstructor(IChunkSaver.Cubic.class, Store.class);
-        ctor.setAccessible(true);
-        Object storage = ctor.newInstance(backend, chunkStore);
+        RecordingSaver backend = saver();
+        Object storage = HytaleVersion.get().sharedInstanceStorage(backend, chunkStore);
+        Class<?> type = storage.getClass();
         Method saveEntitySection = type.getMethod(
                 "saveEntitySection",
                 int.class,
@@ -258,13 +265,25 @@ public final class SharedInstanceStorageRegression {
     private record Snapshot(UUID uuid, Vector3d position) {}
 
 
-    private static final class RecordingSaver implements IChunkSaver.Cubic {
+    abstract static class RecordingSaver implements IChunkSaver.Cubic {
         final AtomicInteger saveCalls = new AtomicInteger();
         final AtomicReference<CompletableFuture<Void>> raw = new AtomicReference<>();
         final AtomicInteger entitySaveCalls = new AtomicInteger();
+        final AtomicInteger removeCalls = new AtomicInteger();
         final AtomicReference<CompletableFuture<Void>> entityRaw = new AtomicReference<>();
         volatile EntitySection lastEntitySection;
         volatile boolean throwNext;
+
+        abstract void assertRemovalsKeepStoredData(IChunkSaver.Cubic storage);
+
+        void requireKept(String operation, CompletableFuture<Void> future) {
+            if (!future.isDone() || future.isCompletedExceptionally()) {
+                throw new AssertionError(operation + " must complete at once without deleting shared-instance data");
+            }
+            if (removeCalls.get() != 0) {
+                throw new AssertionError(operation + " reached the backend: " + removeCalls.get());
+            }
+        }
 
         @Override
         public CompletableFuture<Void> saveSection(
@@ -310,17 +329,13 @@ public final class SharedInstanceStorageRegression {
         }
 
         @Override
-        public CompletableFuture<Void> removeEntity(UUID uuid) {
-            return CompletableFuture.completedFuture(null);
-        }
-
-        @Override
         public CompletableFuture<Void> saveHolder(int x, int z, Holder<ChunkStore> holder) {
             return CompletableFuture.completedFuture(null);
         }
 
         @Override
         public CompletableFuture<Void> removeHolder(int x, int z) {
+            removeCalls.incrementAndGet();
             return CompletableFuture.completedFuture(null);
         }
 

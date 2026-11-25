@@ -14,8 +14,4 @@ public interface SharedInstanceResetAccess {
     void refixes$setResetArmed(boolean armed);
 
     AtomicReference<CompletableFuture<Void>> refixes$resetGate();
-
-    AtomicReference<CompletableFuture<Void>> refixes$cleanupGate();
-
-    boolean refixes$isShutDown();
 }

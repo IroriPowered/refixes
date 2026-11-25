@@ -1,7 +1,6 @@
 package cc.irori.refixes.early.util;
 
 import com.hypixel.hytale.component.Ref;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -28,8 +27,7 @@ public final class WorldPolicyTransfer {
             PlayerRef player,
             Ref<EntityStore> initialReference,
             Supplier<CompletableFuture<PlayerRef>> nativeAttach) {
-        return awaitRemovalAndAttach(
-                destination, player, initialReference, nativeAttach, HytaleServer.SCHEDULED_EXECUTOR, 100L);
+        return awaitRemovalAndAttach(destination, player, initialReference, nativeAttach, RefixesScheduler.get(), 100L);
     }
 
     public static CompletableFuture<PlayerRef> awaitRemovalAndAttach(

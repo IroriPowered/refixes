@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.hyinit.api.IfHytale;
 import cc.irori.refixes.early.duck.ChunkTrackerSectionFence;
 import cc.irori.refixes.early.duck.QuicheDrainSignal;
 import cc.irori.refixes.early.duck.TrackedColumnSectionFence;
@@ -10,9 +11,12 @@ import com.hypixel.hytale.protocol.ToClientPacket;
 import com.hypixel.hytale.protocol.io.ChannelConnection;
 import com.hypixel.hytale.server.core.io.PacketHandler;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.StampedLock;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -177,6 +181,30 @@ public abstract class MixinChunkTrackerSectionFence implements ChunkTrackerSecti
         if (column != null) {
             ((TrackedColumnSectionFence) column).refixes$markLoadStart(y, SEQUENCE.incrementAndGet());
         }
+    }
+
+    @IfHytale(">=0.8.0-pre.1 || >=0.9.0-0")
+    @WrapOperation(
+            method = "tick",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lcom/hypixel/hytale/server/core/modules/entity/player/ChunkTracker;_loadSectionAsync(IIILcom/hypixel/hytale/server/core/universe/PlayerRef;Lcom/hypixel/hytale/component/Ref;Lcom/hypixel/hytale/server/core/universe/world/storage/ChunkStore;Lcom/hypixel/hytale/server/core/modules/entity/player/ChunkTracker$TrackedColumn;)Ljava/util/concurrent/CompletableFuture;"),
+            require = 1,
+            allow = 1)
+    private CompletableFuture<Void> refixes$markEarlyLoadStart(
+            ChunkTracker tracker,
+            int x,
+            int y,
+            int z,
+            com.hypixel.hytale.server.core.universe.PlayerRef playerRef,
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> ref,
+            com.hypixel.hytale.server.core.universe.world.storage.ChunkStore chunkStore,
+            @Coerce Object column,
+            Operation<CompletableFuture<Void>> original) {
+        ((TrackedColumnSectionFence) column).refixes$markLoadStart(y, SEQUENCE.incrementAndGet());
+        return original.call(tracker, x, y, z, playerRef, ref, chunkStore, column);
     }
 
     @Inject(method = "tryUnloadSection", at = @At("RETURN"))

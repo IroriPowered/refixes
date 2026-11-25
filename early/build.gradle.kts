@@ -2,36 +2,64 @@ plugins {
     id("cc.irori.refixes.build.java")
 }
 
+val hyinitApi = rootProject.files("libs/hyinit-api-0.5.0.jar")
+
 dependencies {
+    implementation(project(":shared"))
     compileOnly(libs.mixin)
     compileOnly(libs.mixinextras)
+    compileOnly(hyinitApi)
 }
 
 base {
     archivesName.set("refixes-early")
 }
 
-val fingerprint: SourceSet by sourceSets.creating {
-    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
-    runtimeClasspath += output + compileClasspath
+val hytale07 = extra["hytale07"]!!
+val hytale08 = extra["hytale08"]!!
+
+val v07: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
 }
 
-tasks.register<JavaExec>("targetFingerprints") {
-    val pluginClasses = project(":plugin").layout.buildDirectory.dir("classes/java/main")
-    val mixins = file("src/main/resources/refixes.mixins.json")
-    val output = layout.buildDirectory.file("fingerprints/target-fingerprints.tsv")
-    dependsOn(":plugin:classes")
-    inputs.file(mixins)
-    inputs.dir(pluginClasses)
-    inputs.files(fingerprint.runtimeClasspath)
-    outputs.file(output)
-    classpath = fingerprint.runtimeClasspath
-    mainClass.set("cc.irori.refixes.early.TargetFingerprintWriter")
-    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) })
-    argumentProviders.add(CommandLineArgumentProvider {
-        listOf(
-            mixins.absolutePath,
-            pluginClasses.get().asFile.absolutePath,
-            output.get().asFile.absolutePath)
-    })
+val v08: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+}
+
+val shared08: SourceSet by sourceSets.creating {
+    java.setSrcDirs(sourceSets.main.get().java.srcDirs)
+}
+
+dependencies {
+    for (set in listOf(v07, v08, shared08)) {
+        set.compileOnlyConfigurationName(libs.mixin)
+        set.compileOnlyConfigurationName(libs.mixinextras)
+        set.compileOnlyConfigurationName(hyinitApi)
+        set.compileOnlyConfigurationName(project(":shared"))
+    }
+    v07.compileOnlyConfigurationName(hytale07)
+    v08.compileOnlyConfigurationName(hytale08)
+    shared08.compileOnlyConfigurationName(hytale08)
+}
+
+tasks.named("classes") { dependsOn(shared08.classesTaskName) }
+
+val hytaleLineChecks = listOf(v07, v08).map { it to (rootProject.property("hytale_line_${it.name}") as String) }.map { (set, range) ->
+    tasks.register<cc.irori.refixes.build.HytaleLineCheck>("check${set.name.replaceFirstChar { it.uppercase() }}HytaleLine") {
+        classes.from(set.output.classesDirs)
+        this.range.set(range)
+    }
+}
+
+tasks.shadowJar {
+    dependsOn(hytaleLineChecks)
+    from(v07.output, v08.output)
+}
+
+val fingerprintServer07: Configuration by configurations.creating
+val fingerprintServer08: Configuration by configurations.creating
+
+dependencies {
+    fingerprintServer07(libs.hytale) { isTransitive = false }
+    fingerprintServer08(libs.hytale.pre) { isTransitive = false }
 }

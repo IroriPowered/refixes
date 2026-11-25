@@ -1,6 +1,7 @@
 package cc.irori.refixes.service;
 
 import cc.irori.refixes.config.impl.IdlePlayerHandlerConfig;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Logs;
 import cc.irori.refixes.util.PlayerRadiusRevisions;
@@ -8,7 +9,6 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Rotation3f;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.player.ChunkTracker;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -50,17 +50,18 @@ public class IdlePlayerService {
         registered = true;
         int intervalSec =
                 Math.max(5, IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.CHECK_INTERVAL_SECONDS));
-        task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        evaluatePlayers();
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error in idle player handler");
-                    }
-                },
-                5000,
-                intervalSec * 1000L,
-                TimeUnit.MILLISECONDS);
+        task = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                evaluatePlayers();
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error in idle player handler");
+                            }
+                        },
+                        5000,
+                        intervalSec * 1000L,
+                        TimeUnit.MILLISECONDS);
         idleGauge = RefixesEvents.gauge("IdlePlayer idle", () -> getIdleCount());
         if (IdlePlayerHandlerConfig.get().getValue(IdlePlayerHandlerConfig.REDUCE_MIN_LOADED_RADIUS)) {
             LOGGER.atInfo().log(
@@ -337,8 +338,7 @@ public class IdlePlayerService {
             return;
         }
         try {
-            HytaleServer.SCHEDULED_EXECUTOR.schedule(
-                    () -> restorePlayerSettings(playerRef, state), 1, TimeUnit.SECONDS);
+            RefixesScheduler.get().schedule(() -> restorePlayerSettings(playerRef, state), 1, TimeUnit.SECONDS);
         } catch (RuntimeException ignored) {
         }
     }

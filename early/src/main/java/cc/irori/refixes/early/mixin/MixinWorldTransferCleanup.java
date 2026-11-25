@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.hyinit.api.IfHytale;
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.duck.IndexedWorldOwner;
 import cc.irori.refixes.early.util.IndexedWorldStorage;
@@ -13,6 +14,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -34,10 +36,19 @@ public abstract class MixinWorldTransferCleanup extends TickingThread implements
         return refixes$indexedStorage;
     }
 
+    @IfHytale("<0.8.0-pre.1")
     @WrapMethod(method = "stopIndividualWorld(Ljava/util/Map;)V")
     private void refixes$stopIndexedStorage(Map<UUID, PlayerRef> players, Operation<Void> original) {
         refixes$indexedStorage.stopping(getThread());
         original.call(players);
+    }
+
+    @IfHytale(">=0.8.0-pre.1 || >=0.9.0-0")
+    @WrapMethod(method = "stopIndividualWorldAsync(Ljava/util/Map;)Ljava/util/concurrent/CompletableFuture;")
+    private CompletableFuture<Void> refixes$stopIndexedStorageAsync(
+            Map<UUID, PlayerRef> players, Operation<CompletableFuture<Void>> original) {
+        refixes$indexedStorage.stopping(getThread());
+        return original.call(players);
     }
 
     @WrapMethod(method = "onShutdown")

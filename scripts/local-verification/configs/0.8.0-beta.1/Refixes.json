@@ -1,0 +1,99 @@
+{
+  "OtherServerVersions": "SameMinorVersion",
+  "Mixins": {
+    "Correctness": {
+      "MountPlugin": true,
+      "OutgoingQueueLimits": true,
+      "SetupPacing": true,
+      "QuicCloseRetention": true,
+      "ChunkSectionFences": true,
+      "MarkerAddRemoveSystem": true,
+      "TickingSpawnMarkerSystem": true,
+      "TrackedPlacementOnAddRemove": true,
+      "WindowManager": true,
+      "ConfigLoad": true,
+      "PluginPreload": true,
+      "PluginLoaderCache": true,
+      "WorldTransfer": true,
+      "StorageOrdering": true,
+      "ChunkSaveQueueOrder": true,
+      "BlockChangeSaving": true,
+      "TransferCombatClock": true,
+      "ParallelTaskLifecycle": true,
+      "ChunkStoreSectionBackoffDeadlock": true,
+      "DespawnSystem": true,
+      "CommandBuffer": true,
+      "EntityViewer": true,
+      "EffectConditionClock": true,
+      "AssetInheritance": true,
+      "NPCKillsEntitySystem": true,
+      "PortalDeviceSummonPage": true,
+      "RemovalSystem": true,
+      "StateSupport": true,
+      "DeployableOwnerComponent": true,
+      "TeleportToPlayerCommand": true,
+      "TickingThreadStart": true,
+      "WorldOwnership": true
+    },
+    "Optimizations": {
+      "SpawnManagerRecalc": false,
+      "RepulsionTicker": false,
+      "RepulsionNeighbors": false,
+      "SkipEmptyLightSections": false,
+      "LightNeutralBlocks": false,
+      "SkipUnchangedLightSaves": false,
+      "AssetPartSnapshotSharing": false,
+      "DefaultMovementResistance": false,
+      "CodecMetadata": true
+    },
+    "Tuning": {
+      "CylinderVisibility": false,
+      "ChunkStreaming": false,
+      "WorldMapExistingTerrain": false,
+      "TickWait": true,
+      "PathfindingLimits": false
+    },
+    "Features": {
+      "OriginRetention": false,
+      "SharedInstances": false,
+      "SharedInstanceStorage": true,
+      "WorldPauseCommand": false
+    },
+    "Recovery": {
+      "ShutdownSaveTimeout": false,
+      "TickSurvival": false,
+      "CorruptSectionReset": false,
+      "MotionControllerBase": false,
+      "TurnOffTeleportersSystem": false,
+      "UnresolvedNPCRoles": false,
+      "InvalidCollisionData": false,
+      "InteractionChain": false,
+      "WorldSpawningSystem": false,
+      "DuplicateComponentReferences": false
+    },
+    "Compatibility": {
+      "DisableLiveConfig": false,
+      "ServerAuthManager": true,
+      "UpdateCheckCommand": true,
+      "UpdateDownloadCommand": true,
+      "UpdateModule": true,
+      "WorldConfig": true,
+      "PlayerRadius": true,
+      "ServerViewRadius": true,
+      "AiTickThrottler": true,
+      "IdleWorldPause": true,
+      "UnknownBlockCleaner": true,
+      "Watchdog": true
+    },
+    "Diagnostics": {
+      "HytaleServer": true,
+      "PatchCounters": false
+    },
+    "Experimental": {
+      "Parallel": {
+        "CollectVisible": false
+      },
+      "PathfindingBudget": false
+    }
+  }
+}

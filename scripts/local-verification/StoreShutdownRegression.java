@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.mixin.MixinStoreShutdown;
 import com.hypixel.hytale.server.core.HytaleServer;
@@ -94,9 +96,5 @@ public final class StoreShutdownRegression {
         save.complete("saved");
         thread.join(2000);
         require("saved".equals(result.get()), label + " lost the save result: " + result.get());
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }

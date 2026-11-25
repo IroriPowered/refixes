@@ -2,7 +2,7 @@ package cc.irori.refixes.early.mixin;
 
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
-import cc.irori.refixes.early.util.SharedInstanceReset;
+import cc.irori.refixes.early.util.SharedInstanceGates;
 import com.hypixel.hytale.builtin.instances.InstancesPlugin;
 import com.hypixel.hytale.builtin.instances.config.InstanceWorldConfig;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -53,7 +53,7 @@ public abstract class MixinInstancesPlugin {
             require = 2,
             allow = 2)
     private World refixes$skipResettingWorld(Universe universe, String worldName, Operation<World> original) {
-        return SharedInstanceReset.gate(worldName) != null ? null : original.call(universe, worldName);
+        return SharedInstanceGates.gate(worldName) != null ? null : original.call(universe, worldName);
     }
 
     @WrapOperation(
@@ -73,7 +73,7 @@ public abstract class MixinInstancesPlugin {
             Operation<Object> original,
             @Local(argsOnly = true, ordinal = 0) String name,
             @Local(argsOnly = true) WorldConfig config) {
-        CompletableFuture<Void> gate = SharedInstanceReset.gate((String) worldKey);
+        CompletableFuture<Void> gate = SharedInstanceGates.gate((String) worldKey);
         if (gate != null) {
             return gate.thenComposeAsync(ignored -> {
                 World existing = Universe.get().getWorld((String) worldKey);

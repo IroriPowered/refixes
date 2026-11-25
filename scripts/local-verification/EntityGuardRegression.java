@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import com.hypixel.hytale.builtin.mounts.MountPlugin;
 import com.hypixel.hytale.codec.ExtraInfo;
 import com.hypixel.hytale.component.AddReason;
@@ -83,13 +85,13 @@ public final class EntityGuardRegression {
         Object2IntMap<String> counts = (Object2IntMap<String>) field.get(counter);
         counter.trackBlock("RefixesProbe");
         removeTracked(store, new TrackedPlacement("RefixesProbe"));
-        check(counter.getBlockPlacementCount("RefixesProbe") == 0, "named placement removal must still decrement");
+        require(counter.getBlockPlacementCount("RefixesProbe") == 0, "named placement removal must still decrement");
         removeTracked(store, new TrackedPlacement());
         boolean nullKey = counts.containsKey(null);
         Throwable encode = failure(() -> BlockCounter.CODEC.encode(counter, ExtraInfo.THREAD_LOCAL.get()));
         counts.removeInt(null);
         counts.removeInt("RefixesProbe");
-        check(!nullKey && encode == null, "guarded unnamed removal corrupted BlockCounter: " + encode);
+        require(!nullKey && encode == null, "guarded unnamed removal corrupted BlockCounter: " + encode);
         return "guarded: no null key, BlockCounter encodes, named decrement preserved";
     }
 
@@ -101,7 +103,7 @@ public final class EntityGuardRegression {
     }
 
     private static String expectGuard(String mixin, Throwable failure) {
-        check(failure == null, mixin + " did not guard foreign-store reference: " + failure);
+        require(failure == null, mixin + " did not guard foreign-store reference: " + failure);
         return "guarded: foreign-store reference skipped";
     }
 
@@ -118,10 +120,6 @@ public final class EntityGuardRegression {
         FutureTask<T> task = new FutureTask<>(action);
         world.execute(task);
         return task.get(30, TimeUnit.SECONDS);
-    }
-
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 
     private interface ThrowingRunnable {

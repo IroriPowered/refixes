@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.OutgoingQueueLimits;
 import cc.irori.refixes.early.duck.QuicheDrainSignal;
@@ -376,10 +378,6 @@ public final class NettySetupPacingRegression {
             require(System.nanoTime() < deadline, message);
             Thread.yield();
         }
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 
     private record SizedPacket(int sequence, int size, RuntimeException failure) implements ToClientPacket {

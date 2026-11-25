@@ -61,6 +61,9 @@ final class SettingRows {
         if (gateState.equals("disabled")) {
             return "disabled by the version gate for Hytale " + gateVersion;
         }
+        if (gateState.equals("hyinit")) {
+            return "disabled because Hyinit " + gateVersion + " is older than 0.5.0";
+        }
         String active = "active, " + EarlyOptions.enabledMixinCount() + " Mixin classes selected";
         if (gateState.equals("overridden")) {
             return active + ". Version gate overridden by OtherServerVersions=AllPatches for Hytale " + gateVersion;

@@ -1,5 +1,6 @@
 package cc.irori.refixes.early;
 
+import cc.irori.refixes.version.HytaleLine;
 import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +28,12 @@ final class ServerVersion {
             return Relation.TARGET;
         if (Arrays.compare(current, built) < 0) return Relation.OLDER;
         return current[0] == built[0] && current[1] == built[1] ? Relation.NEWER_SAME_MINOR : Relation.NEWER_MINOR;
+    }
+
+    static Relation gate(HytaleLine line, String running) {
+        Relation relation = relation(line.target(), running);
+        if (line.covers(running) || relation == Relation.OLDER) return relation;
+        return Relation.UNKNOWN;
     }
 
     static String minor(String version) {

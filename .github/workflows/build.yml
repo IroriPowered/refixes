@@ -1,5 +1,8 @@
 name: Build
-on: [pull_request, push]
+on:
+  push:
+    branches: [master]
+  pull_request:
 
 jobs:
   build:
@@ -14,12 +17,12 @@ jobs:
         with:
           java-version: "25"
           distribution: "temurin"
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
+      - name: Fetch the pinned Hyinit release
+        run: bash scripts/fetch-hyinit.sh "$RUNNER_TEMP/Hyinit.jar"
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
       - name: Check formatting and build single JAR
-        run: ./gradlew spotlessCheck singleJar
+        run: ./gradlew spotlessCheck singleJar -PhyinitJar="$RUNNER_TEMP/Hyinit.jar"
       - name: Capture build artifacts
         uses: actions/upload-artifact@v7
         with:

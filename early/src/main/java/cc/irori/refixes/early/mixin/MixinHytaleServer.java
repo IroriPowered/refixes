@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.hyinit.api.IfHytale;
 import cc.irori.refixes.early.util.Logs;
 import com.hypixel.hytale.common.plugin.PluginIdentifier;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -22,10 +23,26 @@ public class MixinHytaleServer {
     @Unique
     private static final PluginIdentifier MAIN_PLUGIN_ID = new PluginIdentifier("IroriPowered", "Refixes");
 
+    @IfHytale("<0.8.0-pre.1")
     @Inject(
             method = "<init>",
             at = @At(value = "INVOKE", target = "Lio/netty/handler/codec/quic/Quic;ensureAvailability()V"))
-    private void refixes$setupBootEvent(CallbackInfo ci) {
+    private void refixes$setupBootEventBeforeQuic(CallbackInfo ci) {
+        refixes$setupBootEvent();
+    }
+
+    @IfHytale(">=0.8.0-pre.1 || >=0.9.0-0")
+    @Inject(
+            method = "<init>",
+            at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/server/core/HytaleServer;boot()V"),
+            require = 1,
+            allow = 1)
+    private void refixes$setupBootEventBeforeBoot(CallbackInfo ci) {
+        refixes$setupBootEvent();
+    }
+
+    @Unique
+    private void refixes$setupBootEvent() {
         HytaleServer server = (HytaleServer) (Object) this;
         server.getEventBus().register(BootEvent.class, event -> {
             PluginBase plugin = PluginManager.get().getPlugin(MAIN_PLUGIN_ID);

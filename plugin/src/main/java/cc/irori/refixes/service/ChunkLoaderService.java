@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-public class ChunkLoaderService {
+public abstract class ChunkLoaderService {
     private static final HytaleLogger LOGGER = Logs.logger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path dataDir;
@@ -40,7 +40,7 @@ public class ChunkLoaderService {
     private final CoalescingPersistence<List<Snapshot>> persistence;
     private boolean stopped;
 
-    public ChunkLoaderService(Path pluginDataDir) {
+    ChunkLoaderService(Path pluginDataDir) {
         dataDir = pluginDataDir.resolve("chunkloaders");
         loadAll();
         persistence = new CoalescingPersistence<>((worldName, snapshot) -> {
@@ -52,6 +52,16 @@ public class ChunkLoaderService {
             }
         });
     }
+
+    abstract void reconcile(Store<ChunkStore> store);
+
+    abstract void keepColumn(Store<ChunkStore> store, Ref<ChunkStore> ref, WorldChunk column);
+
+    abstract void requestSections(World world, WorldState state, long index, Hold hold);
+
+    abstract boolean retains(ChunkData registration, int y);
+
+    abstract void sectionHeld(WorldState state, Hold hold, int y);
 
     public synchronized void addChunk(World world, int chunkX, int chunkZ, String label, int sectionY) {
         if (stopped) return;
@@ -182,17 +192,17 @@ public class ChunkLoaderService {
         }
     }
 
-    private void executeOnWorld(World world, Runnable task) {
+    void executeOnWorld(World world, Runnable task) {
         try {
             Store<ChunkStore> store = world.getChunkStore().getStore();
             if (store != null && store.isInThread()) {
-                synchronized (ChunkLoaderService.this) {
+                synchronized (this) {
                     task.run();
                 }
                 return;
             }
             world.execute(() -> {
-                synchronized (ChunkLoaderService.this) {
+                synchronized (this) {
                     task.run();
                 }
             });
@@ -218,7 +228,7 @@ public class ChunkLoaderService {
         return hold;
     }
 
-    private boolean current(World world, WorldState state, long index, Hold hold) {
+    boolean current(World world, WorldState state, long index, Hold hold) {
         return !stopped
                 && worlds.get(world) == state
                 && state.holds.get(index) == hold
@@ -254,32 +264,10 @@ public class ChunkLoaderService {
             }
         }
         if (hold.column.get() == null) return;
-        for (int y : List.copyOf(hold.registration.sections)) {
-            if (hold.sections.containsKey(y) || !hold.requested.add(y)) continue;
-            try {
-                var future = world.getChunkStore()
-                        .getChunkSectionReferenceAsync(
-                                hold.registration.x, y, hold.registration.z, GetChunkFlags.SET_TICKING);
-                future.whenComplete((ref, error) -> executeOnWorld(world, () -> {
-                    if (!current(world, state, index, hold)) return;
-                    hold.requested.remove(y);
-                    if (error != null || ref == null || !ref.isValid()) {
-                        failed(world, hold, error);
-                        return;
-                    }
-                    ChunkSection section =
-                            world.getChunkStore().getStore().getComponent(ref, ChunkSection.getComponentType());
-                    if (section == null) failed(world, hold, null);
-                    else sectionAdded(world.getChunkStore().getStore(), ref, section);
-                }));
-            } catch (RuntimeException e) {
-                hold.requested.remove(y);
-                failed(world, hold, e);
-            }
-        }
+        requestSections(world, state, index, hold);
     }
 
-    private static void failed(World world, Hold hold, Throwable error) {
+    static void failed(World world, Hold hold, Throwable error) {
         hold.retryAfter = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
         LOGGER.atWarning().withCause(error).log(
                 "Failed to load retained column/section %d, %d in %s",
@@ -292,7 +280,7 @@ public class ChunkLoaderService {
         if (state == null || section == null) return;
         long index = ChunkUtil.indexChunk(section.getX(), section.getZ());
         Hold hold = hold(world, state, index);
-        if (hold == null) return;
+        if (hold == null || !retains(hold.registration, section.getY())) return;
         SectionHold owned = hold.sections.get(section.getY());
         if (owned == null) {
             owned = new SectionHold();
@@ -301,7 +289,7 @@ public class ChunkLoaderService {
         owned.reference = ref;
         owned.section.set(section);
         section.resetActiveTimer();
-        if (hold.registration.sections.add(section.getY())) state.dirty = true;
+        sectionHeld(state, hold, section.getY());
     }
 
     public synchronized void sectionRemoved(Store<ChunkStore> store, Ref<ChunkStore> ref, ChunkSection section) {
@@ -328,12 +316,7 @@ public class ChunkLoaderService {
         if (registrations == null || registrations.isEmpty()) return;
         if (state.reconcile) {
             state.reconcile = false;
-            store.forEachChunk(ChunkSection.getComponentType(), (chunk, commandBuffer) -> {
-                for (int i = 0; i < chunk.size(); i++) {
-                    sectionAdded(
-                            store, chunk.getReferenceTo(i), chunk.getComponent(i, ChunkSection.getComponentType()));
-                }
-            });
+            reconcile(store);
         }
         for (long index : List.copyOf(registrations.keySet())) {
             Hold hold = hold(world, state, index);
@@ -344,10 +327,7 @@ public class ChunkLoaderService {
                         : null;
                 hold.column.set(column);
                 if (column == null) hold.columnRef = null;
-                else {
-                    column.resetActiveTimer();
-                    store.tryRemoveComponent(hold.columnRef, ChunkStore.REGISTRY.getNonTickingComponentType());
-                }
+                else keepColumn(store, hold.columnRef, column);
             }
             for (var entry : List.copyOf(hold.sections.entrySet())) {
                 SectionHold owned = entry.getValue();
@@ -434,10 +414,10 @@ public class ChunkLoaderService {
         }
     }
 
-    private static final class WorldState {
+    static final class WorldState {
         private final Map<Long, Hold> holds = new HashMap<>();
         private boolean reconcile;
-        private boolean dirty;
+        boolean dirty;
 
         private void clear() {
             holds.values().forEach(Hold::clear);
@@ -445,15 +425,15 @@ public class ChunkLoaderService {
         }
     }
 
-    private static final class Hold {
-        private final ChunkData registration;
+    static final class Hold {
+        final ChunkData registration;
         private final OwnedKeepLoaded<WorldChunk> column =
                 new OwnedKeepLoaded<>(WorldChunk::addKeepLoaded, WorldChunk::removeKeepLoaded);
         private Ref<ChunkStore> columnRef;
         private boolean loadingColumn;
         private long retryAfter;
-        private final Map<Integer, SectionHold> sections = new HashMap<>();
-        private final Set<Integer> requested = new HashSet<>();
+        final Map<Integer, SectionHold> sections = new HashMap<>();
+        final Set<Integer> requested = new HashSet<>();
 
         private Hold(ChunkData registration) {
             this.registration = registration;
@@ -472,10 +452,10 @@ public class ChunkLoaderService {
                 new OwnedKeepLoaded<>(ChunkSection::addKeepLoaded, ChunkSection::removeKeepLoaded);
     }
 
-    private static final class ChunkData {
-        private int x, z;
+    static final class ChunkData {
+        int x, z;
         private String label;
-        private Set<Integer> sections = new HashSet<>();
+        Set<Integer> sections = new HashSet<>();
 
         private ChunkData(int x, int z, String label) {
             this.x = x;

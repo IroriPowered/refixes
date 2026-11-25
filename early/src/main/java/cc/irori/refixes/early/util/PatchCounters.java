@@ -19,6 +19,8 @@ public final class PatchCounters {
             "RepulsionNeighbors", "MixinRepulsionNeighbors", "neighbor searches", "collected without sorting");
     public static final Counter SOUND_HEADER_VALIDATION = new Counter(
             "SoundHeaderValidation", "MixinSoundFileValidators", "sound info lookups", "read from header only");
+    public static final Counter SKIP_EMPTY_LIGHT_SECTIONS = new Counter(
+            "SkipEmptyLightSections", "MixinFloodLightCalculation", "light propagations", "skipped as empty");
     public static final Counter ASSET_PART_SNAPSHOT_SHARING = new Counter(
             "AssetPartSnapshotSharing", "MixinPacketHandlerAssetParts", "asset parts sent", "shared snapshot reused");
     public static final Counter NPC_COMPONENT_TYPE =
@@ -34,7 +36,7 @@ public final class PatchCounters {
             "WorldHeightBounds", "MixinChunkTrackerHeightBounds", "height checks", "limited to standard height");
     public static final Counter WORLD_MAP_EXISTING_TERRAIN = new Counter(
             "WorldMapExistingTerrain",
-            "MixinWorldMapTrackerMissingTerrain",
+            List.of("MixinWorldMapTrackerMissingTerrain", "MixinWorldMapTrackerMissingTerrainV08"),
             "map image polls",
             "polls held back for missing terrain");
     public static final Counter TICK_WAIT = new Counter("TickWait", "MixinTickSleep", "wait spins", "short sleeps");
@@ -48,13 +50,17 @@ public final class PatchCounters {
             "relights",
             "save marks skipped for unchanged light");
     public static final Counter LIGHT_NEUTRAL_BLOCKS = new Counter(
-            "LightNeutralBlocks", "MixinFloodLightNeutral", "local relights", "reused after light-neutral changes");
+            "LightNeutralBlocks",
+            List.of("MixinFloodLightNeutral", "MixinFloodLightNeutralV08"),
+            "local relights",
+            "reused after light-neutral changes");
 
     private static final List<Counter> COUNTERS = List.of(
             SPAWN_MANAGER_RECALC,
             REPULSION_TICKER,
             REPULSION_NEIGHBORS,
             SOUND_HEADER_VALIDATION,
+            SKIP_EMPTY_LIGHT_SECTIONS,
             ASSET_PART_SNAPSHOT_SHARING,
             NPC_COMPONENT_TYPE,
             DEFAULT_MOVEMENT_RESISTANCE,
@@ -84,15 +90,19 @@ public final class PatchCounters {
     public static final class Counter {
 
         private final String key;
-        private final String mixin;
+        private final List<String> mixins;
         private final String reachedLabel;
         private final String effectLabel;
         private final LongAdder reached = new LongAdder();
         private final LongAdder effect = new LongAdder();
 
         private Counter(String key, String mixin, String reachedLabel, String effectLabel) {
+            this(key, List.of(mixin), reachedLabel, effectLabel);
+        }
+
+        private Counter(String key, List<String> mixins, String reachedLabel, String effectLabel) {
             this.key = key;
-            this.mixin = mixin;
+            this.mixins = mixins;
             this.reachedLabel = reachedLabel;
             this.effectLabel = effectLabel;
         }
@@ -108,7 +118,12 @@ public final class PatchCounters {
         private Snapshot snapshot() {
             long effectCount = effect.sum();
             return new Snapshot(
-                    key, EarlyOptions.isMixinEnabled(mixin), reachedLabel, reached.sum(), effectLabel, effectCount);
+                    key,
+                    mixins.stream().anyMatch(EarlyOptions::isMixinEnabled),
+                    reachedLabel,
+                    reached.sum(),
+                    effectLabel,
+                    effectCount);
         }
     }
 }

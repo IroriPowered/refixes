@@ -9,6 +9,7 @@ repositories {
 dependencies {
     implementation(libs.shadow)
     implementation(libs.spotless)
+    implementation(libs.asm)
 }
 
 kotlin {

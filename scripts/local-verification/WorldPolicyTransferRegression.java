@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.util.WorldPolicyTransfer;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
@@ -359,9 +361,5 @@ public final class WorldPolicyTransferRegression {
 
     private static void failed(CompletableFuture<?> result) {
         require(result.isCompletedExceptionally(), "operation must fail without waiting");
-    }
-
-    private static void require(boolean value, String message) {
-        if (!value) throw new AssertionError(message);
     }
 }

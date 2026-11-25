@@ -5,7 +5,7 @@ plugins {
 /* Project Properties */
 val modGroup    = project.property("mod_group")     as String
 val modVersion  = project.property("mod_version")   as String
-val hytaleServerVersion = project.property("hytale_server_version") as String
+val hytaleServerVersion = project.property("hytale_server_range") as String
 
 allprojects {
     group = modGroup
@@ -16,46 +16,6 @@ tasks {
     register<Delete>("cleanBundle") {
         delete(layout.buildDirectory.dir("bundle"))
         delete(layout.buildDirectory.dir("singlejar"))
-    }
-
-    register<Copy>("copyBundleManifest") {
-        dependsOn("cleanBundle")
-        inputs.property("version", modVersion)
-        inputs.property("hytaleVersion", hytaleServerVersion)
-        from("bundle") {
-            include(
-                "manifest.json",
-                "LICENSE",
-                "README.md"
-            )
-        }
-        into(layout.buildDirectory.dir("bundle"))
-        expand(
-            "version" to modVersion,
-            "hytaleVersion" to hytaleServerVersion
-        )
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    }
-
-    register<Copy>("collectEarlyJar") {
-        val shadowJarTask = project(":early").tasks.named<Jar>("shadowJar")
-        dependsOn("copyBundleManifest", shadowJarTask, project(":early").tasks.named("jar"))
-        from(shadowJarTask.flatMap { it.archiveFile })
-        into(layout.buildDirectory.dir("bundle/earlyplugins"))
-    }
-
-    register<Copy>("collectMainJar") {
-        val shadowJarTask = project(":plugin").tasks.named<Jar>("shadowJar")
-        dependsOn("copyBundleManifest", shadowJarTask, project(":plugin").tasks.named("jar"))
-        from(shadowJarTask.flatMap { it.archiveFile })
-        into(layout.buildDirectory.dir("bundle/mods"))
-    }
-
-    register<Zip>("bundle") {
-        dependsOn("collectEarlyJar", "collectMainJar")
-        archiveFileName.set("${project.name}-bundle-${version}.zip")
-        destinationDirectory.set(file("bundle"))
-        from(layout.buildDirectory.dir("bundle"))
     }
 
     // Hyinit single-jar: one archive containing both Main plugin classes and Mixin
@@ -99,9 +59,31 @@ tasks {
         from(pluginShadow.flatMap { it.archiveFile }.map { zipTree(it) }) {
             exclude("manifest.json", "META-INF/MANIFEST.MF")
         }
-        from(project(":early").tasks.named("targetFingerprints")) {
-            into("cc/irori/refixes/early")
+        from(rootProject.file("LICENSE")) {
+            into("META-INF")
         }
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        val hyinitJar = providers.gradleProperty("hyinitJar")
+        val javaLauncher = project(":early").extensions.getByType<JavaToolchainService>()
+            .launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) }
+        val versions = versionCatalogs.named("libs")
+        val servers = listOf("hytale" to "fingerprintServer07", "hytale-pre" to "fingerprintServer08").map { (alias, name) ->
+            versions.findVersion(alias).get().requiredVersion to project(":early").configurations.named(name)
+        }
+        inputs.files(hyinitJar.map { listOf(it) }.orElse(listOf()))
+        servers.forEach { (_, server) -> inputs.files(server) }
+        doLast {
+            if (!hyinitJar.isPresent) {
+                throw GradleException("Set -PhyinitJar=<path to Hyinit-X.X.X.jar>. The fingerprint writer needs Hyinit.")
+            }
+            val command = mutableListOf(
+                javaLauncher.get().executablePath.asFile.path,
+                "-jar",
+                hyinitJar.get(),
+                "--write-fingerprints",
+                archiveFile.get().asFile.path)
+            servers.forEach { (version, server) -> command += "--fingerprint-server=$version=${server.get().singleFile}" }
+            providers.exec { commandLine(command) }.result.get()
+        }
     }
 }

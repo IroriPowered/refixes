@@ -1,5 +1,7 @@
 package cc.irori.refixes.service;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -15,14 +17,16 @@ import java.util.concurrent.TimeoutException;
 
 public final class ChunkLoaderRegression {
     public static void main(String[] args) throws Exception {
-        lifecycle();
-        callbackShutdown();
+        for (boolean v08 : new boolean[] {false, true}) {
+            lifecycle(v08);
+            callbackShutdown(v08);
+        }
         System.out.println("ChunkLoaderRegression passed");
     }
 
-    private static void lifecycle() throws Exception {
+    private static void lifecycle(boolean v08) throws Exception {
         Path directory = Files.createTempDirectory("chunkloader-regression");
-        ChunkLoaderService service = new ChunkLoaderService(directory);
+        ChunkLoaderService service = service(v08, directory);
         World world = new World("first");
         ChunkStore chunks = world.getChunkStore();
         service.addChunk(world, 3, -2, "kept", -9);
@@ -32,24 +36,40 @@ public final class ChunkLoaderRegression {
         Ref<ChunkStore> columnRef = new Ref<ChunkStore>().put(WorldChunk.getComponentType(), column);
         chunks.columns.getFirst().complete(columnRef);
         world.drain();
-        require(column.keeps == 1 && chunks.sections.size() == 1, "column not acquired before section load");
+        require(
+                column.keeps == 1 && chunks.sections.size() == (v08 ? ChunkUtil.HEIGHT_SECTIONS + 1 : 1),
+                "column not acquired before its legacy and registered sections load");
         ChunkSection section = new ChunkSection(3, -9, -2);
         Ref<ChunkStore> ref = sectionRef(world, section);
-        chunks.sections.getFirst().complete(ref);
+        chunks.section(-9).complete(ref);
         world.drain();
         require(section.keeps == 1, "section not natively retained");
+        ChunkSection legacy = new ChunkSection(3, 4, -2);
+        if (v08) {
+            chunks.section(4).complete(sectionRef(world, legacy));
+            world.drain();
+            require(legacy.keeps == 1, "legacy column section not retained");
+            chunks.section(5).complete(null);
+            world.drain();
+        }
         int scans = chunks.getStore().scans;
+        int requests = chunks.sections.size();
         world.onOwner(() -> {
             service.retainSections(chunks.getStore());
             service.retainSections(chunks.getStore());
         });
         require(chunks.getStore().scans == scans, "whole-store scan repeated every tick");
+        require(chunks.sections.size() == requests, "absent or pending section requested again every tick");
         require(section.acquired == 1 && section.active >= 3, "residency confused with ticking");
         require(chunks.getStore().tickingRemovals >= 2, "NonTicking never removed");
         ChunkSection discovered = new ChunkSection(3, 200, -2);
         Ref<ChunkStore> discoveredRef = sectionRef(world, discovered);
         world.onOwner(() -> service.sectionAdded(chunks.getStore(), discoveredRef, discovered));
-        require(discovered.keeps == 1, "new section Y not retained");
+        require(discovered.keeps == (v08 ? 0 : 1), v08 ? "unregistered section Y pinned" : "new section Y not retained");
+        ChunkSection generated = new ChunkSection(3, 5, -2);
+        Ref<ChunkStore> generatedRef = sectionRef(world, generated);
+        world.onOwner(() -> service.sectionAdded(chunks.getStore(), generatedRef, generated));
+        require(generated.keeps == 1, "section loaded after an absent result not retained");
         ChunkSection replacement = new ChunkSection(3, -9, -2);
         ref.put(ChunkSection.getComponentType(), replacement);
         world.onOwner(() -> service.retainSections(chunks.getStore()));
@@ -61,7 +81,9 @@ public final class ChunkLoaderRegression {
         service.removeChunk(world, 3, -2);
         service.addChunk(world, 3, -2, "readded", 0);
         world.drain();
-        require(replacement.keeps == 1, "remove/re-add released new registration");
+        require(
+                replacement.keeps == (v08 ? 0 : 1) && legacy.keeps == 0,
+                v08 ? "removed registration kept its sections" : "remove/re-add released new registration");
         WorldChunk staleColumn = new WorldChunk();
         chunks.columns.get(1).complete(new Ref<ChunkStore>().put(WorldChunk.getComponentType(), staleColumn));
         world.drain();
@@ -70,11 +92,24 @@ public final class ChunkLoaderRegression {
         chunks.columns.get(2).complete(new Ref<ChunkStore>().put(WorldChunk.getComponentType(), currentColumn));
         world.drain();
         require(currentColumn.keeps == 1, "new registration did not acquire column");
-        var pendingSection = chunks.sections.getLast();
+        ChunkSection readded = new ChunkSection(3, 0, -2);
+        var pendingSection = chunks.section(0);
+        if (v08) {
+            pendingSection.complete(sectionRef(world, readded));
+            world.drain();
+            require(readded.keeps == 1 && replacement.keeps == 0, "re-added registration did not hold only its sections");
+            pendingSection = chunks.section(1);
+        }
         service.unloadWorld(world);
         world.drain();
-        require(currentColumn.keeps == 0 && replacement.keeps == 0 && discovered.keeps == 0, "world unload leaked native holds");
-        ChunkSection late = new ChunkSection(3, 0, -2);
+        require(
+                currentColumn.keeps == 0
+                        && replacement.keeps == 0
+                        && discovered.keeps == 0
+                        && readded.keeps == 0
+                        && generated.keeps == 0,
+                "world unload leaked native holds");
+        ChunkSection late = new ChunkSection(3, v08 ? 1 : 0, -2);
         pendingSection.complete(sectionRef(world, late));
         world.drain();
         require(late.keeps == 0, "late completion after unload retained section");
@@ -107,15 +142,15 @@ public final class ChunkLoaderRegression {
         next.drain();
         require(finalColumn.keeps == 0, "shutdown leaked hold");
         String saved = Files.readString(directory.resolve("chunkloaders/first.json"));
-        require(saved.contains("200") && saved.contains("readded"), "shutdown did not flush latest discoveries");
+        require(saved.contains("200") != v08 && saved.contains("readded"), "shutdown did not flush the latest registrations");
         require(!saved.contains("kept"), "stale snapshot won");
-        ChunkLoaderService restarted = new ChunkLoaderService(directory);
+        ChunkLoaderService restarted = service(v08, directory);
         require("readded".equals(restarted.getKeptChunks("first").get(index)), "persisted registration not readable");
         restarted.shutdown(false);
     }
 
-    private static void callbackShutdown() throws Exception {
-        ChunkLoaderService service = new ChunkLoaderService(Files.createTempDirectory("retained-callback-shutdown"));
+    private static void callbackShutdown(boolean v08) throws Exception {
+        ChunkLoaderService service = service(v08, Files.createTempDirectory("retained-callback-shutdown"));
         World world = new World("callback-shutdown");
         service.addChunk(world, 1, 2, "pending", 0);
         world.drain();
@@ -149,13 +184,13 @@ public final class ChunkLoaderRegression {
         require(column.keeps == 0 && column.acquired == column.released, "owner-thread completion raced shutdown and leaked a native hold");
     }
 
+    private static ChunkLoaderService service(boolean v08, Path directory) {
+        return v08 ? new ChunkLoaderServiceV08(directory) : new ChunkLoaderServiceV07(directory);
+    }
+
     private static Ref<ChunkStore> sectionRef(World world, ChunkSection section) {
         Ref<ChunkStore> ref = new Ref<ChunkStore>().put(ChunkSection.getComponentType(), section);
         world.getChunkStore().getStore().refs.add(ref);
         return ref;
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }

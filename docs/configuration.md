@@ -28,12 +28,12 @@ Each value needs its patch:
 | `PathfindingMaxNodeExpansionsPerTick` | `600` | A* expansions per world tick. |
 | `ShutdownSaveTimeoutSeconds` | `10` | Shutdown save timeout in seconds. |
 
-At `0` or below, `MaxSections` keys stop sending new sections, per-search limits fall back to the NPC role's limit, new searches stop except for exempt NPCs and expansions are unlimited. Per-search limits never raise the role's limit. What the minimum loaded radius controls depends on the server version, see [Upgrading](/mod/refixes/upgrading#changed-behavior-on-hytale-08).
+At `0` or below, `MaxSections` keys stop sending new sections, per-search limits fall back to the NPC role's limit, new searches stop except for exempt NPCs and expansions are unlimited. Per-search limits never raise the role's limit. What the minimum loaded radius controls depends on the server version, see [Differences on Hytale 0.8](/mod/refixes/installing-refixes#differences-on-hytale-08).
 
 `ShutdownSaveTimeoutSeconds` is read by these patches:
 - `Mixins.Recovery.ShutdownSaveTimeout` limits the store resource save, world config save and indexed storage close at shutdown, not chunk saves. The indexed storage close is limited only while `Mixins.Correctness.StorageOrdering` is on as well. `0` or below means no limit.
-- **0.6.x only.** `Mixins.Correctness.WorldTransfer` runs an extra cleanup save, without time limit, when a world stops, even with `ShutdownSaveTimeout` off. `0` or below skips it.
-- **0.6.x only.** `Mixins.Correctness.WorldEventSaving` limits the wait for the last world events save at shutdown. `0` or below skips the wait.
+- **Hytale 0.7 only.** `Mixins.Correctness.WorldTransfer` runs an extra cleanup save, without time limit, when a world stops, even with `ShutdownSaveTimeout` off. `0` or below skips it.
+- **Hytale 0.7 only.** `Mixins.Correctness.WorldEventSaving` limits the wait for the last world events save at shutdown. `0` or below skips the wait.
 
 ### Outgoing packet queues
 Section: `Early`
@@ -180,7 +180,7 @@ Requires `Mixins.Compatibility.IdleWorldPause`. Worlds with chunk loaders stay r
 ## Chunk Loader
 Section: `Runtime.Features.ChunkLoader`
 
-A chunk loader keeps its column and the section set with `/chunkloader add` loaded and ticking. **0.6.x:** also other loaded sections of that column. On 0.8 also sections 0 to 9.
+A chunk loader keeps its column and the section set with `/chunkloader add` loaded and ticking. **Hytale 0.7:** also other loaded sections of that column. **Hytale 0.8:** also sections 0 to 9.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -220,7 +220,7 @@ Section: `Runtime.Compatibility.TickThrottledCleanup`
 
 Clears saved Refixes freezes when entities load, even with Refixes patches off.
 
-Risk: If you remove Refixes, NPCs frozen by an older Refixes stay frozen in chunks not saved since. See [AI-throttled NPCs](/mod/refixes/upgrading#ai-throttled-npcs).
+Risk: If you remove Refixes, NPCs frozen by an older Refixes stay frozen in chunks not saved since. See [AI-throttled NPCs](#ai-throttled-npcs).
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -228,6 +228,10 @@ Risk: If you remove Refixes, NPCs frozen by an older Refixes stay frozen in chun
 | `CleanupExcludedNpcTypes` | `[]` | NPC types skipped by marked cleanup. |
 | `LegacyCleanup` | `false` | Also clears unmarked freezes from any source, on any non-player entity. |
 | `LegacyCleanupExcludedNpcTypes` | `[]` | NPC types skipped by legacy cleanup. Other entities cannot be excluded. |
+
+### AI-throttled NPCs
+
+Refixes before 0.6.0 saved throttle freezes, so older saves can contain frozen NPCs. Keep Refixes installed with `Runtime.Compatibility.TickThrottledCleanup.CleanupFrozenEntities` at its default `true` until the affected chunks have loaded and saved once.
 
 ## Watchdog Diagnostics
 Section: `Runtime.Diagnostics.Watchdog`

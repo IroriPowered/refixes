@@ -4,18 +4,16 @@ import cc.irori.refixes.early.accessor.ChunkGridAccess;
 import cc.irori.refixes.early.accessor.ChunkStoreAccess;
 import cc.irori.refixes.early.util.SharedInstanceConstants;
 import cc.irori.refixes.system.SharedInstancePersistenceSystem;
+import cc.irori.refixes.version.HytaleVersion;
 import com.hypixel.hytale.builtin.instances.removal.InstanceDataResource;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.event.EventPriority;
 import com.hypixel.hytale.function.consumer.TriIntConsumer;
-import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.metrics.MetricProvider;
 import com.hypixel.hytale.metrics.MetricResults;
-import com.hypixel.hytale.server.core.entity.Dirty;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
-import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.world.chunk.ChunkColumn;
 import com.hypixel.hytale.server.core.universe.world.chunk.ChunkFlag;
@@ -41,14 +39,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
-public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricProvider {
-    private static final CompletableFuture<Void> SAVED = CompletableFuture.completedFuture(null);
-    private final IChunkSaver.Cubic saver;
+public abstract class SharedInstanceStorage implements IChunkSaver.Cubic, MetricProvider {
+    static final CompletableFuture<Void> SAVED = CompletableFuture.completedFuture(null);
+    final IChunkSaver.Cubic saver;
     private final Store<ChunkStore> chunkStore;
-    private final Map<Object, CompletableFuture<Void>> writes = new ConcurrentHashMap<>();
-    private final Map<UUID, SectionKey> entityOrigins = new ConcurrentHashMap<>();
+    final Map<Object, CompletableFuture<Void>> writes = new ConcurrentHashMap<>();
+    final Map<UUID, SectionKey> entityOrigins = new ConcurrentHashMap<>();
 
-    private SharedInstanceStorage(IChunkSaver.Cubic saver, Store<ChunkStore> chunkStore) {
+    SharedInstanceStorage(IChunkSaver.Cubic saver, Store<ChunkStore> chunkStore) {
         this.saver = saver;
         this.chunkStore = chunkStore;
     }
@@ -68,7 +66,7 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
             if (!(chunks instanceof ChunkGridAccess gridAccess) || !(chunks instanceof ChunkStoreAccess storeAccess)) {
                 throw new IllegalStateException("Shared-instance cubic storage requires Refixes early storage access");
             }
-            SharedInstanceStorage storage = new SharedInstanceStorage(cubic, chunks.getStore());
+            SharedInstanceStorage storage = HytaleVersion.get().sharedInstanceStorage(cubic, chunks.getStore());
             gridAccess.refixes$setLoader(storage.new Loader(loader));
             storeAccess.refixes$setSaver(storage);
         });
@@ -87,9 +85,9 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
 
     private record ColumnKey(int x, int z) {}
 
-    private record SectionKey(int x, int y, int z, int lane) {}
+    record SectionKey(int x, int y, int z, int lane) {}
 
-    private CompletableFuture<Void> writeOnce(Object key, Supplier<CompletableFuture<Void>> operation) {
+    CompletableFuture<Void> writeOnce(Object key, Supplier<CompletableFuture<Void>> operation) {
         CompletableFuture<Void> saved = writes.get(key);
         if (saved != null) return saved;
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -153,7 +151,7 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
         return completeIo(saveColumn(x, z, () -> store.copySerializableEntity(ref)), onIoComplete);
     }
 
-    private void collectIdentities(int x, int y, int z, EntitySection entities, Map<Object, SectionKey> identities) {
+    void collectIdentities(int x, int y, int z, EntitySection entities, Map<Object, SectionKey> identities) {
         SectionKey origin = new SectionKey(x, y, z, 1);
         for (int lane = 0; lane < 3; lane++) identities.put(new SectionKey(x, y, z, lane), origin);
         if (entities == null) return;
@@ -169,8 +167,7 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
         }
     }
 
-    private CompletableFuture<Void> saveFresh(
-            Map<Object, SectionKey> identities, Supplier<CompletableFuture<Void>> operation) {
+    CompletableFuture<Void> saveFresh(Map<Object, SectionKey> identities, Supplier<CompletableFuture<Void>> operation) {
         for (Object key : identities.keySet()) if (writes.containsKey(key)) return null;
         CompletableFuture<Void> result = new CompletableFuture<>();
         List<Object> claimed = new ArrayList<>();
@@ -275,34 +272,13 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
                 onIoComplete);
     }
 
-    private void includeEntity(
+    abstract void includeEntity(
             EntitySection snapshot,
             Holder<EntityStore> source,
             SectionKey key,
             CompletableFuture<Void> batch,
             List<UUID> claimed,
-            List<CompletableFuture<Void>> bodies) {
-        if (!source.hasSerializableComponents(EntityStore.REGISTRY.getData())) return;
-        UUIDComponent component = source.ensureAndGetComponent(UUIDComponent.getComponentType());
-        UUID uuid = component.getUuid();
-        SectionKey origin = entityOrigins.putIfAbsent(uuid, key);
-        if (origin != null && !origin.equals(key)) return;
-        CompletableFuture<Void> previous = writes.putIfAbsent(uuid, batch);
-        Holder<EntityStore> holder;
-        if (previous == null) {
-            claimed.add(uuid);
-            holder = source.cloneSerializable(EntityStore.REGISTRY.getData());
-            holder.tryRemoveComponent(Dirty.getComponentType());
-        } else {
-            holder = EntityStore.REGISTRY.newHolder();
-            holder.putComponent(UUIDComponent.getComponentType(), new UUIDComponent(uuid));
-            Dirty dirty = new Dirty();
-            dirty.consumeDirty();
-            holder.putComponent(Dirty.getComponentType(), dirty);
-            if (previous != batch) bodies.add(previous);
-        }
-        snapshot.loadEntityHolder(holder);
-    }
+            List<CompletableFuture<Void>> bodies);
 
     @Override
     public CompletableFuture<Void> saveBlockComponentSection(
@@ -320,32 +296,6 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
                     return saver.saveBlockComponentSection(x, y, z, store, snapshot, null, null);
                 }),
                 onIoComplete);
-    }
-
-    @Override
-    public CompletableFuture<Void> saveEntity(UUID uuid, Store<EntityStore> store, Ref<EntityStore> ref) {
-        CompletableFuture<Void> existing = writes.get(uuid);
-        if (existing != null) return existing;
-        SectionKey entityKey = null;
-        TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-        if (transform != null) {
-            var position = transform.getPosition();
-            entityKey = new SectionKey(
-                    ChunkUtil.chunkCoordinate((int) Math.floor(position.x)),
-                    ChunkUtil.chunkCoordinate((int) Math.floor(position.y)),
-                    ChunkUtil.chunkCoordinate((int) Math.floor(position.z)),
-                    1);
-            if (writes.containsKey(entityKey)) return SAVED;
-            SectionKey origin = entityOrigins.putIfAbsent(uuid, entityKey);
-            if (origin != null && !origin.equals(entityKey)) return SAVED;
-        }
-        SectionKey origin = entityKey;
-        CompletableFuture<Void> result = writeOnce(uuid, () -> saver.saveEntity(uuid, store, ref));
-        if (origin != null)
-            result.whenComplete((ignored, error) -> {
-                if (error != null) entityOrigins.remove(uuid, origin);
-            });
-        return result;
     }
 
     @Override
@@ -413,11 +363,6 @@ public final class SharedInstanceStorage implements IChunkSaver.Cubic, MetricPro
 
     @Override
     public CompletableFuture<Void> removeHolder(int x, int z) {
-        return SAVED;
-    }
-
-    @Override
-    public CompletableFuture<Void> removeEntity(UUID uuid) {
         return SAVED;
     }
 

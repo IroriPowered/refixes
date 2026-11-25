@@ -4,9 +4,9 @@
 
 Use the exact `Mixins` section paths below. On other Hytale versions some switches stay off, see [Other server versions](/mod/refixes/installing-refixes#other-server-versions) and [Exact-version switches](/mod/refixes/installing-refixes#exact-version-switches).
 
-Startup stops when an enabled switch requires a switch that is off, see [Startup errors](/mod/refixes/troubleshooting#startup-errors).
+When an enabled switch requires a switch that is off, it is off for that start and the log names both, see [Startup warnings](/mod/refixes/troubleshooting#startup-warnings).
 
-This page covers Refixes 0.6.x for Hytale 0.7.7 and Refixes 0.8.0-beta.1 for Hytale 0.8.0-pre.6. Rows marked **0.6.x only** or **0.8 only** exist only in that version, and text marked **0.6.x** inside a row applies only there. A switch your version lacks is removed from `Refixes.json` at startup.
+One Refixes JAR serves Hytale 0.7.7 and Hytale 0.8.0-pre.6. Rows marked **Hytale 0.7 only** or **Hytale 0.8 only** exist only on that Hytale line, and text marked **Hytale 0.7** inside a row applies only there. A switch of the other line keeps its value in `Refixes.json` and does nothing.
 
 ## Correctness
 Section: `Mixins.Correctness`
@@ -25,8 +25,8 @@ Section: `Mixins.Correctness`
 | `ConfigLoad` | `true` | Orders configuration saves and fixes reloads after a load. |
 | `PluginPreload` | `true` | Unloads a plugin whose configuration fails to load on a running server, so it can be loaded again. |
 | `PluginLoaderCache` | `true` | Reads a plugin JAR again after a failed or skipped load. |
-| `WorldTransfer` | `true` | Guards player and entity transfers between worlds. **0.6.x:** requires `StorageOrdering` and keeps a moved entity in the source world's save until the target world has saved it. On 0.8, Hytale deletes the source copy first, so a crash in between loses the entity. |
-| `StorageOrdering` | `true` | Finishes pending chunk and entity saves before a world closes and writes each chunk column in order. On 0.8 it also runs a second save pass when a world stops. |
+| `WorldTransfer` | `true` | Guards player and entity transfers between worlds. **Hytale 0.7:** requires `StorageOrdering` and keeps a moved entity in the source world's save until the target world has saved it. On Hytale 0.8, Hytale deletes the source copy first, so a crash in between loses the entity. |
+| `StorageOrdering` | `true` | Finishes pending chunk and entity saves before a world closes and writes each chunk column in order. On Hytale 0.8 it also runs a second save pass when a world stops. |
 | `ChunkSaveQueueOrder` | `true` | Saves changed chunk columns in the order they changed, so every column is saved within one pass instead of some never. Costs world-thread CPU when those columns hold many NPCs. |
 | `BlockChangeSaving` | `true` | Saves block changes from random ticks and multi-block updates, such as grass spreading, which Hytale otherwise loses on a stop or crash. |
 | `TransferCombatClock` | `true` | Moves an entity's combat and damage timers to the target world's clock when it changes world. |
@@ -48,7 +48,7 @@ Section: `Mixins.Correctness`
 
 While `ChunkSectionFences` is on, a backlog delays chunk section updates.
 
-### 0.6.x only
+### Hytale 0.7 only
 Section: `Mixins.Correctness`
 
 Hytale 0.8.0-pre.5 makes these fixes itself.
@@ -93,7 +93,7 @@ Hytale 0.8.0-pre.5 makes these fixes itself.
 ## Backports
 Section: `Mixins.Backports`
 
-**0.6.x only.** Fixes from Hytale 0.8.0-pre.6.
+**Hytale 0.7 only.** Fixes from Hytale 0.8.0-pre.6.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -111,12 +111,12 @@ Section: `Mixins.Optimizations`
 | `RepulsionTicker` | `false` | Reuses entity repulsion buffers. |
 | `RepulsionNeighbors` | `false` | Skips sorting repulsion neighbors by distance. Every neighbor still gets the same push. |
 | `LightNeutralBlocks` | `false` | Reuses a section's light when block changes keep opacity and light color, such as grass turning into dirt. Same result. |
-| `SkipUnchangedLightSaves` | `false` | Saves a section after a relight only when its light changed. Requires `Mixins.Correctness.BlockChangeSaving` and, **0.6.x**, `Mixins.Correctness.FluidChangeSaving`. |
-| `RocksDbCompression` | `false` | **0.6.x only.** On RocksDB worlds, compresses chunk data and logs with zstd and lowers the log size target from 512 MiB to 128 MiB. |
-| `SoundHeaderValidation` | `true` | **0.6.x only.** Validates sound headers without loading whole files. |
-| `SkipEmptyLightSections` | `false` | **0.8 only.** Skips light propagation out of neighboring sections that hold only air and no light. |
+| `SkipUnchangedLightSaves` | `false` | Saves a section after a relight only when its light changed. Requires `Mixins.Correctness.BlockChangeSaving` and, **Hytale 0.7**, `Mixins.Correctness.FluidChangeSaving`. |
+| `RocksDbCompression` | `false` | **Hytale 0.7 only.** On RocksDB worlds, compresses chunk data and logs with zstd and lowers the log size target from 512 MiB to 128 MiB. |
+| `SoundHeaderValidation` | `true` | **Hytale 0.7 only.** Validates sound headers without loading whole files. |
+| `SkipEmptyLightSections` | `false` | **Hytale 0.8 only.** Skips light propagation out of neighboring sections that hold only air and no light. |
 | `AssetPartSnapshotSharing` | `false` | Reuses identical asset packet snapshots across clients. |
-| `NPCComponentType` | `false` | **0.6.x only.** Caches the NPC component type. |
+| `NPCComponentType` | `false` | **Hytale 0.7 only.** Caches the NPC component type. |
 | `DefaultMovementResistance` | `false` | Shares one default movement resistance for NPC pushes. |
 | `CodecMetadata` | `true` | Shares one metadata map while saving and loading data. |
 
@@ -129,7 +129,7 @@ Section: `Mixins.Tuning`
 |-----|---------|-------------|
 | `CylinderVisibility` | `false` | Uses a cylinder instead of a sphere for entity visibility, which by default shows more entities above and below players. See `Early.CylinderVisibility`. |
 | `ChunkStreaming` | `false` | Applies `Early.MaxSectionsPerSecond`, `Early.MaxSectionsPerSecondLan`, `Early.MaxSectionsPerSecondLocal`, `Early.MaxSectionsPerTick` and `Early.UnloadDistanceOffset`. |
-| `WorldHeightBounds` | `false` | **0.6.x only.** On RocksDB worlds, stops sending sections outside the standard world height. Data stored there stays but is hidden from players. Worlds whose generator builds outside that height are unchanged. |
+| `WorldHeightBounds` | `false` | **Hytale 0.7 only.** On RocksDB worlds, stops sending sections outside the standard world height. Data stored there stays but is hidden from players. Worlds whose generator builds outside that height are unchanged. |
 | `WorldMapExistingTerrain` | `false` | Draws the world map only from existing terrain instead of generating it. A chunk appears once it and its eight neighbors exist. Fixed-area maps are unchanged. |
 | `TickWait` | `true` | Lowers CPU spent waiting between world ticks. Falls back to normal waiting on hosts with imprecise sleep. |
 | `PathfindingLimits` | `false` | Applies the per-search `Early.Pathfinding*` limits. |
@@ -144,37 +144,37 @@ Scenarios:
 - **Flight:** one player flying at 13 blocks per second over a RocksDB world, view radius 12 or 24.
 - **Spawn file change:** a world NPC spawn file changes on a server with 20 worlds and 2,420 loaded chunks.
 
+Cells give the change with the switch on, `-` for lower and `+` for higher. WT is the world thread, proc the whole process, alloc allocation and GC garbage collection.
+
 | Switch | Scenario | Hytale 0.7.7 | Hytale 0.8.0-pre.6 |
 |--------|----------|--------------|--------------------|
-| `SoundHeaderValidation` | Boot | Boot 4.2 percent faster. 30.9 percent less read from disk before boot. | Not in this build. |
-| `RepulsionTicker` | 250 NPCs, repulsion | World-thread allocation 4.8 percent and process allocation 4.8 percent lower. | World-thread allocation 3.2 percent and process allocation 2.4 percent lower. |
-| `RepulsionNeighbors` | 250 NPCs, repulsion | World-thread CPU 4.5 percent, world-thread allocation 17.3 percent and process allocation 15.2 percent lower. | World-thread busy time 4.6 percent, world-thread CPU 4.4 percent, process CPU 0.8 percent, world-thread allocation 16.1 percent and process allocation 12.6 percent lower. |
-| `DefaultMovementResistance` | 250 NPCs, repulsion | Process CPU 1.5 percent, world-thread allocation 16.9 percent and process allocation 15.5 percent lower. | World-thread allocation 15.6 percent and process allocation 12.9 percent lower. |
-| `NPCComponentType` | 250 NPCs, repulsion | Process CPU 0.8 percent lower. | Not in this build. |
-| `CodecMetadata` | 250 NPCs, repulsion, saving | Process allocation 2.9 percent lower. | Process CPU 1.1 percent and process allocation 4.0 percent lower. |
-| `CodecMetadata` | 250 NPCs, saving | World-thread allocation 2.4 percent and process allocation 3.8 percent lower. | Process allocation 6.8 percent lower. |
-| `TickWait` | 250 NPCs, repulsion | World-thread CPU 41.2 percent and process CPU 9.0 percent lower. | World-thread CPU 43.1 percent and process CPU 9.1 percent lower. |
-| `TickWait` | 800 NPCs, repulsion | World-thread CPU 2.6 percent lower. | World-thread CPU 4.5 percent lower. |
-| `TickWait` | Flight, radius 12 | World-thread CPU 33.1 percent and process CPU 7.3 percent lower. | World-thread CPU 33.8 percent and process CPU 10.3 percent lower. |
-| `TickWait` | Flight, radius 24 | World-thread CPU 24.7 percent lower. | World-thread CPU 27.6 percent and process CPU 6.9 percent lower. |
-| `LightNeutralBlocks` | 250 NPCs, repulsion | Lighting CPU time about 20 seconds without the switch and none with it. Process CPU time 86.8 percent and process allocation 13.2 percent lower. | Lighting CPU time about 20 seconds without the switch and none with it. Process CPU time 79.1 percent and process allocation 9.2 percent lower. |
-| `LightNeutralBlocks` | Flight, radius 12 | Lighting CPU 6.9 percent and process CPU 2.3 percent lower. | Lighting CPU 12.5 percent lower. |
-| `LightNeutralBlocks` | Flight, radius 24 | None listed. | Lighting CPU 16.2 percent lower. |
-| `SpawnManagerRecalc` | Spawn file change | In the next 30 seconds, process CPU 1.7 percent, world-thread CPU 26.4 percent and process allocation 7.1 percent lower. | None listed. |
-| `WorldMapExistingTerrain` | Flight, radius 12 | Generated columns per second halved. Process CPU 27.5 percent, world-thread CPU 6.1 percent, garbage collection pause time 52.9 percent and collections 63.9 percent lower. 701 map images instead of 1,793. | Generated columns per second halved. Process CPU 17.1 percent, world-thread CPU 7.0 percent, garbage collection pause time 36.4 percent and collections 37.5 percent lower. 701 map images instead of 1,793. |
-| `WorldMapExistingTerrain` | Flight, radius 24 | Generated columns per second 26.9 percent lower. Process CPU 19.3 percent, world-thread CPU 4.3 percent, world-thread allocation 8.4 percent, garbage collection pause time 38.4 percent and collections 35.1 percent lower. 2,155 map images instead of 3,209. | Generated columns per second 26.9 percent lower. Process CPU 8.1 percent, world-thread CPU 3.5 percent, garbage collection pause time 31.8 percent and collections 42.6 percent lower. 2,155 map images instead of 3,209. |
-| `WorldHeightBounds` | Flight, radius 12 | Section bytes sent 1.4 percent lower. | Not in this build. |
-| `WorldHeightBounds` | Flight, radius 24 | World-thread allocation 14.6 percent lower. Section bytes sent 5.0 percent lower. | Not in this build. |
-| `RocksDbCompression` | Flight, radius 24 | Process CPU 4.1 percent lower. | Not in this build. |
-| `ChunkStreaming` | Flight, radius 24 | World-thread CPU 60.6 percent, process CPU 31.7 percent, lighting CPU 86.5 percent and world-thread allocation 52.8 percent lower. | None listed. |
+| `SoundHeaderValidation` | Boot | Boot 4.2% faster, disk reads before boot -30.9% | Not in this build. |
+| `RepulsionTicker` | 250 NPCs, repulsion | WT alloc -4.8%, proc alloc -4.8% | WT alloc -3.2%, proc alloc -2.4% |
+| `RepulsionNeighbors` | 250 NPCs, repulsion | WT CPU -4.5%, WT alloc -17.3%, proc alloc -15.2% | WT busy time -4.6%, WT CPU -4.4%, proc CPU -0.8%, WT alloc -16.1%, proc alloc -12.6% |
+| `DefaultMovementResistance` | 250 NPCs, repulsion | proc CPU -1.5%, WT alloc -16.9%, proc alloc -15.5% | WT alloc -15.6%, proc alloc -12.9% |
+| `NPCComponentType` | 250 NPCs, repulsion | proc CPU -0.8% | Not in this build. |
+| `CodecMetadata` | 250 NPCs, repulsion, saving | proc alloc -2.9% | proc CPU -1.1%, proc alloc -4.0% |
+| `CodecMetadata` | 250 NPCs, saving | WT alloc -2.4%, proc alloc -3.8% | proc alloc -6.8% |
+| `TickWait` | 250 NPCs, repulsion | WT CPU -41.2%, proc CPU -9.0% | WT CPU -43.1%, proc CPU -9.1% |
+| `TickWait` | 800 NPCs, repulsion | WT CPU -2.6% | WT CPU -4.5% |
+| `TickWait` | Flight, radius 12 | WT CPU -33.1%, proc CPU -7.3% | WT CPU -33.8%, proc CPU -10.3% |
+| `TickWait` | Flight, radius 24 | WT CPU -24.7% | WT CPU -27.6%, proc CPU -6.9% |
+| `LightNeutralBlocks` | 250 NPCs, repulsion | Lighting CPU time from about 20 seconds to none, proc CPU time -86.8%, proc alloc -13.2% | Lighting CPU time from about 20 seconds to none, proc CPU time -79.1%, proc alloc -9.2% |
+| `LightNeutralBlocks` | Flight, radius 12 | Lighting CPU -6.9%, proc CPU -2.3% | Lighting CPU -12.5% |
+| `LightNeutralBlocks` | Flight, radius 24 | None listed. | Lighting CPU -16.2% |
+| `SpawnManagerRecalc` | Spawn file change | Over the next 30 seconds proc CPU -1.7%, WT CPU -26.4%, proc alloc -7.1% | None listed. |
+| `WorldMapExistingTerrain` | Flight, radius 12 | Generated columns per second halved, proc CPU -27.5%, WT CPU -6.1%, GC pause time -52.9%, GC count -63.9%, 701 map images instead of 1,793 | Generated columns per second halved, proc CPU -17.1%, WT CPU -7.0%, GC pause time -36.4%, GC count -37.5%, 701 map images instead of 1,793 |
+| `WorldMapExistingTerrain` | Flight, radius 24 | Generated columns per second -26.9%, proc CPU -19.3%, WT CPU -4.3%, WT alloc -8.4%, GC pause time -38.4%, GC count -35.1%, 2,155 map images instead of 3,209 | Generated columns per second -26.9%, proc CPU -8.1%, WT CPU -3.5%, GC pause time -31.8%, GC count -42.6%, 2,155 map images instead of 3,209 |
+| `WorldHeightBounds` | Flight, radius 12 | Section bytes sent -1.4% | Not in this build. |
+| `WorldHeightBounds` | Flight, radius 24 | WT alloc -14.6%, section bytes sent -5.0% | Not in this build. |
+| `RocksDbCompression` | Flight, radius 24 | proc CPU -4.1% | Not in this build. |
+| `ChunkStreaming` | Flight, radius 24 | WT CPU -60.6%, proc CPU -31.7%, lighting CPU -86.5%, WT alloc -52.8% | None listed. |
 
-`TickWait` saves CPU only in worlds with players. In exchange each tick runs about 0.3 milliseconds longer, so world busy time is 5.9 to 8.0 percent higher. On Hytale 0.8.0-pre.6 lighting CPU at radius 24 is also 5.9 percent higher.
+`TickWait` saves CPU only in worlds with players. In exchange each tick runs about 0.3 milliseconds longer, so world busy time is +5.9% to +8.0%. On Hytale 0.8.0-pre.6 lighting CPU at radius 24 is also +5.9%.
 
-`ChunkSaveQueueOrder` on Hytale 0.8.0-pre.6 costs world-thread allocation 10.5 percent and process allocation 15.8 percent. That is the cost of saving the NPC columns this version never saves without the switch.
+Costs on Hytale 0.8.0-pre.6: `ChunkSaveQueueOrder` WT alloc +10.5% and proc alloc +15.8%, the cost of saving the NPC columns this version never saves without the switch. `WorldMapExistingTerrain` lighting CPU +47.3% at radius 12 and +73.0% at radius 24.
 
-`WorldMapExistingTerrain` on Hytale 0.8.0-pre.6 costs lighting CPU 47.3 percent at radius 12 and 73.0 percent at radius 24.
-
-With the full mod loaded versus absent, world busy time is 6.5 to 12.5 percent higher and allocation 3 to 14 percent higher, mostly the same column-saving cost.
+With the full mod loaded versus absent, world busy time is +6.5% to +12.5% and allocation +3% to +14%, mostly the same column-saving cost.
 
 To see what the performance patches do on your server, use `/patchcounters`, see [Diagnostics](#diagnostics).
 
@@ -197,13 +197,13 @@ These options can discard saved data or skip failed work instead of fixing its c
 |-----|---------|-------------|
 | `ShutdownSaveTimeout` | `false` | Limits shutdown saves to `Early.ShutdownSaveTimeoutSeconds`, see [`ShutdownSaveTimeoutSeconds`](/mod/refixes/configuration#early-patches). The process can exit before a timed-out save finishes. |
 | `TickSurvival` | `false` | Skips failed tick work. Save failures still throw after three in the same saving system within five minutes. |
-| `CorruptSectionReset` | `false` | Replaces unreadable section data with an empty section, which can remove blocks. The original bytes go to `mods/IroriPowered_Refixes/quarantine/block-sections/` as `block-section-<world>-<x>.<y>.<z>-<id>.bin`, or `block-section-<id>.bin` if unlabeled. A section with an unsupported format, or whose quarantine file cannot be written, still fails to load. On 0.8 it does nothing with `--verify-worlds`, so Hytale's own recovery handles the section. |
+| `CorruptSectionReset` | `false` | Replaces unreadable section data with an empty section, which can remove blocks. The original bytes go to `mods/IroriPowered_Refixes/quarantine/block-sections/` as `block-section-<world>-<x>.<y>.<z>-<id>.bin`, or `block-section-<id>.bin` if unlabeled. A section with an unsupported format, or whose quarantine file cannot be written, still fails to load. On Hytale 0.8 it does nothing with `--verify-worlds`, so Hytale's own recovery handles the section. |
 | `MotionControllerBase` | `false` | Resets nonfinite NPC motion to zero. |
 | `TurnOffTeleportersSystem` | `false` | Defers teleporter updates outside chunk loading. |
 | `UnresolvedNPCRoles` | `false` | Keeps saved NPCs until their roles can load. The server still logs a SEVERE line for each. Live NPCs keep their role when a role change targets one that cannot load. |
 | `InvalidCollisionData` | `false` | Skips block collision checks for nonfinite positions or inverted hitboxes. |
 | `InteractionChain` | `false` | Tolerates interaction sync gaps and discards stale sync data. |
-| `WorldMapTracker` | `false` | **0.6.x only.** Fixes pending map reloads and null errors when map images unload. |
+| `WorldMapTracker` | `false` | **Hytale 0.7 only.** Fixes pending map reloads and null errors when map images unload. |
 | `WorldSpawningSystem` | `false` | Returns no chunk when random spawn selection fails, warning at most once per minute. |
 | `DuplicateComponentReferences` | `false` | Keeps the newer of two saved block entity holders for one block and ignores a saved holder when a live block entity exists. When two live block entities claim one block, the newer one is removed. |
 
@@ -231,6 +231,7 @@ These hooks let the runtime settings in `config.json` work. They do not turn the
 | `IdleWorldPause` | `true` | Needed by `Runtime.Tuning.IdleWorldPause.Enabled`. |
 | `UnknownBlockCleaner` | `true` | Speeds up `ScanContainers` and `ScanFluids` of `Runtime.Recovery.UnknownBlockCleaner`. Without it both scans still run, slower. |
 | `Watchdog` | `true` | Supports `Runtime.Recovery.Watchdog.AutoRestartWorlds`, see [Watchdog Recovery](/mod/refixes/configuration#watchdog-recovery). |
+| `ChunkLoader` | `true` | **Hytale 0.8 only.** Lets `/chunk unload` unload a column held by `Runtime.Features.ChunkLoader`. The chunk loader then loads it again. Without it the command fails on such a column. |
 
 ## Diagnostics
 Section: `Mixins.Diagnostics`

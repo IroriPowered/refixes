@@ -40,6 +40,5 @@ bin/
 .DS_Store
 
 ## Project ##
-bundle/*.zip
 __pycache__/
 

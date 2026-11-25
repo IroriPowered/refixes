@@ -2,6 +2,7 @@ package cc.irori.refixes.service;
 
 import cc.irori.refixes.config.impl.PerPlayerHotRadiusConfig;
 import cc.irori.refixes.early.accessor.ServerViewRadiusAccess;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.HeapPressureMonitor;
@@ -111,26 +112,28 @@ public class PerPlayerHotRadiusService {
 
         int interval =
                 Math.max(1000, PerPlayerHotRadiusConfig.get().getValue(PerPlayerHotRadiusConfig.CHECK_INTERVAL_MS));
-        task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        checkAndAdjust();
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error while adjusting per-player hot radius");
-                    }
-                    try {
-                        if (initialMaxViewRadius >= 0
-                                && PerPlayerHotRadiusConfig.get()
-                                        .getValue(PerPlayerHotRadiusConfig.MEMORY_GUARD_ENABLED)) {
-                            recoverViewRadius();
-                        }
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error while recovering view radius after memory pressure");
-                    }
-                },
-                5000,
-                interval,
-                TimeUnit.MILLISECONDS);
+        task = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                checkAndAdjust();
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error while adjusting per-player hot radius");
+                            }
+                            try {
+                                if (initialMaxViewRadius >= 0
+                                        && PerPlayerHotRadiusConfig.get()
+                                                .getValue(PerPlayerHotRadiusConfig.MEMORY_GUARD_ENABLED)) {
+                                    recoverViewRadius();
+                                }
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log(
+                                        "Error while recovering view radius after memory pressure");
+                            }
+                        },
+                        5000,
+                        interval,
+                        TimeUnit.MILLISECONDS);
         radiusGauge = RefixesEvents.gauge("PerPlayerHotRadius radius", () -> getCurrentTargetRadius());
     }
 
@@ -151,7 +154,7 @@ public class PerPlayerHotRadiusService {
         restoreMemoryGuard();
         restoreHotRadii();
         if (!managedRadii.isEmpty() && !HytaleServer.get().isShuttingDown()) {
-            task = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(this::restoreHotRadii, 1, 1, TimeUnit.SECONDS);
+            task = RefixesScheduler.get().scheduleAtFixedRate(this::restoreHotRadii, 1, 1, TimeUnit.SECONDS);
         }
     }
 

@@ -2,6 +2,7 @@ package cc.irori.refixes.system;
 
 import cc.irori.refixes.component.TickThrottled;
 import cc.irori.refixes.service.AiTickThrottlerService;
+import cc.irori.refixes.version.HytaleVersion;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Store;
@@ -12,7 +13,6 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.server.core.entity.Frozen;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.systems.NPCPreTickSystem;
 import com.hypixel.hytale.server.npc.systems.NPCVelocityInstructionSystem;
 import com.hypixel.hytale.server.npc.systems.RoleSystems;
@@ -48,6 +48,7 @@ public final class AiTickThrottlerForcePushSystem extends EntityTickingSystem<En
 
     @Override
     public @Nullable Query<EntityStore> getQuery() {
-        return Query.and(NPCEntity.getComponentType(), Frozen.getComponentType(), TickThrottled.getComponentType());
+        return Query.and(
+                HytaleVersion.get().npcComponentType(), Frozen.getComponentType(), TickThrottled.getComponentType());
     }
 }

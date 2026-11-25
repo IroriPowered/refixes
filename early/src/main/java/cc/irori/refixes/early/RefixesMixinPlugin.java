@@ -1,18 +1,21 @@
 package cc.irori.refixes.early;
 
+import cc.irori.refixes.version.HytaleLine;
+import cc.irori.refixes.version.HytaleVersions;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
-import java.net.JarURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -20,10 +23,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.jar.Attributes;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.launch.MixinInitialisationError;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
-import org.spongepowered.asm.service.ServiceNotAvailableError;
 
 public class RefixesMixinPlugin implements IMixinConfigPlugin {
 
@@ -172,7 +175,10 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             "Diagnostics",
             "Experimental");
 
-    private static final String TARGET_SERVER_VERSION = "0.7.7";
+    private static final List<String> TARGET_SERVER_VERSIONS =
+            Arrays.stream(HytaleLine.values()).map(HytaleLine::target).toList();
+
+    private static volatile String targetVersion = TARGET_SERVER_VERSIONS.getFirst();
 
     private record MixinToggle(
             String[] jsonPath,
@@ -181,27 +187,47 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             boolean runtimeDependency,
             List<String> uses) {}
 
+    enum Gate {
+        ALL,
+        OVERRIDDEN,
+        UNCHANGED,
+        DISABLED
+    }
+
     private record Dependency(String feature, String dependency) {}
+
+    private static final String HYINIT_PLUGIN_ID = "IroriPowered:Refixes";
+
+    private static final int REQUIRED_HYINIT_API = 2;
+    private static final String REQUIRED_HYINIT = "0.5.0";
 
     private static final List<Dependency> DEPENDENCIES = List.of(
             new Dependency("Mixins.Experimental.Parallel.CollectVisible", "Mixins.Correctness.ParallelTaskLifecycle"),
-            new Dependency("Mixins.Correctness.WorldTransfer", "Mixins.Correctness.StorageOrdering"),
-            new Dependency("Mixins.Correctness.WorldRetirement", "Mixins.Correctness.WorldReopenGuard"),
             new Dependency("Mixins.Correctness.OutgoingQueueLimits", "Mixins.Correctness.SetupPacing"),
             new Dependency("Mixins.Features.SharedInstances", "Mixins.Features.SharedInstanceStorage"),
-            new Dependency("Mixins.Optimizations.SkipUnchangedLightSaves", "Mixins.Correctness.BlockChangeSaving"),
+            new Dependency("Mixins.Optimizations.SkipUnchangedLightSaves", "Mixins.Correctness.BlockChangeSaving"));
+
+    private static final List<Dependency> DEPENDENCIES_07 = List.of(
+            new Dependency("Mixins.Correctness.WorldTransfer", "Mixins.Correctness.StorageOrdering"),
+            new Dependency("Mixins.Correctness.WorldRetirement", "Mixins.Correctness.WorldReopenGuard"),
             new Dependency("Mixins.Optimizations.SkipUnchangedLightSaves", "Mixins.Correctness.FluidChangeSaving"));
+
+    private static final List<Dependency> DEPENDENCIES_08 = List.of();
+
+    private static volatile List<Dependency> dependencies = DEPENDENCIES;
 
     private static final List<MixinToggle> TOGGLES = List.of(
             toggle("Optimizations", "SpawnManagerRecalc", false, "MixinWorldSpawnManager", "MixinWorldSpawnLifecycle"),
             toggle("Optimizations", "RepulsionTicker", false, "MixinRepulsionTicker"),
             toggle("Optimizations", "RepulsionNeighbors", false, "MixinRepulsionNeighbors"),
+            toggle("Optimizations", "SkipEmptyLightSections", false, "MixinFloodLightCalculation"),
             toggle(
                     "Optimizations",
                     "LightNeutralBlocks",
                     false,
                     "MixinBlockSectionLightNeutral",
                     "MixinFloodLightNeutral",
+                    "MixinFloodLightNeutralV08",
                     "MixinFluidSectionLightNeutral",
                     "MixinBlockTypeAssetMapLightGeneration"),
             toggle(
@@ -241,19 +267,25 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     false,
                     "MixinImageBuilderExistingTerrain",
                     "MixinWorldMapTrackerMissingTerrain",
+                    "MixinWorldMapTrackerMissingTerrainV08",
+                    "MixinWorldMapImageTrackerMissingTerrain",
                     "MixinChunkGridExistingTerrain",
+                    "MixinChunkGridExistingTerrainV08",
                     "MixinLoadStateAccess"),
             toggle("Tuning", "TickWait", true, "MixinTickSleep"),
             toggle("Tuning", "PathfindingLimits", false, "MixinAStarLimits"),
-            toggle("Features", "OriginRetention", false, "MixinChunkUnloadingSystem"),
+            toggle("Features", "OriginRetention", false, "MixinChunkUnloadingSystem", "MixinSectionUnloadingSystem"),
             toggle(
                     "Features",
                     "SharedInstances",
                     false,
                     "MixinInstancesPlugin",
                     "MixinSharedInstanceResetWorld",
+                    "MixinSharedInstanceResetWorldV08",
                     "MixinSharedInstanceResetRemoval",
-                    "MixinSharedInstanceResetUniverse"),
+                    "MixinSharedInstanceResetRemovalV08",
+                    "MixinSharedInstanceResetUniverse",
+                    "MixinSharedInstanceResetUniverseV08"),
             toggle(
                     "Features",
                     "SharedInstanceStorage",
@@ -275,7 +307,9 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     false,
                     "MixinNPCSectionActivation",
                     "MixinNPCRoleActivation",
+                    "MixinNPCRoleActivationV08",
                     "MixinUnresolvedNPCRoleChange",
+                    "MixinUnresolvedNPCRoleChangeV08",
                     "MixinRoleChangeRequestAccess",
                     "MixinRoleChangeFlagAccess",
                     "MixinBuilderDependencyAccess",
@@ -325,6 +359,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "MixinFluidReplicateSnapshotFence",
                     "MixinTrackedColumnSectionFence",
                     "MixinChunkTrackerNotificationResync",
+                    "MixinChunkTrackerNotificationResyncV08",
                     "MixinBlockChunkNotificationPacket",
                     "MixinEnvironmentNotificationPacket",
                     "MixinWorldNotificationHandler",
@@ -332,7 +367,12 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Correctness", "WorldMapPacing", true, "MixinWorldMapPacing"),
             toggle("Recovery", "InteractionChain", false, "MixinInteractionChain"),
             toggle("Correctness", "MarkerAddRemoveSystem", true, "MixinMarkerAddRemoveSystem"),
-            toggle("Correctness", "TickingSpawnMarkerSystem", true, "MixinTickingSpawnMarkerSystem"),
+            toggle(
+                    "Correctness",
+                    "TickingSpawnMarkerSystem",
+                    true,
+                    "MixinTickingSpawnMarkerSystem",
+                    "MixinTickingSpawnMarkerSystemV08"),
             toggle("Recovery", "WorldMapTracker", false, "MixinWorldMapTracker"),
             toggle("Correctness", "WorldMapCache", true, "MixinWorldMapManager"),
             toggle("Recovery", "WorldSpawningSystem", false, "MixinWorldSpawningSystem"),
@@ -354,6 +394,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             runtimeToggle("IdleWorldPause", "MixinWorldPauseOwner"),
             runtimeToggle("UnknownBlockCleaner", "MixinBlockComponentSectionAccess", "MixinFluidSection"),
             runtimeToggle("Watchdog", "MixinTickingThreadAccess"),
+            runtimeToggle("ChunkLoader", "MixinChunkUnloadCommand"),
             toggle("Correctness", "WindowManager", true, "MixinWindowManager", "MixinWindowAccess"),
             toggle(
                     "Correctness",
@@ -373,6 +414,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "MixinPlayerTeleport",
                     "MixinCubicEntityTransfer",
                     "MixinEntityTransferAdmission",
+                    "MixinEntityTransferAdmissionV08",
                     "MixinUniverseResetOwnership",
                     "MixinPlayerResetCommand",
                     "MixinCubicTransferSaver",
@@ -388,6 +430,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                     "StorageOrdering",
                     true,
                     "MixinSaveCompletionWorld",
+                    "MixinSaveCompletionShutdown",
                     "MixinSaveCompletionTicking",
                     "MixinSaveCompletionChunk",
                     "MixinSaveCompletionSection",
@@ -446,7 +489,9 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                             "WorldOwnership",
                             true,
                             "MixinUniverseWorldOwnership",
+                            "MixinUniverseWorldOwnershipV08",
                             "MixinWorldOwnership",
+                            "MixinWorldOwnershipV08",
                             "MixinPortalInvalidDestinationSystem"),
                     "MixinTickingThreadAccess"),
             toggle(
@@ -517,7 +562,11 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             toggle("Backports", "StaticLayers", true, "MixinStaticLayerGeneration"),
             toggle("Backports", "ModelParticleScale", true, "MixinModelParticleScale"));
 
+    private static volatile List<MixinToggle> activeToggles = TOGGLES;
+
     private static final Set<String> ALL_MIXINS = allMixins();
+
+    private static final Set<String> SWITCH_PATHS = switchPaths();
 
     private String mixinPackage;
     private volatile Set<String> enabledMixins = Collections.emptySet();
@@ -552,6 +601,12 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         return Set.copyOf(mixins);
     }
 
+    private static Set<String> switchPaths() {
+        Set<String> paths = new HashSet<>();
+        for (MixinToggle toggle : TOGGLES) paths.add(path(toggle));
+        return Set.copyOf(paths);
+    }
+
     private static String path(MixinToggle toggle) {
         return String.join(".", toggle.jsonPath);
     }
@@ -570,65 +625,67 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
     }
 
     private void load() {
-        String serverVersion = readServerVersion();
         JsonObject config = readConfig(CONFIG_PATH);
-        List<String> settingMigrated = ConfigMigration.migrateOtherServerVersions(config);
-        ServerVersion.Relation relation = ServerVersion.relation(TARGET_SERVER_VERSION, serverVersion);
+        for (String note : ConfigCheck.check(config, SWITCH_PATHS))
+            System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + note);
+        String serverVersion = HytaleVersions.running();
         String versionLabel = serverVersion == null ? "unknown" : serverVersion;
-        boolean unsupportedServerVersion = relation != ServerVersion.Relation.TARGET;
-        String otherServerVersions = otherServerVersions(config);
-        boolean overridden = unsupportedServerVersion && otherServerVersions.equals(ALL_PATCHES);
-        boolean unchangedOnly = !overridden
-                && switch (relation) {
-                    case NEWER_SAME_MINOR -> !otherServerVersions.equals(NEVER);
-                    case NEWER_MINOR -> otherServerVersions.equals(ALL_NEWER_VERSIONS);
-                    default -> false;
-                };
-        if (unsupportedServerVersion && !overridden && !unchangedOnly) {
-            for (String line : settingMigrated)
-                System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
-            System.out.println("[Refixes] " + refusal(relation, versionLabel));
-            disable(config, versionLabel);
+        if (HytaleVersions.hyinitApi() < REQUIRED_HYINIT_API) {
+            String hyinit = HytaleVersions.hyinitVersion();
+            disable(
+                    config,
+                    "hyinit:" + (hyinit == null ? "unknown" : hyinit),
+                    "Early patches are off because " + (hyinit == null ? "this Hyinit" : "Hyinit " + hyinit)
+                            + " is older than " + REQUIRED_HYINIT + ". Update Hyinit to " + REQUIRED_HYINIT
+                            + " or newer.");
+            return;
+        }
+        Set<String> unavailable = unavailable(serverVersion);
+        activeToggles = activeToggles(unavailable);
+        HytaleLine hytaleLine = HytaleLine.nearest(serverVersion);
+        List<Dependency> versionDependencies = new ArrayList<>(DEPENDENCIES);
+        versionDependencies.addAll(lineDependencies(hytaleLine));
+        dependencies = List.copyOf(versionDependencies);
+        targetVersion = hytaleLine.target();
+        ServerVersion.Relation relation = ServerVersion.gate(hytaleLine, serverVersion);
+        Gate gate = gate(serverVersion, otherServerVersions(config));
+        boolean overridden = gate == Gate.OVERRIDDEN;
+        boolean unchangedOnly = gate == Gate.UNCHANGED;
+        if (gate == Gate.DISABLED) {
+            disable(config, "disabled:" + versionLabel, refusal(relation, versionLabel), unsupported(versionLabel));
             return;
         }
         requireFabricMixinSupport(RefixesMixinPlugin.class.getClassLoader());
         JsonObject runtimeConfig = readConfig(RUNTIME_CONFIG_PATH);
-        Set<String> currentToggles = new HashSet<>();
-        for (MixinToggle toggle : TOGGLES) currentToggles.add(path(toggle));
-        List<String> migrated = new ArrayList<>(settingMigrated);
-        migrated.addAll(ConfigMigration.migrateMixins(config, currentToggles));
-        List<String> runtimeMigrated = ConfigMigration.migrateRuntime(runtimeConfig);
         try {
             EarlyOptions.initializeOutgoingQueueLimits(runtimeConfig);
         } catch (IllegalStateException failure) {
             throw new IllegalStateException(RUNTIME_CONFIG_PATH + ": " + failure.getMessage(), failure);
         }
         Set<String> required = runtimeDependencies(runtimeConfig);
-        validateDependencies(config);
-        Set<String> selected = selection(config, required, Set.of());
+        JsonObject effective = withoutUnmetDependencies(config);
+        Set<String> selected = without(selection(effective, required, Set.of()), unavailable);
         Map<String, List<String>> skipped = Map.of();
         boolean sameMinor = relation == ServerVersion.Relation.NEWER_SAME_MINOR;
         if (unchangedOnly) {
-            TargetFingerprints.Baseline baseline;
-            TargetFingerprints.Result result;
+            Map<String, List<String>> changes;
             try {
-                baseline = TargetFingerprints.baseline();
-                result = TargetFingerprints.compare(baseline, selected, TargetFingerprints.mixinBytecode());
-            } catch (IOException | RuntimeException | LinkageError | ServiceNotAvailableError failure) {
+                changes = hyinitChanges(mixinPackage + ".", selected);
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
                 System.out.println("[Refixes] Could not compare the Hytale " + versionLabel
                         + " code with the code Refixes was built for (" + failure + ").");
                 failure.printStackTrace(System.out);
-                disable(config, versionLabel);
+                disable(config, "disabled:" + versionLabel, unsupported(versionLabel));
                 return;
             }
-            skipped = skippedSwitches(config, required, result.changes(), sameMinor);
+            skipped = skippedSwitches(effective, required, changes, sameMinor);
             int switches = 0;
-            for (MixinToggle toggle : TOGGLES) {
-                if (toggleEnabled(config, toggle)
+            for (MixinToggle toggle : activeToggles) {
+                if (toggleEnabled(effective, toggle)
                         && !toggleMixins(toggle, required).isEmpty()) switches++;
             }
-            selected = selection(config, required, skipped.keySet());
-            printUnchanged(versionLabel, result, switches, skipped);
+            selected = without(selection(effective, required, skipped.keySet()), unavailable);
+            printUnchanged(versionLabel, switches, skipped);
         }
         enabledMixins = selected;
         EarlyOptions.setMixinSelection(selected);
@@ -642,45 +699,98 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             System.out.println("[Refixes] Version gate overridden for Hytale " + versionLabel + " by "
                     + OTHER_SERVER_VERSIONS + "=" + ALL_PATCHES + ". Applying configured mixins.");
         }
-        for (String line : migrated) System.out.println("[Refixes] " + CONFIG_PATH.getFileName() + ": " + line);
-        for (String line : runtimeMigrated)
-            System.out.println("[Refixes] " + RUNTIME_CONFIG_PATH.getFileName() + ": " + line);
         writeConfig(CONFIG_PATH, serializeMixins(config));
-        if (!runtimeMigrated.isEmpty()) writeConfig(RUNTIME_CONFIG_PATH, runtimeConfig);
         System.out.println("[Refixes] === Early mixin patches ===");
-        for (String mixin : ALL_MIXINS.stream().sorted().toList())
+        for (String mixin : without(ALL_MIXINS, unavailable).stream().sorted().toList())
             System.out.println("[Refixes]   - " + (selected.contains(mixin) ? "[x] " : "[ ] ") + mixin);
         if (EarlyOptions.patchCountersEnabled())
             System.out.println("[Refixes] Patch counters are on. Run /patchcounters to read them.");
     }
 
-    private void disable(JsonObject config, String versionLabel) {
+    private void disable(JsonObject config, String gateState, String... lines) {
         EarlyOptions.setMixinSelection(Set.of());
-        EarlyOptions.setVersionGate("disabled:" + versionLabel);
+        EarlyOptions.setVersionGate(gateState);
         EarlyOptions.setChangedSwitches(changedSwitches(config));
         initialized = true;
-        System.out.println("[Refixes] Early mixins disabled for Hytale " + versionLabel + ". Refixes supports Hytale "
-                + TARGET_SERVER_VERSION + ". Update Refixes for this server version.");
+        for (String line : lines) System.out.println("[Refixes] " + line);
+    }
+
+    private static String unsupported(String versionLabel) {
+        return "Early mixins disabled for Hytale " + versionLabel + ". Refixes supports Hytale "
+                + String.join(" and ", TARGET_SERVER_VERSIONS) + ". Update Refixes for this server version.";
     }
 
     private static String refusal(ServerVersion.Relation relation, String versionLabel) {
-        String target = ", the version this Refixes build was made for.";
+        String madeFor = ", the version this Refixes build was made for.";
         return switch (relation) {
             case OLDER ->
-                "Hytale " + versionLabel + " is older than " + TARGET_SERVER_VERSION + target
+                "Hytale " + versionLabel + " is older than " + targetVersion + madeFor
                         + " Early patches apply on older versions only when " + OTHER_SERVER_VERSIONS + " is "
                         + ALL_PATCHES + ".";
             case NEWER_SAME_MINOR ->
-                "Hytale " + versionLabel + " is newer than " + TARGET_SERVER_VERSION + target + " "
-                        + OTHER_SERVER_VERSIONS + " is " + NEVER + ".";
+                "Hytale " + versionLabel + " is newer than " + targetVersion + madeFor + " " + OTHER_SERVER_VERSIONS
+                        + " is " + NEVER + ".";
             case NEWER_MINOR ->
-                "Hytale " + versionLabel + " is newer than " + TARGET_SERVER_VERSION + target
-                        + " On versions after Hytale " + ServerVersion.minor(TARGET_SERVER_VERSION)
+                "Hytale " + versionLabel + " is newer than " + targetVersion + madeFor
+                        + " On versions after Hytale " + ServerVersion.minor(targetVersion)
                         + " early patches apply only when " + OTHER_SERVER_VERSIONS + " is " + ALL_NEWER_VERSIONS
                         + " or " + ALL_PATCHES + ".";
-            default ->
-                "Refixes cannot compare the Hytale version " + versionLabel + " with " + TARGET_SERVER_VERSION + target;
+            default -> "Refixes cannot compare the Hytale version " + versionLabel + " with " + targetVersion + madeFor;
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, List<String>> hyinitChanges(String prefix, Set<String> mixins)
+            throws ReflectiveOperationException {
+        Class<?> api = Class.forName(
+                "cc.irori.hyinit.shared.HyinitDiagnostics", false, RefixesMixinPlugin.class.getClassLoader());
+        return hyinitChanges(
+                (Map<String, Object>) api.getMethod("snapshot").invoke(null), targetVersion, prefix, mixins);
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, List<String>> hyinitChanges(
+            Map<String, Object> snapshot, String target, String prefix, Set<String> mixins) {
+        int compared = 0;
+        for (Map<?, ?> check : (List<Map<?, ?>>) snapshot.get("fingerprintChecks")) {
+            if (!HYINIT_PLUGIN_ID.equals(check.get("pluginId"))) continue;
+            if (!"compared".equals(check.get("status")) || !"checked".equals(check.get("usedMembers")))
+                throw new IllegalStateException("Hyinit could not compare the fingerprints of " + check.get("jar"));
+            if (!(check.get("baseline") instanceof String baseline)
+                    || ServerVersion.relation(target, baseline) != ServerVersion.Relation.TARGET)
+                throw new IllegalStateException("Hyinit compared " + check.get("jar") + " with Hytale "
+                        + check.get("baseline") + ", not with Hytale " + target);
+            compared++;
+        }
+        if (compared == 0)
+            throw new IllegalStateException(
+                    "Hyinit " + snapshot.get("hyinitVersion") + " did not compare the Refixes fingerprints");
+        Map<String, List<String>> changes = new LinkedHashMap<>();
+        for (Map<?, ?> changed : (List<Map<?, ?>>) snapshot.get("changedTargets")) {
+            String mixin = (String) changed.get("mixin");
+            if (!mixin.startsWith(prefix)) continue;
+            String name = mixin.substring(prefix.length());
+            if (!mixins.contains(name)) continue;
+            Object member = changed.get("member");
+            Object baseline = changed.get("baseline");
+            changes.computeIfAbsent(name, unused -> new ArrayList<>())
+                    .add(changed.get("kind") + " " + changed.get("class") + (member == null ? "" : "." + member) + " "
+                            + changed.get("status") + (baseline == null ? "" : " since Hytale " + baseline));
+        }
+        return changes;
+    }
+
+    static Gate gate(String serverVersion, String otherServerVersions) {
+        HytaleLine hytaleLine = HytaleLine.nearest(serverVersion);
+        ServerVersion.Relation relation = ServerVersion.gate(hytaleLine, serverVersion);
+        if (relation == ServerVersion.Relation.TARGET) return Gate.ALL;
+        if (otherServerVersions.equals(ALL_PATCHES) && hytaleLine.covers(serverVersion)) return Gate.OVERRIDDEN;
+        boolean unchanged = switch (relation) {
+            case NEWER_SAME_MINOR -> !otherServerVersions.equals(NEVER);
+            case NEWER_MINOR -> otherServerVersions.equals(ALL_NEWER_VERSIONS);
+            default -> false;
+        };
+        return unchanged ? Gate.UNCHANGED : Gate.DISABLED;
     }
 
     private static String otherServerVersions(JsonObject config) {
@@ -691,6 +801,38 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                         && OTHER_SERVER_VERSIONS_VALUES.contains(value.getAsString())
                 ? value.getAsString()
                 : OTHER_SERVER_VERSIONS_DEFAULT;
+    }
+
+    private Set<String> unavailable(String serverVersion) {
+        Set<String> unavailable = new HashSet<>();
+        ClassLoader loader = RefixesMixinPlugin.class.getClassLoader();
+        for (String mixin : ALL_MIXINS) {
+            String resource = mixinPackage.replace('.', '/') + "/" + mixin + ".class";
+            try (InputStream input = loader.getResourceAsStream(resource)) {
+                if (input == null) continue;
+                ClassNode node = new ClassNode();
+                new ClassReader(input.readAllBytes())
+                        .accept(node, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+                if (!MixinAnnotations.applies(node, serverVersion)) unavailable.add(mixin);
+            } catch (IOException failure) {
+                throw new IllegalStateException("Could not read " + resource + " from the Refixes JAR", failure);
+            }
+        }
+        return Set.copyOf(unavailable);
+    }
+
+    private static List<MixinToggle> activeToggles(Set<String> unavailable) {
+        List<MixinToggle> active = new ArrayList<>();
+        for (MixinToggle toggle : TOGGLES) {
+            if (toggle.mixins.isEmpty() || !unavailable.containsAll(toggle.mixins)) active.add(toggle);
+        }
+        return List.copyOf(active);
+    }
+
+    private static Set<String> without(Set<String> mixins, Set<String> unavailable) {
+        Set<String> kept = new HashSet<>(mixins);
+        kept.removeAll(unavailable);
+        return Set.copyOf(kept);
     }
 
     private static Set<String> toggleMixins(MixinToggle toggle, Set<String> required) {
@@ -704,7 +846,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
 
     private static Set<String> selection(JsonObject config, Set<String> required, Set<String> skipped) {
         Set<String> enabled = new HashSet<>();
-        for (MixinToggle toggle : TOGGLES) {
+        for (MixinToggle toggle : activeToggles) {
             if (toggleEnabled(config, toggle) && !skipped.contains(path(toggle)))
                 enabled.addAll(toggleMixins(toggle, required));
         }
@@ -714,7 +856,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
     private static Map<String, List<String>> skippedSwitches(
             JsonObject config, Set<String> required, Map<String, List<String>> changes, boolean sameMinor) {
         Map<String, List<String>> skipped = new LinkedHashMap<>();
-        for (MixinToggle toggle : TOGGLES) {
+        for (MixinToggle toggle : activeToggles) {
             if (!toggleEnabled(config, toggle)) continue;
             Set<String> mixins = toggleMixins(toggle, required);
             if (mixins.isEmpty()) continue;
@@ -735,14 +877,14 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                 skipped.put(
                         path(toggle),
                         List.of("it " + worldData.reason() + ", and switches that delete, move or rewrite world data"
-                                + " apply only on Hytale " + TARGET_SERVER_VERSION));
+                                + " apply only on Hytale " + targetVersion));
                 continue;
             }
             if (worldData != null && !sameMinor) {
                 skipped.put(
                         path(toggle),
                         List.of("it " + worldData.reason() + ", and switches that write, load or order world data"
-                                + " apply only on Hytale " + ServerVersion.minor(TARGET_SERVER_VERSION) + " versions"));
+                                + " apply only on Hytale " + ServerVersion.minor(targetVersion) + " versions"));
                 continue;
             }
             List<String> reasons = new ArrayList<>();
@@ -753,7 +895,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         }
         for (boolean cascaded = true; cascaded; ) {
             cascaded = false;
-            for (Dependency dependency : DEPENDENCIES) {
+            for (Dependency dependency : dependencies) {
                 if (skipped.containsKey(dependency.dependency())
                         && !skipped.containsKey(dependency.feature())
                         && toggleEnabled(config, toggle(dependency.feature()))) {
@@ -766,36 +908,13 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         return skipped;
     }
 
-    private static void printUnchanged(
-            String versionLabel, TargetFingerprints.Result result, int switches, Map<String, List<String>> skipped) {
-        System.out.println("[Refixes] Hytale " + versionLabel + " is newer than " + TARGET_SERVER_VERSION
+    private static void printUnchanged(String versionLabel, int switches, Map<String, List<String>> skipped) {
+        System.out.println("[Refixes] Hytale " + versionLabel + " is newer than " + targetVersion
                 + ", the version this Refixes build was made for. Applied " + (switches - skipped.size())
                 + " patches whose Hytale code is unchanged, skipped " + skipped.size() + ".");
         for (Map.Entry<String, List<String>> entry : skipped.entrySet()) {
             System.out.println("[Refixes]   - " + entry.getKey());
             for (String reason : entry.getValue()) System.out.println("[Refixes]       " + reason);
-        }
-        for (Map.Entry<String, List<String>> entry : result.changes().entrySet()) {
-            if (!entry.getKey().startsWith(TargetFingerprints.PLUGIN_GROUP)) continue;
-            System.out.println("[Refixes] Hytale members that changed for runtime plugin class "
-                    + entry.getKey().substring(TargetFingerprints.PLUGIN_GROUP.length()) + ":");
-            for (String change : entry.getValue()) System.out.println("[Refixes]       " + change);
-        }
-    }
-
-    private static String readServerVersion() {
-        try {
-            var resource = RefixesMixinPlugin.class.getClassLoader().getResource("com/hypixel/hytale/Main.class");
-            if (resource == null || !(resource.openConnection() instanceof JarURLConnection connection)) return null;
-            connection.setUseCaches(false);
-            try (var jar = connection.getJarFile()) {
-                var manifest = jar.getManifest();
-                if (manifest == null) return null;
-                String version = manifest.getMainAttributes().getValue(Attributes.Name.IMPLEMENTATION_VERSION);
-                return version == null ? null : version.trim();
-            }
-        } catch (IOException | SecurityException failure) {
-            return null;
         }
     }
 
@@ -823,17 +942,35 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
                         getOptionalBoolean(runtimeConfig, "Runtime", "Tuning", "PerPlayerHotRadius", "Enabled")))
             required.add("MixinChunkTrackerRadiusWrites");
         if (idlePlayer) required.add("MixinPlayerRadiusWrites");
+        if (!Boolean.FALSE.equals(getOptionalBoolean(runtimeConfig, "Runtime", "Features", "ChunkLoader", "Enabled")))
+            required.add("MixinChunkUnloadCommand");
         return required;
     }
 
-    private static void validateDependencies(JsonObject config) {
-        for (Dependency dependency : DEPENDENCIES) {
-            if (toggleEnabled(config, toggle(dependency.feature())))
-                requireDependency(
-                        toggleEnabled(config, toggle(dependency.dependency())),
-                        dependency.feature(),
-                        dependency.dependency());
+    private static List<Dependency> lineDependencies(HytaleLine line) {
+        return switch (line) {
+            case V07 -> DEPENDENCIES_07;
+            case V08 -> DEPENDENCIES_08;
+        };
+    }
+
+    private static JsonObject withoutUnmetDependencies(JsonObject config) {
+        JsonObject effective = config.deepCopy();
+        for (boolean cascaded = true; cascaded; ) {
+            cascaded = false;
+            for (Dependency dependency : dependencies) {
+                MixinToggle feature = toggle(dependency.feature());
+                if (!activeToggles.contains(feature)
+                        || !toggleEnabled(effective, feature)
+                        || toggleEnabled(effective, toggle(dependency.dependency()))) continue;
+                setBoolean(effective, feature.jsonPath, false);
+                System.out.println("[Refixes] " + dependency.feature() + " is off on this start because it needs "
+                        + dependency.dependency() + ", which is off. Turn on " + dependency.dependency() + " in "
+                        + CONFIG_PATH + " to use it.");
+                cascaded = true;
+            }
         }
+        return effective;
     }
 
     private static MixinToggle toggle(String path) {
@@ -841,11 +978,6 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
             if (path(toggle).equals(path)) return toggle;
         }
         throw new IllegalArgumentException("Unknown mixin policy: " + path);
-    }
-
-    private static void requireDependency(boolean available, String feature, String dependency) {
-        if (!available)
-            throw new IllegalStateException(feature + " requires " + dependency + " to be enabled in " + CONFIG_PATH);
     }
 
     private static boolean toggleEnabled(JsonObject config, String category, String key) {
@@ -866,7 +998,7 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
         List<String> changed = new ArrayList<>();
         if (!otherServerVersions(config).equals(OTHER_SERVER_VERSIONS_DEFAULT))
             changed.add(OTHER_SERVER_VERSIONS + "=" + otherServerVersions(config));
-        for (MixinToggle toggle : TOGGLES) {
+        for (MixinToggle toggle : activeToggles) {
             boolean enabled = toggleEnabled(config, toggle);
             if (enabled != toggle.defaultEnabled) changed.add(path(toggle) + "=" + enabled);
         }
@@ -911,23 +1043,31 @@ public class RefixesMixinPlugin implements IMixinConfigPlugin {
     }
 
     private static JsonObject serializeMixins(JsonObject config) {
-        JsonObject mixins = new JsonObject();
-        for (String category : CATEGORIES) mixins.add(category, new JsonObject());
-        for (MixinToggle toggle : TOGGLES)
-            setBoolean(
-                    mixins,
-                    java.util.Arrays.copyOfRange(toggle.jsonPath, 1, toggle.jsonPath.length),
-                    toggleEnabled(config, toggle));
         config.addProperty(OTHER_SERVER_VERSIONS, otherServerVersions(config));
+        JsonObject mixins = config.get("Mixins") instanceof JsonObject existing ? existing : new JsonObject();
         config.add("Mixins", mixins);
+        for (String category : CATEGORIES) {
+            for (MixinToggle toggle : activeToggles) {
+                if (toggle.jsonPath[1].equals(category)) {
+                    if (!(mixins.get(category) instanceof JsonObject)) mixins.add(category, new JsonObject());
+                    break;
+                }
+            }
+        }
+        for (MixinToggle toggle : activeToggles) {
+            if (getOptionalBoolean(config, toggle.jsonPath) == null)
+                setBoolean(config, toggle.jsonPath, toggle.defaultEnabled);
+        }
         return config;
     }
 
     private static void writeConfig(Path path, JsonObject config) {
         String content = new GsonBuilder().setPrettyPrinting().create().toJson(config);
         try {
-            if (Files.isRegularFile(path)
-                    && Files.readString(path, StandardCharsets.UTF_8).equals(content)) return;
+            if (Files.isRegularFile(path)) {
+                if (Files.readString(path, StandardCharsets.UTF_8).equals(content)) return;
+                Files.copy(path, path.resolveSibling(path.getFileName() + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+            }
             Files.createDirectories(path.getParent());
             Path temporary =
                     Files.createTempFile(path.getParent(), path.getFileName().toString(), ".tmp");

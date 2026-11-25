@@ -105,7 +105,8 @@ public final class NativePatchRegression {
     private static void loadStateRetry() throws Exception {
         Object state = newLoadState();
         set(state, "flags", 7);
-        set(state, "cleanupAttached", true);
+        boolean cleanup = hasField(state, "cleanupAttached");
+        if (cleanup) set(state, "cleanupAttached", true);
         set(state, "future", CompletableFuture.failedFuture(new IllegalStateException("stale")));
         set(state, "throwable", new IllegalStateException("stale"));
         set(state, "failedCounter", 1);
@@ -114,7 +115,7 @@ public final class NativePatchRegression {
         reset.setAccessible(true);
         if (Boolean.TRUE.equals(reset.invoke(state))) throw new AssertionError("Fixture backoff did not expire");
         boolean fresh = get(state, "future") == null && ((Integer) get(state, "flags")) == 0
-                && !((Boolean) get(state, "cleanupAttached"));
+                && !(cleanup && (Boolean) get(state, "cleanupAttached"));
         if (!fresh) throw new AssertionError("Failed load chain was not reset after backoff");
     }
 
@@ -159,6 +160,15 @@ public final class NativePatchRegression {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
+    }
+
+    private static boolean hasField(Object target, String name) {
+        try {
+            target.getClass().getDeclaredField(name);
+            return true;
+        } catch (NoSuchFieldException absent) {
+            return false;
+        }
     }
 
     private static void set(Object target, String name, Object value) throws Exception {

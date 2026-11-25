@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.EarlyOptions;
 import cc.irori.refixes.early.OutgoingQueueLimits;
 import cc.irori.refixes.early.duck.QuicheQueueOwner;
@@ -678,10 +680,6 @@ public final class QueueLimitsRegression {
         Field singleton = unsafeType.getDeclaredField("theUnsafe");
         singleton.setAccessible(true);
         return unsafeType.getMethod("allocateInstance", Class.class).invoke(singleton.get(null), type);
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 
     private record SizedPacket(int sequence, int size) implements ToClientPacket {

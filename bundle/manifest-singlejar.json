@@ -8,13 +8,15 @@
     "HyinitSharedPackages": [
         "cc.irori.refixes.early"
     ],
+    "HyinitChangedTargets": "compare",
+    "HyinitFingerprintAtTargets": true,
     "Authors": [
         {
             "Name": "KabanFriends",
             "Url": "https://github.com/KabanFriends"
         }
     ],
-    "ServerVersion": ">=${hytaleVersion}",
+    "ServerVersion": "${hytaleVersion}",
     "Dependencies": {},
     "OptionalDependencies": {},
     "IncludesAssetPack": true,

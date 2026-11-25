@@ -1,5 +1,6 @@
 package cc.irori.refixes.early.mixin;
 
+import cc.irori.hyinit.api.IfHytale;
 import cc.irori.refixes.early.duck.EntityAdmission;
 import cc.irori.refixes.early.util.WorldPolicyTransfer;
 import cc.irori.refixes.early.util.WorldTransferRecovery;
@@ -41,10 +42,23 @@ public abstract class MixinWorldTransfer implements EntityAdmission {
     @Unique
     private volatile boolean refixes$closing;
 
+    @IfHytale(">=0.8.0-pre.1 || >=0.9.0-0")
+    @Inject(
+            method = "stopIndividualWorldAsync(Ljava/util/Map;)Ljava/util/concurrent/CompletableFuture;",
+            at = @At("HEAD"))
+    private void refixes$cancelTransfersOnStop(CallbackInfoReturnable<CompletableFuture<Void>> cir) {
+        refixes$cancelTransfers();
+    }
+
     @Inject(
             method = {"stopIndividualWorld(Ljava/util/Map;)V", "onShutdown"},
             at = @At("HEAD"))
-    private void refixes$cancelTransfers(CallbackInfo ci) {
+    private void refixes$cancelTransfersOnShutdown(CallbackInfo ci) {
+        refixes$cancelTransfers();
+    }
+
+    @Unique
+    private void refixes$cancelTransfers() {
         synchronized (refixes$admission) {
             synchronized (refixes$queue) {
                 refixes$closing = true;

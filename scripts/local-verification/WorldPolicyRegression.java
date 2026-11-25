@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.early.util.PathfindingBudget;
 import cc.irori.refixes.early.util.WorldPolicySaveJoin;
 import cc.irori.refixes.early.util.WorldPolicyTaskCoalescer;
@@ -113,9 +115,5 @@ public final class WorldPolicyRegression {
         } catch (IllegalStateException expected) {
             require(WorldPolicyTaskCoalescer.submit(failedWorld, queue::add, () -> {}), "task failure releases key");
         }
-    }
-
-    private static void require(boolean value, String message) {
-        if (!value) throw new AssertionError(message);
     }
 }

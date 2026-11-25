@@ -12,6 +12,7 @@ public ComponentType<ChunkStore,Object> getNonTickingComponentType() {return non
 }
 public final List<CompletableFuture<Ref<ChunkStore>>> columns=new ArrayList<>();
 public final List<CompletableFuture<Ref<ChunkStore>>> sections=new ArrayList<>();
+public final List<Integer> sectionYs=new ArrayList<>();
 private final World world;
 private final Store<ChunkStore> store;
 public ChunkStore(World world) {this.world=world;store=new Store<>(this);}
@@ -23,6 +24,7 @@ var f=new CompletableFuture<Ref<ChunkStore>>();columns.add(f);return f;
 }
 public CompletableFuture<Ref<ChunkStore>> getChunkSectionReferenceAsync(int x,int y,int z,int flags) {
 if(flags!=GetChunkFlags.SET_TICKING) throw new AssertionError("section not ticking");
-var f=new CompletableFuture<Ref<ChunkStore>>();sections.add(f);return f;
+var f=new CompletableFuture<Ref<ChunkStore>>();sections.add(f);sectionYs.add(y);return f;
 }
+public CompletableFuture<Ref<ChunkStore>> section(int y) {return sections.get(sectionYs.lastIndexOf(y));}
 }

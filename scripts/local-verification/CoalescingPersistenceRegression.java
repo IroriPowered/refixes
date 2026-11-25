@@ -1,5 +1,7 @@
 package cc.irori.refixes.service;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -307,9 +309,5 @@ public final class CoalescingPersistenceRegression {
         reopened.submit("world", "new");
         reopened.close();
         require(Files.readString(dir.resolve("world")).equals("new"), "new generation lost");
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }

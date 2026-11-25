@@ -1,5 +1,7 @@
 package cc.irori.refixes.service;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import cc.irori.refixes.config.impl.WatchdogConfig;
 import cc.irori.refixes.config.impl.WatchdogRecoveryConfig;
 
@@ -29,9 +31,5 @@ public final class WatchdogPolicyRegression {
             recovery.setValue(action, false);
         }
         System.out.println("WatchdogPolicyRegression passed");
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }

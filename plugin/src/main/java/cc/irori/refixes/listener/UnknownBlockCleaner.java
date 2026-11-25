@@ -3,6 +3,7 @@ package cc.irori.refixes.listener;
 import cc.irori.refixes.config.impl.UnknownBlockCleanerConfig;
 import cc.irori.refixes.early.accessor.BlockComponentSectionAccess;
 import cc.irori.refixes.early.duck.UnknownFluidScannable;
+import cc.irori.refixes.early.util.RefixesScheduler;
 import cc.irori.refixes.jfr.RefixesEvents;
 import cc.irori.refixes.util.Early;
 import cc.irori.refixes.util.Logs;
@@ -18,7 +19,6 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.RotationTuple;
 import com.hypixel.hytale.server.core.asset.type.fluid.Fluid;
@@ -74,17 +74,18 @@ public final class UnknownBlockCleaner {
             }
         });
         int intervalMs = Math.max(20, UnknownBlockCleanerConfig.get().getValue(UnknownBlockCleanerConfig.INTERVAL_MS));
-        cleanerTask = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
-                () -> {
-                    try {
-                        drainQueue(currentGeneration);
-                    } catch (Exception e) {
-                        LOGGER.atSevere().withCause(e).log("Error in unknown block cleaner");
-                    }
-                },
-                1000,
-                intervalMs,
-                TimeUnit.MILLISECONDS);
+        cleanerTask = RefixesScheduler.get()
+                .scheduleAtFixedRate(
+                        () -> {
+                            try {
+                                drainQueue(currentGeneration);
+                            } catch (Exception e) {
+                                LOGGER.atSevere().withCause(e).log("Error in unknown block cleaner");
+                            }
+                        },
+                        1000,
+                        intervalMs,
+                        TimeUnit.MILLISECONDS);
     }
 
     public static synchronized void shutdown() {

@@ -1,5 +1,7 @@
 package local.hyinit.verify;
 
+import static local.hyinit.verify.RegressionRunner.require;
+
 import com.hypixel.hytale.component.Ref;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import java.lang.reflect.InvocationTargetException;
@@ -46,7 +48,7 @@ public final class WrapperRegression {
             calls.incrementAndGet();
             return null;
         });
-        check(calls.get() == 1, "world-map original was not called exactly once");
+        require(calls.get() == 1, "world-map original was not called exactly once");
         call(first, "refixes$wrapUnloadImages", 0, 0, 0, failing(new NullPointerException()));
         expect(IllegalStateException.class, () -> call(first, "refixes$wrapUnloadImages", 0, 0, 0,
                 failing(new IllegalStateException())));
@@ -56,7 +58,7 @@ public final class WrapperRegression {
             continued.incrementAndGet();
             return null;
         });
-        check(continued.get() == 1, "nested world-map containment changed");
+        require(continued.get() == 1, "nested world-map containment changed");
         AtomicReference<Throwable> threadFailure = new AtomicReference<>();
         call(first, "refixes$wrapUnloadImages", 0, 0, 0, (Operation<Void>) args -> {
             Thread thread = new Thread(() -> {
@@ -72,46 +74,46 @@ public final class WrapperRegression {
             } catch (InterruptedException failure) {
                 throw new AssertionError(failure);
             }
-            check(!thread.isAlive(), "thread-isolation probe did not finish");
+            require(!thread.isAlive(), "thread-isolation probe did not finish");
             return null;
         });
-        check(threadFailure.get() == null, "guard leaked between threads");
+        require(threadFailure.get() == null, "guard leaked between threads");
     }
 
     private static void spawning() throws Exception {
         Object first = fixture("MixinWorldSpawningSystem");
         Object second = fixture("MixinWorldSpawningSystem");
-        check(call(first, "refixes$wrapPickRandomChunk", null, null, null, null,
+        require(call(first, "refixes$wrapPickRandomChunk", null, null, null, null,
                 failing(new Exception())) == null, "spawn exception did not return null");
         expect(AssertionError.class, () -> call(first, "refixes$wrapPickRandomChunk", null, null, null, null,
                 failing(new AssertionError())));
         AtomicInteger continued = new AtomicInteger();
         call(first, "refixes$wrapPickRandomChunk", null, null, null, null, (Operation<Object>) args -> {
-            check(call(second, "refixes$wrapPickRandomChunk", null, null, null, null,
+            require(call(second, "refixes$wrapPickRandomChunk", null, null, null, null,
                     failing(new Exception())) == null, "inner spawn exception did not return null");
             continued.incrementAndGet();
             return null;
         });
-        check(continued.get() == 1, "nested spawn containment changed");
+        require(continued.get() == 1, "nested spawn containment changed");
     }
 
     private static void npcKills() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         Object npc = fixture("MixinNPCKillsEntitySystem");
         Ref<?> ref = new Ref<>(null, 7);
-        check(ref.isValid(), "NPC fixture reference was not valid");
+        require(ref.isValid(), "NPC fixture reference was not valid");
         call(npc, "refixes$guardKillerRef", null, ref, null, (Operation<Object>) args -> {
             calls.incrementAndGet();
             return null;
         });
-        check(calls.get() == 1, "NPC valid reference did not chain exactly once");
+        require(calls.get() == 1, "NPC valid reference did not chain exactly once");
         expect(IllegalStateException.class, () -> call(npc, "refixes$guardKillerRef", null, ref, null,
                 failing(new IllegalStateException())));
         Method invalidate = Ref.class.getDeclaredMethod("invalidate");
         invalidate.setAccessible(true);
         invoke(invalidate, ref);
-        check(!ref.isValid(), "NPC fixture reference did not become invalid");
-        check(call(npc, "refixes$guardKillerRef", null, ref, null,
+        require(!ref.isValid(), "NPC fixture reference did not become invalid");
+        require(call(npc, "refixes$guardKillerRef", null, ref, null,
                 failing(new AssertionError("invalid reference reached original operation"))) == null,
                 "NPC invalid reference did not return null");
         expect(NullPointerException.class, () -> call(npc, "refixes$guardKillerRef", null, null, null,
@@ -129,7 +131,7 @@ public final class WrapperRegression {
                 fabricLoader(null, false, false), fabricLoader(17004, false, false),
                 fabricLoader(17005, true, false), fabricLoader(17005, false, true)}) {
             Throwable failure = expect(IllegalStateException.class, () -> invoke(guard, null, loader));
-            check(failure.getMessage().contains("0.17.5") && failure.getMessage().contains("Hyinit"),
+            require(failure.getMessage().contains("0.17.5") && failure.getMessage().contains("Hyinit"),
                     "runtime rejection was not actionable: " + failure);
         }
     }
@@ -186,7 +188,7 @@ public final class WrapperRegression {
     private static Object call(Object fixture, String name, Object... args) {
         Method method = Arrays.stream(fixture.getClass().getSuperclass().getDeclaredMethods())
                 .filter(candidate -> candidate.getName().equals(name)).findFirst().orElseThrow();
-        check(method.getParameterTypes()[method.getParameterCount() - 1] == Operation.class,
+        require(method.getParameterTypes()[method.getParameterCount() - 1] == Operation.class,
                 name + " does not compose the original operation");
         method.setAccessible(true);
         return invoke(method, fixture, args);
@@ -225,9 +227,5 @@ public final class WrapperRegression {
         var output = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out));
         output.println(message);
         output.flush();
-    }
-
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }
